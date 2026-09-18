@@ -14,6 +14,12 @@ const itemPayload = {
   stokMinimum: 20000,
 }
 
+function omit(obj: Record<string, unknown>, key: string): Record<string, unknown> {
+  const copy: Record<string, unknown> = { ...obj }
+  delete copy[key]
+  return copy
+}
+
 describe('createEvent', () => {
   it('stamps recordedAt from the clock', () => {
     const e = createEvent('ItemUpserted', itemPayload, opts)
@@ -54,5 +60,47 @@ describe('parseEvent', () => {
   it('rejects an unknown event type', () => {
     const e = createEvent('ItemUpserted', itemPayload, opts)
     expect(() => parseEvent({ ...e, type: 'NotAThing' })).toThrow()
+  })
+})
+
+describe('parseEvent envelope validation', () => {
+  it('rejects a missing id', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent(omit(e, 'id'))).toThrow()
+  })
+
+  it('rejects an empty-string id', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, id: '' })).toThrow()
+  })
+
+  it('rejects a missing deviceId', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent(omit(e, 'deviceId'))).toThrow()
+  })
+
+  it('rejects an empty-string deviceId', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, deviceId: '' })).toThrow()
+  })
+
+  it('rejects a serverSeq that is not a number', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, serverSeq: '42' })).toThrow()
+  })
+
+  it('rejects a serverSeq that is not an integer', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, serverSeq: 1.5 })).toThrow()
+  })
+
+  it('rejects a missing occurredAt', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent(omit(e, 'occurredAt'))).toThrow()
+  })
+
+  it('rejects a missing recordedAt', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent(omit(e, 'recordedAt'))).toThrow()
   })
 })
