@@ -10,17 +10,27 @@ export type UnitDef = {
 }
 
 export function qty(milli: number): Qty {
-  if (!Number.isInteger(milli)) {
+  if (!Number.isSafeInteger(milli)) {
     throw new Error(`Qty must be an integer in milli-units, received ${milli}`)
   }
   return milli as Qty
 }
 
-export const toBase = (value: number, unit: UnitDef): Qty =>
-  qty(Math.round(value * unit.factor * 1000))
+function validateFactor(factor: number): void {
+  if (!Number.isFinite(factor) || factor <= 0) {
+    throw new Error(`UnitDef factor must be a positive finite number, received ${factor}`)
+  }
+}
 
-export const fromBase = (q: Qty, unit: UnitDef): number =>
-  q / (unit.factor * 1000)
+export const toBase = (value: number, unit: UnitDef): Qty => {
+  validateFactor(unit.factor)
+  return qty(Math.round(value * unit.factor * 1000))
+}
+
+export const fromBase = (q: Qty, unit: UnitDef): number => {
+  validateFactor(unit.factor)
+  return q / (unit.factor * 1000)
+}
 
 /**
  * MASTER.md requires the cart line to show its working, so the arithmetic the

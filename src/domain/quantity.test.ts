@@ -9,6 +9,44 @@ describe('qty', () => {
   it('rejects non-integer milli-units', () => {
     expect(() => qty(1500.5)).toThrow(/integer/)
   })
+
+  it('rejects values beyond MAX_SAFE_INTEGER', () => {
+    expect(() => qty(Number.MAX_SAFE_INTEGER + 1)).toThrow(/integer/)
+  })
+})
+
+describe('UnitDef factor validation', () => {
+  it('rejects zero factor in toBase', () => {
+    expect(() => toBase(1, { unit: 'test', factor: 0 })).toThrow(/positive finite number/)
+  })
+
+  it('rejects negative factor in toBase', () => {
+    expect(() => toBase(1, { unit: 'test', factor: -1 })).toThrow(/positive finite number/)
+  })
+
+  it('rejects NaN factor in toBase', () => {
+    expect(() => toBase(1, { unit: 'test', factor: NaN })).toThrow(/positive finite number/)
+  })
+
+  it('rejects Infinity factor in toBase', () => {
+    expect(() => toBase(1, { unit: 'test', factor: Infinity })).toThrow(/positive finite number/)
+  })
+
+  it('rejects zero factor in fromBase', () => {
+    expect(() => fromBase(qty(1000), { unit: 'test', factor: 0 })).toThrow(/positive finite number/)
+  })
+
+  it('rejects negative factor in fromBase', () => {
+    expect(() => fromBase(qty(1000), { unit: 'test', factor: -1 })).toThrow(/positive finite number/)
+  })
+
+  it('rejects NaN factor in fromBase', () => {
+    expect(() => fromBase(qty(1000), { unit: 'test', factor: NaN })).toThrow(/positive finite number/)
+  })
+
+  it('rejects Infinity factor in fromBase', () => {
+    expect(() => fromBase(qty(1000), { unit: 'test', factor: Infinity })).toThrow(/positive finite number/)
+  })
 })
 
 describe('conversion', () => {
@@ -27,11 +65,21 @@ describe('conversion', () => {
   })
 
   it('round-trips exactly for many random values', () => {
-    const units: UnitDef[] = [TON, SAK, M3, { unit: 'kg', factor: 7 }]
+    const integerUnits: UnitDef[] = [TON, SAK, M3, { unit: 'kg', factor: 7 }]
+    const fractionalUnits: UnitDef[] = [
+      { unit: 'half', factor: 0.5 },
+      { unit: 'one-point-five', factor: 1.5 },
+    ]
     for (let i = 0; i < 500; i++) {
-      const unit = units[Math.floor(Math.random() * units.length)]
+      // Integer factors always round-trip exactly
+      const intUnit = integerUnits[Math.floor(Math.random() * integerUnits.length)]
       const value = Math.round(Math.random() * 1000 * 1000) / 1000  // 3dp
-      expect(fromBase(toBase(value, unit), unit)).toBeCloseTo(value, 3)
+      expect(fromBase(toBase(value, intUnit), intUnit)).toBe(value)
+
+      // Fractional factors can have rounding when value * factor * 1000 is not integral,
+      // tolerating up to 2 decimal places (0.005) for division rounding
+      const fracUnit = fractionalUnits[Math.floor(Math.random() * fractionalUnits.length)]
+      expect(fromBase(toBase(value, fracUnit), fracUnit)).toBeCloseTo(value, 2)
     }
   })
 })
