@@ -49,4 +49,36 @@ describe('projectItems', () => {
     ])
     expect(state).toEqual({})
   })
+
+  it('still applies the later write when recordedAt differs (non-tie case unaffected)', () => {
+    const forward = projectItems([
+      createEvent('ItemUpserted', base, at('2026-09-18T07:00:00.000Z')),
+      createEvent('ItemUpserted', { ...base, hargaEceran: 54000 }, at('2026-09-18T09:00:00.000Z')),
+    ])
+    expect(forward['semen'].hargaEceran).toBe(54000)
+
+    const reversed = projectItems([
+      createEvent('ItemUpserted', { ...base, hargaEceran: 54000 }, at('2026-09-18T09:00:00.000Z')),
+      createEvent('ItemUpserted', base, at('2026-09-18T07:00:00.000Z')),
+    ])
+    expect(reversed['semen'].hargaEceran).toBe(54000)
+  })
+
+  it('breaks a tie on identical recordedAt by event id, independent of fold order', () => {
+    // Two writes stamped with the exact same recordedAt (coarse clock
+    // resolution, or two events minted in the same tick). `second` is
+    // created after `first`, so its UUIDv7 id sorts strictly greater.
+    const first = createEvent('ItemUpserted', { ...base, hargaEceran: 52000 }, at('2026-09-18T07:00:00.000Z'))
+    const second = createEvent('ItemUpserted', { ...base, hargaEceran: 54000 }, at('2026-09-18T07:00:00.000Z'))
+    expect(second.id > first.id).toBe(true)
+
+    const forward = projectItems([first, second])
+    const reversed = projectItems([second, first])
+
+    // The outcome must not depend on which order the events are folded in.
+    expect(forward).toEqual(reversed)
+    // The event with the greater id (the one minted later) wins the tie.
+    expect(forward['semen'].hargaEceran).toBe(54000)
+    expect(reversed['semen'].hargaEceran).toBe(54000)
+  })
 })

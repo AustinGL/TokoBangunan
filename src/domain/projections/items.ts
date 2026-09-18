@@ -12,16 +12,30 @@ export type Item = {
   kategori?: string
   /** recordedAt of the write that produced this state, for last-write-wins. */
   updatedAt: string
+  /**
+   * id of the event that produced this state. UUIDv7 ids are time-sortable,
+   * so this breaks ties when two writes share the same recordedAt: the event
+   * with the greater id wins. This keeps the result independent of the order
+   * events are folded in, which array order (and storage order for tied
+   * timestamps) does not guarantee.
+   */
+  updatedByEventId: string
 }
 
 export type ItemsState = Record<string, Item>
 
 export function reduceItems(state: ItemsState, event: EventEnvelope): ItemsState {
   if (event.type !== 'ItemUpserted') return state
-  const payload = event.payload as Omit<Item, 'updatedAt'>
+  const payload = event.payload as Omit<Item, 'updatedAt' | 'updatedByEventId'>
   const existing = state[payload.id]
-  if (existing && existing.updatedAt >= event.recordedAt) return state
-  return { ...state, [payload.id]: { ...payload, updatedAt: event.recordedAt } }
+  if (existing) {
+    if (existing.updatedAt > event.recordedAt) return state
+    if (existing.updatedAt === event.recordedAt && existing.updatedByEventId >= event.id) return state
+  }
+  return {
+    ...state,
+    [payload.id]: { ...payload, updatedAt: event.recordedAt, updatedByEventId: event.id },
+  }
 }
 
 export const projectItems = (events: EventEnvelope[]): ItemsState =>
