@@ -78,7 +78,7 @@ export function createEvent(
     id: newEventId(),
     type,
     payload: parsed,
-    occurredAt: (opts.occurredAt ?? opts.clock.now()).toISOString(),
+    occurredAt: opts.occurredAt ? opts.occurredAt.toISOString() : recordedAt,
     recordedAt,
     deviceId: opts.deviceId,
     serverSeq: null,
@@ -92,6 +92,6 @@ export function parseEvent(raw: unknown): EventEnvelope {
   const envelope = envelopeSchema.parse(raw)
   const schema = eventSchemas[envelope.type as EventType]
   if (!schema) throw new Error(`Unknown event type: ${envelope.type}`)
-  schema.parse(envelope.payload)
-  return envelope as EventEnvelope
+  const parsed = schema.parse(envelope.payload)
+  return { ...envelope, payload: parsed } as EventEnvelope
 }
