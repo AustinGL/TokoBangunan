@@ -8,10 +8,19 @@ describe('newEventId', () => {
     expect(ids.size).toBe(1000)
   })
 
-  it('produces time-sortable ids', () => {
-    const a = newEventId()
-    const b = newEventId()
-    expect([a, b].sort()).toEqual([a, b])
+  it('produces time-sortable ids (monotonicity check)', () => {
+    // Generate a large batch in a tight loop to force many ids into the same
+    // millisecond, which is exactly where a time-ordered generator is most likely to break.
+    // This checks that ids are ALREADY in sorted order without sorting.
+    const ids = Array.from({ length: 10000 }, () => newEventId())
+    expect(ids).toEqual([...ids].sort())
+  })
+
+  it('generates valid UUIDv7 format', () => {
+    // Verify the generated id has UUIDv7 shape: version nibble 7 and variant bits [89ab]
+    expect(newEventId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
   })
 })
 
