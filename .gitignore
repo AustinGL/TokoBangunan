@@ -1,0 +1,21 @@
+# Local-only working docs (owner's choice: kept out of version control)
+design-system/
+docs/
+
+# Secrets. Never commit.
+.env
+.env.local
+.env.*.local
+
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Subagent-driven-development scratch workspace
+.superpowers/
+
+# Editor / OS
+.DS_Store
+*.log
