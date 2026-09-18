@@ -1,3 +1,11 @@
+/**
+ * Quantities are stored as integer thousandths of the base unit to avoid floating-point
+ * precision drift in stock arithmetic. When a display unit is smaller than the base unit
+ * (factor < 1), the display unit's precision is coarser than 0.001 base units: rounding
+ * error is bounded by 1/(2*factor*1000) per conversion. The design intends the base unit
+ * to be the smallest unit; factors below 1 are supported but lossy by construction.
+ */
+
 declare const qtyBrand: unique symbol
 /** Integer thousandths of an item's base unit. 1.5 m3 is 1500. */
 export type Qty = number & { readonly [qtyBrand]: true }

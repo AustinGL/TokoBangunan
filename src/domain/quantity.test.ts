@@ -76,10 +76,11 @@ describe('conversion', () => {
       const value = Math.round(Math.random() * 1000 * 1000) / 1000  // 3dp
       expect(fromBase(toBase(value, intUnit), intUnit)).toBe(value)
 
-      // Fractional factors can have rounding when value * factor * 1000 is not integral,
-      // tolerating up to 2 decimal places (0.005) for division rounding
+      // Fractional factors: rounding error bounded by 1/(2*factor*1000) per milli-unit precision
       const fracUnit = fractionalUnits[Math.floor(Math.random() * fractionalUnits.length)]
-      expect(fromBase(toBase(value, fracUnit), fracUnit)).toBeCloseTo(value, 2)
+      const roundTripped = fromBase(toBase(value, fracUnit), fracUnit)
+      const maxDrift = 1 / (2 * fracUnit.factor * 1000)
+      expect(Math.abs(roundTripped - value)).toBeLessThanOrEqual(maxDrift + 1e-12)
     }
   })
 })
