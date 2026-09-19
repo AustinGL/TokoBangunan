@@ -47,8 +47,8 @@ const envelopeSchema = z.object({
   id: z.string().min(1),
   type: z.string(),
   payload: z.unknown(),
-  occurredAt: z.string(),
-  recordedAt: z.string(),
+  occurredAt: z.string().datetime(),
+  recordedAt: z.string().datetime(),
   deviceId: z.string().min(1),
   serverSeq: z.number().int().nullable(),
 })

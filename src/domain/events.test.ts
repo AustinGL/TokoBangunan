@@ -133,6 +133,16 @@ describe('parseEvent envelope validation', () => {
     const e = createEvent('ItemUpserted', itemPayload, opts)
     expect(() => parseEvent(omit(e, 'recordedAt'))).toThrow()
   })
+
+  it('rejects a malformed occurredAt', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, occurredAt: 'banana' })).toThrow()
+  })
+
+  it('rejects a malformed recordedAt', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, recordedAt: 'banana' })).toThrow()
+  })
 })
 
 describe('parseEvent payload validation', () => {
