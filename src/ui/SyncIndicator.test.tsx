@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect } from 'vitest'
 import { SyncIndicator } from './SyncIndicator'
 
@@ -23,8 +24,64 @@ describe('SyncIndicator', () => {
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
   })
 
-  it('is not a button, because it must never block a write', () => {
-    render(<SyncIndicator status="belum-tersinkron" pendingCount={1} />)
+  it('keeps the same live-region node across a status change, so assistive tech can track it', () => {
+    // jsdom has no accessibility tree and cannot simulate an actual screen-reader
+    // announcement, so nothing here proves "this gets announced out loud". What
+    // IS testable, and what actually governs whether AT announces anything at
+    // all, is whether the live region survives an update as the SAME DOM node
+    // rather than being unmounted and a fresh one mounted in its place. Screen
+    // readers track live regions by node identity; if the node is replaced, the
+    // replacement is ordinarily treated as unrelated new content and nothing is
+    // announced.
+    const { rerender } = render(<SyncIndicator status="tersinkron" pendingCount={0} />)
+    const firstNode = screen.getByRole('status')
+    const firstText = firstNode.textContent
+
+    rerender(<SyncIndicator status="menyimpan" pendingCount={2} />)
+    const secondNode = screen.getByRole('status')
+
+    expect(secondNode).toBe(firstNode)
+    expect(secondNode.textContent).not.toBe(firstText)
+  })
+
+  it('is not interactive: no focusable or interactive element, and a click has no effect', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<SyncIndicator status="belum-tersinkron" pendingCount={1} />)
+
+    // Never an accessible control, under any role.
     expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('link')).toBeNull()
+
+    // Never in the tab order and never a native interactive tag, anywhere in
+    // the tree, including the root. This fails the moment a tabIndex (any
+    // value, including -1) or an interactive element is introduced.
+    expect(
+      container.querySelector('button, a, input, select, textarea, [tabindex]'),
+    ).toBeNull()
+
+    const before = container.innerHTML
+    await user.click(container.firstElementChild as HTMLElement)
+    // A status display must not react to being clicked: no thrown error, no
+    // state change, no side-effecting DOM mutation from a click handler.
+    expect(container.innerHTML).toBe(before)
+  })
+
+  it('hides the decorative icon from assistive technology', () => {
+    const { container } = render(<SyncIndicator status="tersinkron" pendingCount={0} />)
+    const svg = container.querySelector('svg')
+
+    expect(svg).not.toBeNull()
+    expect(svg).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('gives each status a visually distinct icon shape, not just a colour', () => {
+    const shapes = (['tersinkron', 'menyimpan', 'belum-tersinkron'] as const).map((status) => {
+      const { container, unmount } = render(<SyncIndicator status={status} pendingCount={0} />)
+      const d = container.querySelector('svg path')?.getAttribute('d')
+      unmount()
+      return d
+    })
+
+    expect(new Set(shapes).size).toBe(3)
   })
 })
