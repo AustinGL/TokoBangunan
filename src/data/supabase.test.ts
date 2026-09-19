@@ -22,4 +22,11 @@ describe('getDeviceId', () => {
     expect(second).toBe(first)
     expect(third).toBe(first)
   })
+
+  it('resolves concurrent first calls to the same id, with only one row persisted', async () => {
+    const [a, b, c] = await Promise.all([getDeviceId(), getDeviceId(), getDeviceId()])
+    expect(b).toBe(a)
+    expect(c).toBe(a)
+    expect(await db.meta.count()).toBe(1)
+  })
 })
