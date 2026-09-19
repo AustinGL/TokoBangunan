@@ -8,6 +8,11 @@ export const appendEvent = async (event: EventEnvelope): Promise<void> => {
   await db.events.add(event)
 }
 
+/**
+ * Correctness for two events with an identical recordedAt comes from the
+ * deterministic tie-break inside projectItems (by event id), not from this
+ * query's ordering. Do not rely on Dexie's tie-break here for correctness.
+ */
 export const getAllEvents = (): Promise<EventEnvelope[]> =>
   db.events.orderBy('recordedAt').toArray()
 

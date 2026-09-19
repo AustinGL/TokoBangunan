@@ -73,4 +73,24 @@ describe('rebuildProjections', () => {
     expect(second).toEqual(first)
     expect(second).toHaveLength(2)
   })
+
+  it('resolves a tied recordedAt on the same item deterministically across rebuilds', async () => {
+    const first = createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))
+    const second = createEvent('ItemUpserted', item('semen', 54000), at('2026-09-18T07:00:00.000Z'))
+    expect(second.id > first.id).toBe(true)
+
+    await appendEvent(first)
+    await appendEvent(second)
+    await rebuildProjections()
+    const firstSnapshot = await db.itemsProj.toArray()
+
+    await db.itemsProj.clear()
+    await rebuildProjections()
+    const secondSnapshot = await db.itemsProj.toArray()
+
+    expect(secondSnapshot).toEqual(firstSnapshot)
+    expect(secondSnapshot).toHaveLength(1)
+    // The event with the greater id (minted later) wins the tie.
+    expect(secondSnapshot[0].hargaEceran).toBe(54000)
+  })
 })
