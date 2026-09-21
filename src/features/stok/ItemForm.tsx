@@ -95,8 +95,7 @@ export function ItemForm({ onSubmit }: Props) {
   useEffect(() => {
     // A failed submit with more than one error moves focus to the summary.
     // Never on blur, only as a direct result of the submit that produced it.
-    if (errorList.length > 1) summaryRef.current?.focus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (Object.keys(errors).length > 1) summaryRef.current?.focus()
   }, [errors])
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
