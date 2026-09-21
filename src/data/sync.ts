@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 import type { EventEnvelope } from '../domain/events'
 import {
   getUnsyncedEvents, markSynced, applyRemoteEvents,
-  getCursor, setCursor, rebuildProjections,
+  getCursor, setCursor, rebuildProjections, promoteQuarantined,
 } from './eventStore'
 
 export type SyncStatus = 'tersinkron' | 'menyimpan' | 'belum-tersinkron'
@@ -12,7 +12,19 @@ export type SyncTransport = {
   pull(sinceSeq: number): Promise<EventEnvelope[]>
 }
 
-const PAGE_SIZE = 500
+export const PAGE_SIZE = 500
+
+/**
+ * Hard ceiling on pull iterations within one runSync.
+ *
+ * The loop's real exit conditions are "a short page arrived" and "the cursor
+ * did not move", both of which terminate normally. This cap exists only so a
+ * misbehaving server that keeps returning full pages with an ever-advancing
+ * cursor cannot spin forever inside a single sync. At PAGE_SIZE 500 it still
+ * allows 50000 events to be caught up in one run, far past anything one shop
+ * can accumulate while offline.
+ */
+export const MAX_PULL_PAGES = 100
 
 /**
  * How far below the stored cursor a pull re-queries.
@@ -40,10 +52,20 @@ export const CURSOR_OVERLAP = 100
 /**
  * Push-new then pull-since-cursor. No conflict resolution: events are
  * immutable, so two writes cannot disagree. Both directions are idempotent.
+ *
+ * The pull runs in a loop until a page comes back short, which is what makes
+ * the architecture doc's "device offline for days: cursor-based pull catches
+ * up in pages, no special path" actually true. A single pull would cap a
+ * catch-up at PAGE_SIZE rows per sync.
  */
 export async function runSync(
   transport: SyncTransport,
 ): Promise<{ pushed: number; pulled: number }> {
+  // Before anything network-dependent: a record quarantined by an earlier
+  // release may be readable now that the app has been updated, and it must
+  // reach the projection even if this sync goes on to fail offline.
+  if (await promoteQuarantined() > 0) await rebuildProjections()
+
   const unsynced = await getUnsyncedEvents()
   let pushed = 0
   if (unsynced.length > 0) {
@@ -52,25 +74,65 @@ export async function runSync(
     pushed = assignments.length
   }
 
-  const cursor = await getCursor()
-  const remote = await transport.pull(cursor)
-  if (remote.length === 0) return { pushed, pulled: 0 }
+  let cursor = await getCursor()
+  let pulled = 0
 
-  await applyRemoteEvents(remote)
-  const highest = remote.reduce((max, e) => Math.max(max, e.serverSeq ?? 0), cursor)
-  // Cursor advances only after the local write commits, so an interrupted
-  // pull simply refetches the page.
-  await setCursor(highest)
+  for (let page = 0; page < MAX_PULL_PAGES; page += 1) {
+    const remote = await transport.pull(cursor)
+    if (remote.length === 0) break
+
+    await applyRemoteEvents(remote)
+    pulled += remote.length
+
+    const highest = remote.reduce((max, e) => Math.max(max, e.serverSeq ?? 0), cursor)
+    // Cursor advances only after the local write commits, so an interrupted
+    // pull simply refetches the page.
+    if (highest > cursor) {
+      await setCursor(highest)
+      cursor = highest
+    } else {
+      // The overlap window means a page can consist entirely of rows at or
+      // below the cursor. Nothing new arrived, so asking again would return
+      // the same page forever.
+      break
+    }
+
+    if (remote.length < PAGE_SIZE) break
+  }
+
+  // Runs on every sync, not only when remote rows arrived: a push-only sync
+  // still has local appends behind it, and the read model must reflect them.
   await rebuildProjections()
 
-  return { pushed, pulled: remote.length }
+  return { pushed, pulled }
+}
+
+/**
+ * Postgres serialises timestamptz to JSON with a numeric offset
+ * (2026-09-18T09:00:00+00:00), which zod's .datetime() rejects: it accepts
+ * only a Z suffix. Normalising here, rather than loosening the schema, keeps
+ * two guarantees at once: every stored timestamp is canonical Z form, which
+ * reduceItems relies on when it compares recordedAt as raw strings for
+ * last-write-wins, and the schema stays strict about what it will accept.
+ */
+const canonicalTimestamp = (field: string, value: unknown): string => {
+  const parsed = new Date(value as string)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Sync: unreadable ${field} from server: ${String(value)}`)
+  }
+  return parsed.toISOString()
+}
+
+const requireOwnerId = async (): Promise<string> => {
+  const { data: userData } = await supabase.auth.getUser()
+  const ownerId = userData.user?.id
+  if (!ownerId) throw new Error('Tidak bisa sinkron: belum masuk.')
+  return ownerId
 }
 
 export const supabaseTransport: SyncTransport = {
   async push(events) {
-    const { data: userData } = await supabase.auth.getUser()
-    const ownerId = userData.user?.id
-    if (!ownerId) throw new Error('Tidak bisa sinkron: belum masuk.')
+    const ownerId = await requireOwnerId()
 
     const rows = events.map(e => ({
       id: e.id,
@@ -92,9 +154,14 @@ export const supabaseTransport: SyncTransport = {
   },
 
   async pull(sinceSeq) {
+    const ownerId = await requireOwnerId()
+
     const { data, error } = await supabase
       .from('events')
       .select('*')
+      // Defence in depth. RLS already scopes this to the owner server-side;
+      // the filter means a misconfigured policy cannot quietly widen the read.
+      .eq('owner_id', ownerId)
       .gt('server_seq', Math.max(0, sinceSeq - CURSOR_OVERLAP))
       .order('server_seq', { ascending: true })
       .limit(PAGE_SIZE)
@@ -104,8 +171,8 @@ export const supabaseTransport: SyncTransport = {
       id: r.id as string,
       type: r.type as EventEnvelope['type'],
       payload: r.payload,
-      occurredAt: r.occurred_at as string,
-      recordedAt: r.recorded_at as string,
+      occurredAt: canonicalTimestamp('occurred_at', r.occurred_at),
+      recordedAt: canonicalTimestamp('recorded_at', r.recorded_at),
       deviceId: r.device_id as string,
       serverSeq: r.server_seq as number,
     }))

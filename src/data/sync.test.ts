@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from './db'
 import { appendEvent, getUnsyncedEvents, getCursor } from './eventStore'
-import { runSync, CURSOR_OVERLAP, type SyncTransport } from './sync'
+import { runSync, CURSOR_OVERLAP, PAGE_SIZE, type SyncTransport } from './sync'
 import { createEvent, type EventEnvelope } from '../domain/events'
 import { fixedClock } from '../domain/clock'
 
@@ -93,6 +93,67 @@ describe('runSync', () => {
     expect(await db.events.count()).toBe(1)
     expect(await getCursor()).toBe(5)
     expect(await db.itemsProj.get('c')).toMatchObject({ id: 'c', hargaEceran: 1000 })
+  })
+
+  it('refreshes the read model even when the pull brings back nothing', async () => {
+    // runSync used to return early on an empty pull, so rebuildProjections
+    // never ran. A successful push-only sync would leave the read model stale.
+    const e = createEvent('ItemUpserted', item('lokal'), at('2026-09-18T07:00:00.000Z'))
+    await appendEvent(e)
+    // Discard the cache behind runSync's back, so only a rebuild can restore it.
+    await db.itemsProj.clear()
+
+    const result = await runSync(transport())
+
+    expect(result.pulled).toBe(0)
+    expect(await db.itemsProj.get('lokal')).toBeDefined()
+  })
+
+  it('keeps pulling until a page comes back short, so a long-offline device catches up', async () => {
+    // The architecture doc claims "cursor-based pull catches up in pages, no
+    // special path". A single pull per runSync caps catch-up at PAGE_SIZE rows
+    // per app launch, which for a device offline for days is not catching up.
+    const firstPage = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+      ...createEvent('ItemUpserted', item(`p1-${i}`), at('2026-09-18T07:00:00.000Z')),
+      serverSeq: i + 1,
+    }))
+    const secondPage = [
+      { ...createEvent('ItemUpserted', item('p2-a'), at('2026-09-18T08:00:00.000Z')), serverSeq: PAGE_SIZE + 1 },
+      { ...createEvent('ItemUpserted', item('p2-b'), at('2026-09-18T08:01:00.000Z')), serverSeq: PAGE_SIZE + 2 },
+    ]
+    let call = 0
+    const pull = vi.fn(async () => {
+      call += 1
+      if (call === 1) return firstPage
+      if (call === 2) return secondPage
+      return []
+    })
+
+    const result = await runSync(transport({ pull }))
+
+    // Two calls, not three: the short second page ends the loop without a
+    // wasted round trip.
+    expect(pull).toHaveBeenCalledTimes(2)
+    expect(result.pulled).toBe(PAGE_SIZE + 2)
+    expect(await db.events.count()).toBe(PAGE_SIZE + 2)
+    expect(await getCursor()).toBe(PAGE_SIZE + 2)
+    expect(await db.itemsProj.get('p1-0')).toBeDefined()
+    expect(await db.itemsProj.get('p2-b')).toBeDefined()
+  })
+
+  it('stops looping when a full page carries nothing new, instead of spinning forever', async () => {
+    // The overlap window means a page can consist entirely of rows at or below
+    // the cursor. Without a no-progress guard, a full page of those would be
+    // requested again and again up to the iteration cap.
+    const page = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+      ...createEvent('ItemUpserted', item(`same-${i}`), at('2026-09-18T07:00:00.000Z')),
+      serverSeq: 0,
+    }))
+    const pull = vi.fn(async () => page)
+
+    await runSync(transport({ pull }))
+
+    expect(pull).toHaveBeenCalledTimes(1)
   })
 
   it('recovers an event whose server_seq commits below an already-advanced cursor', async () => {

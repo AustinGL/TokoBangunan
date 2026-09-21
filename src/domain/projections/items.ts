@@ -29,6 +29,14 @@ export function reduceItems(state: ItemsState, event: EventEnvelope): ItemsState
   const payload = event.payload as Omit<Item, 'updatedAt' | 'updatedByEventId'>
   const existing = state[payload.id]
   if (existing) {
+    // Last-write-wins by raw string comparison. That is only sound because
+    // every stored recordedAt is canonical ISO-8601 Z form
+    // (2026-09-18T09:00:00.000Z), which is lexicographically ordered the same
+    // way it is chronologically ordered. Timestamps arriving from Postgres
+    // carry a +00:00 offset instead, and are normalised to Z form at the
+    // adapter boundary (data/sync.ts canonicalTimestamp) precisely so this
+    // comparison stays valid. A mixed log would compare 'Z' against '+' and
+    // tie-break by ASCII at the offset character.
     if (existing.updatedAt > event.recordedAt) return state
     if (existing.updatedAt === event.recordedAt && existing.updatedByEventId >= event.id) return state
   }
