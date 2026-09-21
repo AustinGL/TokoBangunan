@@ -30,5 +30,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     globals: true,
+    // Vitest's default include pattern matches *.spec.ts, which collides
+    // with e2e/*.spec.ts (Playwright tests, run only via `npm run test:e2e`,
+    // never through Vitest). Exclude that directory explicitly rather than
+    // relying on the two runners never seeing each other's files by luck.
+    exclude: ['**/node_modules/**', '**/e2e/**'],
   },
 })
