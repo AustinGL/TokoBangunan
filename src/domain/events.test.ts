@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createEvent, parseEvent } from './events'
+import { createEvent, parseEvent, classifyEvent } from './events'
 import { fixedClock } from './clock'
 import type { Clock } from './clock'
 
@@ -142,6 +142,64 @@ describe('parseEvent envelope validation', () => {
   it('rejects a malformed recordedAt', () => {
     const e = createEvent('ItemUpserted', itemPayload, opts)
     expect(() => parseEvent({ ...e, recordedAt: 'banana' })).toThrow()
+  })
+
+  // The schema accepts only a Z suffix, and that strictness is deliberate:
+  // reduceItems compares recordedAt as a raw string for last-write-wins, so a
+  // log holding a mix of '...Z' and '...+00:00' would tie-break by ASCII at
+  // the offset character. Postgres serialises timestamptz with a +00:00
+  // offset, which is why the pull adapter normalises before this schema ever
+  // sees it (data/sync.ts canonicalTimestamp), rather than the schema being
+  // relaxed to let the offset form through.
+  it('rejects an offset-form occurredAt, leaving normalisation to the adapter', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, occurredAt: '2026-09-18T09:00:00+00:00' })).toThrow()
+  })
+
+  it('rejects an offset-form recordedAt for the same reason', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(() => parseEvent({ ...e, recordedAt: '2026-09-18T09:00:00.123456+00:00' })).toThrow()
+  })
+})
+
+describe('classifyEvent', () => {
+  it('reports a fully valid event as valid, with its payload parsed', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    const result = classifyEvent({ ...e, serverSeq: 3 })
+    expect(result.status).toBe('valid')
+    if (result.status === 'valid') expect(result.event.serverSeq).toBe(3)
+  })
+
+  // The forward-compatibility case: a device still on this release receiving
+  // an event type a later release introduced. The envelope is sound, so the
+  // record is usable later and must be distinguishable from corruption.
+  it('separates an unknown event type from an invalid record', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    const result = classifyEvent({ ...e, type: 'SaleRecorded' })
+    expect(result.status).toBe('unknown-type')
+    if (result.status === 'unknown-type') {
+      expect(result.event.id).toBe(e.id)
+      expect(result.reason).toContain('SaleRecorded')
+    }
+  })
+
+  it('reports a broken envelope as invalid, naming the offending field', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    const result = classifyEvent({ ...e, recordedAt: 'banana' })
+    expect(result.status).toBe('invalid')
+    if (result.status === 'invalid') expect(result.reason).toContain('recordedAt')
+  })
+
+  it('reports a known type with a bad payload as invalid, not as an unknown type', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    const result = classifyEvent({ ...e, payload: { ...itemPayload, hargaEceran: 'gratis' } })
+    expect(result.status).toBe('invalid')
+    if (result.status === 'invalid') expect(result.reason).toContain('ItemUpserted')
+  })
+
+  it('reports a non-object as invalid rather than throwing', () => {
+    expect(classifyEvent(null).status).toBe('invalid')
+    expect(classifyEvent('nope').status).toBe('invalid')
   })
 })
 

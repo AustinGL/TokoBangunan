@@ -86,12 +86,65 @@ export function createEvent(
 }
 
 /**
+ * An envelope whose transport fields are all sound but whose `type` this
+ * version of the app does not know. The shared log is append-only and read by
+ * devices on different releases, so a phone still on Phase 1 will legitimately
+ * receive a Phase 2 event type. That is forward compatibility, not corruption.
+ */
+export type UnknownTypeEvent = Omit<EventEnvelope, 'type'> & { type: string }
+
+export type EventClassification =
+  | { status: 'valid'; event: EventEnvelope }
+  | { status: 'unknown-type'; event: UnknownTypeEvent; reason: string }
+  | { status: 'invalid'; reason: string }
+
+const describeIssues = (error: z.ZodError): string =>
+  error.issues
+    .map(i => `${i.path.join('.') || '(root)'}: ${i.message}`)
+    .join('; ')
+
+/**
+ * Sorts an incoming record into the three cases a caller has to handle
+ * differently: usable now, usable after a future release, and never usable.
+ * Separating "unknown type" from "invalid" is what lets a single unrecognised
+ * event be tolerated instead of wedging the whole pull.
+ */
+export function classifyEvent(raw: unknown): EventClassification {
+  const envelope = envelopeSchema.safeParse(raw)
+  if (!envelope.success) {
+    return { status: 'invalid', reason: describeIssues(envelope.error) }
+  }
+
+  const schema = eventSchemas[envelope.data.type as EventType]
+  if (!schema) {
+    return {
+      status: 'unknown-type',
+      event: envelope.data,
+      reason: `Unknown event type: ${envelope.data.type}`,
+    }
+  }
+
+  const payload = schema.safeParse(envelope.data.payload)
+  if (!payload.success) {
+    return {
+      status: 'invalid',
+      reason: `${envelope.data.type} payload: ${describeIssues(payload.error)}`,
+    }
+  }
+
+  return {
+    status: 'valid',
+    event: { ...envelope.data, payload: payload.data } as EventEnvelope,
+  }
+}
+
+/**
  * Events arriving from sync get the same scepticism as events created locally.
+ * Throws on anything this version cannot fully validate. Callers that must
+ * survive a single bad record use classifyEvent instead.
  */
 export function parseEvent(raw: unknown): EventEnvelope {
-  const envelope = envelopeSchema.parse(raw)
-  const schema = eventSchemas[envelope.type as EventType]
-  if (!schema) throw new Error(`Unknown event type: ${envelope.type}`)
-  const parsed = schema.parse(envelope.payload)
-  return { ...envelope, payload: parsed } as EventEnvelope
+  const result = classifyEvent(raw)
+  if (result.status !== 'valid') throw new Error(result.reason)
+  return result.event
 }
