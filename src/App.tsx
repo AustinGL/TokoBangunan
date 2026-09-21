@@ -1,10 +1,36 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useNavigate } from 'react-router-dom'
 import { TopNav } from './app/shell/TopNav'
 import { BottomNav } from './app/shell/BottomNav'
 import { AppRoutes } from './app/routes'
 import { runSync, supabaseTransport, type SyncStatus } from './data/sync'
 import { getUnsyncedEvents } from './data/eventStore'
+
+type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
+
+// App renders BrowserRouter, so App itself is outside router context and
+// cannot call useNavigate(). AppShell is mounted inside BrowserRouter
+// specifically so its "open Kasir" handler can use react-router's own
+// navigation instead of a bare window.history.pushState, which changes the
+// address bar but never triggers a re-render of <Routes>.
+function AppShell({ syncStatus, pendingCount }: ShellProps) {
+  const navigate = useNavigate()
+  // react-router guarantees navigate's identity is stable across renders,
+  // so wrapping it in useCallback keyed on it keeps openKasir stable too -
+  // TopNav's F2 listener effect depends on onNewTransaction and must not
+  // re-register on every sync-driven re-render.
+  const openKasir = useCallback(() => { navigate('/kasir') }, [navigate])
+
+  return (
+    <>
+      <TopNav syncStatus={syncStatus} pendingCount={pendingCount} onNewTransaction={openKasir} />
+      <div className="pb-24 md:pb-0">
+        <AppRoutes />
+      </div>
+      <BottomNav onNewTransaction={openKasir} />
+    </>
+  )
+}
 
 export default function App() {
   // Starts at 'menyimpan' (not 'tersinkron') because the effect below kicks
@@ -38,17 +64,9 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
-  const openKasir = useCallback(() => {
-    window.history.pushState({}, '', '/kasir')
-  }, [])
-
   return (
     <BrowserRouter>
-      <TopNav syncStatus={syncStatus} pendingCount={pendingCount} onNewTransaction={openKasir} />
-      <div className="pb-24 md:pb-0">
-        <AppRoutes />
-      </div>
-      <BottomNav onNewTransaction={openKasir} />
+      <AppShell syncStatus={syncStatus} pendingCount={pendingCount} />
     </BrowserRouter>
   )
 }

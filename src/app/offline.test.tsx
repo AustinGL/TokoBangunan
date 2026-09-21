@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import App from '../App'
 
@@ -12,7 +13,14 @@ vi.mock('../data/sync', async () => ({
   },
 }))
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  // jsdom's window.location/history is a single global that otherwise leaks
+  // across tests in this file: a prior test's navigation would make a later
+  // test start already on that URL, which could make a broken navigation
+  // handler look like it worked. Reset to the root before every test.
+  window.history.pushState({}, '', '/')
+})
 
 describe('offline boot', () => {
   it('renders the shell even though sync fails', async () => {
@@ -62,5 +70,32 @@ describe('offline boot', () => {
     )
     expect(phoneFab).toBeInTheDocument()
     expect(phoneFab).not.toBe(desktopButton)
+  })
+
+  // window.history.pushState alone bypasses react-router's history
+  // listeners, so <Routes> never re-renders even though the address bar
+  // changes. Asserting on window.location would pass against that broken
+  // behavior; asserting the Kasir pane is actually visible would not.
+  it('actually shows the Kasir pane when F2 is pressed, not just a URL change', async () => {
+    render(<App />)
+    await screen.findByText('Toko Bahan Bangunan')
+    expect(screen.queryByText('Kasir')).toBeNull()
+
+    await userEvent.keyboard('{F2}')
+
+    expect(await screen.findByText('Kasir')).toBeInTheDocument()
+  })
+
+  it('actually shows the Kasir pane when the desktop Transaksi baru button is clicked', async () => {
+    render(<App />)
+    await screen.findByText('Toko Bahan Bangunan')
+
+    const desktopButton = within(screen.getByRole('banner')).getByRole(
+      'button',
+      { name: 'Transaksi baru' },
+    )
+    await userEvent.click(desktopButton)
+
+    expect(await screen.findByText('Kasir')).toBeInTheDocument()
   })
 })

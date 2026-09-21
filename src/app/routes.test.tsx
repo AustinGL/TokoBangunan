@@ -17,4 +17,19 @@ describe('AppRoutes catch-all', () => {
     expect(screen.getByText('Kasir')).toBeInTheDocument()
     expect(screen.getByText('Layar ini dibangun di fase berikutnya.')).toBeInTheDocument()
   })
+
+  // The catch-all used to serve double duty as the Kasir landing pane,
+  // which meant a typo'd URL, a stale bookmark, or any future dead link
+  // would render a heading that reads "Kasir" - actively wrong information,
+  // not just a blank pane. /kasir now has its own explicit route, so the
+  // wildcard route below should only ever render honest not-found copy.
+  it('does not mislabel a genuinely unmatched path as Kasir', () => {
+    render(
+      <MemoryRouter initialEntries={['/tidak-ada']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByText('Kasir')).toBeNull()
+    expect(screen.getByText('Halaman tidak ditemukan')).toBeInTheDocument()
+  })
 })
