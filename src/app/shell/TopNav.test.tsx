@@ -54,6 +54,17 @@ describe('TopNav', () => {
     expect(screen.getByRole('button', { name: 'Transaksi baru' })).toHaveClass('min-h-tap')
   })
 
+  it('keeps at least the minimum spacing between adjacent destinations', () => {
+    // MASTER.md section 11 sets two separate floors: 44px per target (pinned
+    // by the test above) and 8px between adjacent targets. Only the first was
+    // guarded, and the nav shipped at gap-1 (4px). Same caveat as above:
+    // jsdom cannot measure, so this pins the class, not the rendered gap.
+    renderNav()
+    const nav = screen.getByRole('navigation')
+    expect(nav).toHaveClass('gap-2')
+    expect(nav).not.toHaveClass('gap-1')
+  })
+
   it('opens Kasir on F2 from anywhere', async () => {
     const { onNewTransaction } = renderNav()
     await userEvent.keyboard('{F2}')

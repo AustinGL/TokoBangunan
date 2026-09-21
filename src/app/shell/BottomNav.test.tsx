@@ -51,6 +51,16 @@ describe('BottomNav', () => {
     expect(screen.getByRole('button', { name: 'Transaksi baru' })).toHaveClass('h-14', 'w-14')
   })
 
+  it('separates the centre action from the tabs it abuts', () => {
+    // The four tabs stay edge-to-edge on purpose: they are full-height flex-1
+    // targets far wider than 44px, and a gap between them would only open dead
+    // strips along the bottom edge of a phone. The FAB is different - it is a
+    // 56px circle wedged between two of them - so it carries the 8px
+    // separation MASTER.md section 11 requires between adjacent targets.
+    renderNav()
+    expect(screen.getByRole('button', { name: 'Transaksi baru' })).toHaveClass('mx-2')
+  })
+
   it('marks Stok as the current destination when the route is active, and not Beranda', () => {
     renderNav('/stok')
     expect(screen.getByRole('link', { name: 'Stok' })).toHaveAttribute('aria-current', 'page')

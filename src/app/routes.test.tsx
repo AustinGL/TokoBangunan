@@ -7,7 +7,7 @@ import { AppRoutes } from './routes'
 // send the user (no Kasir screen exists until a later phase). Without a
 // catch-all route, that navigation renders nothing at all under a live nav
 // bar - the app's single most prominent action would land on a blank pane.
-describe('AppRoutes catch-all', () => {
+describe('AppRoutes: the explicit /kasir route and the catch-all', () => {
   it('renders a placeholder instead of a blank pane for /kasir', () => {
     render(
       <MemoryRouter initialEntries={['/kasir']}>

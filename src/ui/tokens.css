@@ -247,3 +247,35 @@
 
   --tap-min: 44px;   /* every interactive control */
 }
+
+/* 1.6 Global focus ring (MASTER.md section 11: visible focus everywhere)
+   The browser default ring is the least reliable exactly where this app is
+   weakest for it: mint on mint. --focus-ring is measured against --surface in
+   both themes by tokens.test.ts, so applying it here is what turns that
+   measurement into something a user can actually see. :focus-visible, not
+   :focus, so a mouse click on a button does not draw a ring but a keyboard
+   tab or a barcode-scanner-driven focus move does. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 1.7 Reduced motion (MASTER.md section 11: reduced motion is honored)
+   The duration tokens collapse so anything built on them stops moving, and the
+   blanket rule catches third-party or hand-written CSS that never read a
+   token. 1ms rather than 0s keeps transitionend/animationend handlers firing,
+   so logic waiting on them cannot hang. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 1ms;
+    --dur-quick:   1ms;
+    --dur-panel:   1ms;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -77,3 +77,44 @@ describe('contrast ledger (MASTER.md section 3)', () => {
     expect(contrastRatio(a, b)).toBeGreaterThanOrEqual(min)
   })
 })
+
+describe('focus ring is actually applied (MASTER.md section 11)', () => {
+  // --focus-ring is defined in all three theme blocks and its contrast is
+  // asserted above in both themes, but a token nothing references is a token
+  // that does nothing: the measurement was real and the ring on screen was
+  // still the browser default, which is least reliable exactly where this app
+  // puts mint on mint. This pins the rule that spends the token.
+  const focusRule = css.match(/:focus-visible\s*\{[^}]*\}/)
+
+  it('defines a :focus-visible rule', () => {
+    expect(focusRule).not.toBeNull()
+  })
+
+  it('draws that rule with the measured --focus-ring token, not a hardcoded colour', () => {
+    expect(focusRule?.[0]).toContain('var(--focus-ring)')
+  })
+
+  it('offsets the outline so it is not swallowed by the control it surrounds', () => {
+    expect(focusRule?.[0]).toMatch(/outline-offset:\s*\d/)
+  })
+})
+
+describe('reduced motion is honored (MASTER.md section 11)', () => {
+  const marker = '@media (prefers-reduced-motion: reduce)'
+  const block = css.slice(css.indexOf(marker))
+
+  it('has a prefers-reduced-motion block', () => {
+    expect(css).toContain(marker)
+  })
+
+  it('collapses the duration tokens so anything built on them stops moving', () => {
+    for (const name of ['--dur-instant', '--dur-quick', '--dur-panel']) {
+      expect(block).toContain(name)
+    }
+  })
+
+  it('also neutralises transitions and animations that never read a token', () => {
+    expect(block).toMatch(/transition-duration:\s*1ms\s*!important/)
+    expect(block).toMatch(/animation-duration:\s*1ms\s*!important/)
+  })
+})

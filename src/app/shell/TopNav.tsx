@@ -36,7 +36,9 @@ export function TopNav({ syncStatus, pendingCount, onNewTransaction }: Props) {
         </div>
       </div>
 
-      <nav className="flex gap-1 rounded-field border border-border bg-surface p-1">
+      {/* gap-2 (8px), not gap-1: MASTER.md section 11 sets a floor of 8px
+          between adjacent tap targets, alongside the 44px minimum size. */}
+      <nav className="flex gap-2 rounded-field border border-border bg-surface p-1">
         {NAV_ITEMS.map(item => (
           <NavLink
             key={item.path}

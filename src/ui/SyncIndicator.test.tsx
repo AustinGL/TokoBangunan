@@ -74,7 +74,7 @@ describe('SyncIndicator', () => {
     expect(svg).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('gives each status a visually distinct icon shape, not just a colour', () => {
+  it('gives each status a different icon path, so shape carries the meaning and not just colour', () => {
     const shapes = (['tersinkron', 'menyimpan', 'belum-tersinkron'] as const).map((status) => {
       const { container, unmount } = render(<SyncIndicator status={status} pendingCount={0} />)
       const d = container.querySelector('svg path')?.getAttribute('d')
