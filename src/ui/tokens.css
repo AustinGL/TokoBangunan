@@ -279,3 +279,23 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* 1.8 Page shell (MASTER.md section 7: "Background --background")
+   Without this the document has no background or text colour of its own, so it
+   falls back to the browser default white while the tokens above may be serving
+   dark-theme values from prefers-color-scheme. That produces near-white --ink on
+   a white page: the content is rendered but invisible. The tokens were correct
+   and every component consumed them correctly; nothing applied them to the page
+   itself. A test suite that never paints cannot see this, which is why it
+   survived 180 tests and was found by looking at the screen. */
+html {
+  background: var(--background);
+  color: var(--ink);
+}
+
+body {
+  background: var(--background);
+  color: var(--ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  margin: 0;
+}

@@ -118,3 +118,20 @@ describe('reduced motion is honored (MASTER.md section 11)', () => {
     expect(block).toMatch(/animation-duration:\s*1ms\s*!important/)
   })
 })
+
+describe('page shell consumes its own tokens (MASTER.md section 7)', () => {
+  // This is the assertion that was missing when the app rendered near-white
+  // --ink on a browser-default white page: every component consumed the tokens
+  // correctly, but nothing applied them to the document itself. A jsdom suite
+  // never paints, so only a screenshot caught it. This pins it.
+  it('html and body set both background and colour from tokens', () => {
+    const html = css.match(/html\s*\{[^}]*\}/)?.[0] ?? ''
+    const body = css.match(/body\s*\{[^}]*\}/)?.[0] ?? ''
+    expect(html, 'no html rule in tokens.css').not.toBe('')
+    expect(body, 'no body rule in tokens.css').not.toBe('')
+    expect(html).toMatch(/background:\s*var\(--background\)/)
+    expect(html).toMatch(/color:\s*var\(--ink\)/)
+    expect(body).toMatch(/background:\s*var\(--background\)/)
+    expect(body).toMatch(/color:\s*var\(--ink\)/)
+  })
+})
