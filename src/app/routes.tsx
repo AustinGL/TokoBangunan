@@ -17,6 +17,11 @@ export function AppRoutes() {
       <Route path="/supplier"  element={<Placeholder name="Supplier" />} />
       <Route path="/laporan"   element={<Placeholder name="Laporan" />} />
       <Route path="/lainnya"   element={<Placeholder name="Lainnya" />} />
+      {/* No route builds Kasir yet, but the primary "Transaksi baru" button
+          and the F2 shortcut both navigate to /kasir. Without this, the
+          app's most prominent action lands on a blank pane under a live
+          nav bar. This also catches any other unmatched path. */}
+      <Route path="*"          element={<Placeholder name="Kasir" />} />
     </Routes>
   )
 }

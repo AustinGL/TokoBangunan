@@ -25,7 +25,14 @@ describe('offline boot', () => {
 
   it('reports the unsynced state rather than crashing', async () => {
     render(<App />)
-    expect(await screen.findByRole('status')).toBeInTheDocument()
+    // A role="status" region exists at every SyncStatus value, so asserting
+    // only its presence would pass even if the catch path reported the wrong
+    // state (or never updated past the initial 'menyimpan'). Assert the text
+    // the failure path actually produces instead. The pending count is
+    // deterministic here: no event was ever appended to the fake-indexeddb
+    // instance backing this file's App renders, so getUnsyncedEvents()
+    // always resolves to an empty array and SyncIndicator reports "(0)".
+    expect(await screen.findByText('Belum tersinkron (0)')).toBeInTheDocument()
   })
 
   // Load-bearing: TopNav owns the global F2 keydown listener. Every nav test
