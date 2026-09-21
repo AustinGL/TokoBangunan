@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from './db'
-import { appendEvent, getUnsyncedEvents, getCursor } from './eventStore'
+import { appendEvents, getUnsyncedEvents, getCursor } from './eventStore'
 import { runSync, CURSOR_OVERLAP, PAGE_SIZE, type SyncTransport } from './sync'
 import { createEvent, type EventEnvelope } from '../domain/events'
 import { fixedClock } from '../domain/clock'
@@ -25,7 +25,7 @@ const transport = (overrides: Partial<SyncTransport> = {}): SyncTransport => ({
 
 describe('runSync', () => {
   it('pushes unsynced events and marks them synced', async () => {
-    await appendEvent(createEvent('ItemUpserted', item('a'), at('2026-09-18T07:00:00.000Z')))
+    await appendEvents([createEvent('ItemUpserted', item('a'), at('2026-09-18T07:00:00.000Z'))])
     const t = transport()
 
     const result = await runSync(t)
@@ -48,8 +48,8 @@ describe('runSync', () => {
   it('leaves unacknowledged events unsynced after a partial push', async () => {
     const a = createEvent('ItemUpserted', item('a'), at('2026-09-18T07:00:00.000Z'))
     const b = createEvent('ItemUpserted', item('b'), at('2026-09-18T07:01:00.000Z'))
-    await appendEvent(a)
-    await appendEvent(b)
+    await appendEvents([a])
+    await appendEvents([b])
     // Server acknowledges only the first.
     const t = transport({ push: vi.fn(async () => [{ id: a.id, serverSeq: 1 }]) })
 
@@ -99,7 +99,7 @@ describe('runSync', () => {
     // runSync used to return early on an empty pull, so rebuildProjections
     // never ran. A successful push-only sync would leave the read model stale.
     const e = createEvent('ItemUpserted', item('lokal'), at('2026-09-18T07:00:00.000Z'))
-    await appendEvent(e)
+    await appendEvents([e])
     // Discard the cache behind runSync's back, so only a rebuild can restore it.
     await db.itemsProj.clear()
 

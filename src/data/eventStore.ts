@@ -1,19 +1,49 @@
 import { db, type QuarantineRow } from './db'
 import { classifyEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
-import { projectItems } from '../domain/projections/items'
+import { projectItems, reduceItems } from '../domain/projections/items'
 
 const CURSOR_KEY = 'syncCursor'
 
-export const appendEvent = async (event: EventEnvelope): Promise<void> => {
-  await db.events.add(event)
-  // The read model is a cache of the log, so it has to be refreshed on the
-  // local write path too. Without this a locally recorded event stays
-  // invisible to every reader until an unrelated remote event happens to
-  // arrive. A full rebuild is deliberate: it is the only fold the
-  // rebuild-equivalence test guards, so it cannot silently diverge from the
-  // canonical projection the way a hand-written incremental update could.
-  await rebuildProjections()
+/**
+ * Applies one locally-authored event to the projection row(s) it addresses,
+ * in place, instead of rebuilding the whole projection from the log. Each
+ * branch reads the one existing row the event addresses (if any), calls the
+ * matching pure reducer against a one-key slice of state, and writes the
+ * single resulting row back.
+ *
+ * Valid only under the same assumption reduceItems's single-event LWW check
+ * already makes: events are locally authored and appended in non-decreasing
+ * recordedAt order, on one device. Must never run on the remote-pull path
+ * (see applyRemoteEvents, which relies on rebuildProjections instead, since a
+ * pulled page can legitimately contain an event older than what this device
+ * already folded).
+ */
+const foldIncremental = async (event: EventEnvelope): Promise<void> => {
+  switch (event.type) {
+    case 'ItemUpserted': {
+      const payload = event.payload as { id: string }
+      const existing = await db.itemsProj.get(payload.id)
+      const state = existing ? { [payload.id]: existing } : {}
+      const next = reduceItems(state, event)[payload.id]
+      if (next) await db.itemsProj.put(next)
+      return
+    }
+    default:
+      // No other event schema exists yet, so this is unreachable in
+      // practice. Later tasks add their own case above as their event type
+      // and projection module land.
+      return
+  }
+}
+
+export const appendEvents = async (events: EventEnvelope[]): Promise<void> => {
+  if (events.length === 0) return
+  await db.transaction('rw', db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, async () => {
+    await db.events.bulkAdd(events)
+    await db.outbox.bulkPut(events.map(e => ({ id: e.id })))
+    for (const event of events) await foldIncremental(event)
+  })
 }
 
 /**
@@ -24,15 +54,18 @@ export const appendEvent = async (event: EventEnvelope): Promise<void> => {
 export const getAllEvents = (): Promise<EventEnvelope[]> =>
   db.events.orderBy('recordedAt').toArray()
 
-export const getUnsyncedEvents = (): Promise<EventEnvelope[]> =>
-  db.events.filter(e => e.serverSeq === null).toArray()
+export const getUnsyncedEvents = async (): Promise<EventEnvelope[]> => {
+  const ids = await db.outbox.toArray()
+  if (ids.length === 0) return []
+  const events = await db.events.bulkGet(ids.map(r => r.id))
+  return events.filter((e): e is EventEnvelope => e !== undefined)
+}
 
-export const markSynced = async (
-  assignments: Array<{ id: string; serverSeq: number }>,
-): Promise<void> => {
-  await db.transaction('rw', db.events, async () => {
+export const markSynced = async (assignments: Array<{ id: string; serverSeq: number }>): Promise<void> => {
+  await db.transaction('rw', db.events, db.outbox, async () => {
     for (const { id, serverSeq } of assignments) {
       await db.events.update(id, { serverSeq })
+      await db.outbox.delete(id)
     }
   })
 }
@@ -129,15 +162,24 @@ export const setCursor = async (seq: number): Promise<void> => {
   await db.meta.put({ key: CURSOR_KEY, value: seq })
 }
 
+const rebuildItemsProj = async (events: EventEnvelope[]): Promise<void> => {
+  const items = projectItems(events)
+  await db.itemsProj.clear()
+  await db.itemsProj.bulkPut(Object.values(items))
+}
+
 /**
  * Projections are a cache. Discarding and rebuilding must always produce
  * identical state, which the test suite asserts.
+ *
+ * One rebuild step per known projection, itemsProj being the only one with
+ * real content right now. Later tasks add a rebuildStokProj/rebuildSalesProj
+ * step here, and db.stokProj/db.salesProj to the transaction's table list,
+ * without needing to restructure this function.
  */
 export const rebuildProjections = async (): Promise<void> => {
   const events = await getAllEvents()
-  const items = projectItems(events)
   await db.transaction('rw', db.itemsProj, async () => {
-    await db.itemsProj.clear()
-    await db.itemsProj.bulkPut(Object.values(items))
+    await rebuildItemsProj(events)
   })
 }

@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
 import {
-  appendEvent, getUnsyncedEvents, markSynced, getAllEvents,
+  appendEvents, getUnsyncedEvents, markSynced, getAllEvents,
   applyRemoteEvents, getCursor, setCursor, rebuildProjections,
   promoteQuarantined, getQuarantined,
 } from './eventStore'
@@ -23,21 +23,30 @@ beforeEach(async () => {
 describe('event store', () => {
   it('appends and reads back', async () => {
     const e = createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))
-    await appendEvent(e)
+    await appendEvents([e])
     expect(await getAllEvents()).toHaveLength(1)
   })
 
   it('reports unsynced events', async () => {
-    await appendEvent(createEvent('ItemUpserted', item('a', 100), at('2026-09-18T07:00:00.000Z')))
-    await appendEvent(createEvent('ItemUpserted', item('b', 200), at('2026-09-18T07:01:00.000Z')))
+    await appendEvents([createEvent('ItemUpserted', item('a', 100), at('2026-09-18T07:00:00.000Z'))])
+    await appendEvents([createEvent('ItemUpserted', item('b', 200), at('2026-09-18T07:01:00.000Z'))])
     expect(await getUnsyncedEvents()).toHaveLength(2)
   })
 
   it('stops reporting events once marked synced', async () => {
     const e = createEvent('ItemUpserted', item('a', 100), at('2026-09-18T07:00:00.000Z'))
-    await appendEvent(e)
+    await appendEvents([e])
     await markSynced([{ id: e.id, serverSeq: 1 }])
     expect(await getUnsyncedEvents()).toHaveLength(0)
+  })
+
+  it('tracks unsynced ids in the outbox table', async () => {
+    const a = createEvent('ItemUpserted', item('a', 100), at('2026-09-18T07:00:00.000Z'))
+    const b = createEvent('ItemUpserted', item('b', 200), at('2026-09-18T07:01:00.000Z'))
+    await appendEvents([a, b])
+    await markSynced([{ id: a.id, serverSeq: 1 }])
+
+    expect(await db.outbox.toArray()).toEqual([{ id: b.id }])
   })
 
   it('is idempotent when the same remote event arrives twice', async () => {
@@ -62,7 +71,7 @@ describe('event store', () => {
     // rebuildProjections ran only inside runSync. A sale recorded on the
     // counter laptop would therefore stay invisible in the read model until
     // an unrelated remote event happened to arrive.
-    await appendEvent(createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z')))
+    await appendEvents([createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))])
 
     expect(await db.itemsProj.get('semen')).toMatchObject({ id: 'semen', hargaEceran: 52000 })
   })
@@ -74,10 +83,69 @@ describe('event store', () => {
   })
 })
 
+describe('appendEvents incremental fold', () => {
+  it('is a safe no-op for an empty array', async () => {
+    await appendEvents([])
+    expect(await getAllEvents()).toHaveLength(0)
+    expect(await db.itemsProj.toArray()).toHaveLength(0)
+  })
+
+  it('produces the same itemsProj row as rebuildProjections for a brand new item', async () => {
+    const e = createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([e])
+    const incremental = await db.itemsProj.toArray()
+
+    await db.itemsProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.itemsProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    expect(incremental[0]).toMatchObject({ id: 'semen', hargaEceran: 52000 })
+  })
+
+  it('produces the same itemsProj row as rebuildProjections when a later recordedAt updates an existing item', async () => {
+    const first = createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))
+    const second = createEvent('ItemUpserted', item('semen', 54000), at('2026-09-18T07:05:00.000Z'))
+    await appendEvents([first])
+    await appendEvents([second])
+    const incremental = await db.itemsProj.toArray()
+
+    await db.itemsProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.itemsProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    // The later recordedAt wins, matching reduceItems's last-write-wins rule.
+    expect(incremental[0].hargaEceran).toBe(54000)
+  })
+
+  it('resolves a tied recordedAt on the same item deterministically, matching rebuildProjections', async () => {
+    const first = createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))
+    const second = createEvent('ItemUpserted', item('semen', 54000), at('2026-09-18T07:00:00.000Z'))
+    expect(second.id > first.id).toBe(true)
+
+    await appendEvents([first])
+    await appendEvents([second])
+    const incremental = await db.itemsProj.toArray()
+
+    await db.itemsProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.itemsProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    // The event with the greater id (minted later) wins the tie, same
+    // tie-break reduceItems applies during a rebuild.
+    expect(incremental[0].hargaEceran).toBe(54000)
+  })
+})
+
 describe('rebuildProjections', () => {
   it('produces identical state after the cache is discarded', async () => {
-    await appendEvent(createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z')))
-    await appendEvent(createEvent('ItemUpserted', item('pasir', 180000), at('2026-09-18T07:01:00.000Z')))
+    await appendEvents([createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))])
+    await appendEvents([createEvent('ItemUpserted', item('pasir', 180000), at('2026-09-18T07:01:00.000Z'))])
     await rebuildProjections()
     const first = await db.itemsProj.toArray()
 
@@ -94,8 +162,8 @@ describe('rebuildProjections', () => {
     const second = createEvent('ItemUpserted', item('semen', 54000), at('2026-09-18T07:00:00.000Z'))
     expect(second.id > first.id).toBe(true)
 
-    await appendEvent(first)
-    await appendEvent(second)
+    await appendEvents([first])
+    await appendEvents([second])
     await rebuildProjections()
     const firstSnapshot = await db.itemsProj.toArray()
 
