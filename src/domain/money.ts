@@ -23,6 +23,13 @@ export const percentOf = (amount: Rupiah, percent: number): Rupiah =>
  * Guarantees the parts sum exactly to the total: no rupiah is lost or invented.
  */
 export function allocate(total: Rupiah, weights: number[]): Rupiah[] {
+  // Individually, not just in aggregate: weights [-1, 3] sum to a positive 2
+  // but ask for a negative share, which produces a part whose sign is opposite
+  // to the total and silently breaks "no rupiah is lost or invented" for every
+  // caller downstream. There is no meaningful negative line quantity here.
+  if (weights.some(w => !Number.isFinite(w) || w < 0)) {
+    throw new Error('allocate requires every weight to be a finite, non-negative number')
+  }
   const weightSum = weights.reduce((a, b) => a + b, 0)
   if (weightSum <= 0) {
     throw new Error('allocate requires a positive total weight')

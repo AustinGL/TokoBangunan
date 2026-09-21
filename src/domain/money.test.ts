@@ -58,6 +58,22 @@ describe('allocate', () => {
   it('rejects zero total weight', () => {
     expect(() => allocate(rupiah(100), [0, 0])).toThrow(/weight/)
   })
+
+  it('rejects an individual negative weight even when the total stays positive', () => {
+    // [-1, 3] sums to a positive 2, so the total-weight guard alone lets it
+    // through and the caller silently receives a part with the opposite sign
+    // to the total. There is no meaningful negative share of a bill here.
+    expect(() => allocate(rupiah(100), [-1, 3])).toThrow(/weight/)
+  })
+
+  it('rejects a non-finite weight', () => {
+    expect(() => allocate(rupiah(100), [Number.NaN, 1])).toThrow(/weight/)
+    expect(() => allocate(rupiah(100), [Number.POSITIVE_INFINITY, 1])).toThrow(/weight/)
+  })
+
+  it('still accepts a zero weight alongside positive ones', () => {
+    expect(allocate(rupiah(100), [0, 1])).toEqual([0, 100])
+  })
 })
 
 describe('formatRupiah', () => {
