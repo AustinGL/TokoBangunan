@@ -2,6 +2,7 @@ import { db, type QuarantineRow } from './db'
 import { classifyEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
 import { projectItems, reduceItems } from '../domain/projections/items'
+import { projectStock, reduceStock } from '../domain/projections/stock'
 
 const CURSOR_KEY = 'syncCursor'
 
@@ -27,6 +28,14 @@ const foldIncremental = async (event: EventEnvelope): Promise<void> => {
       const state = existing ? { [payload.id]: existing } : {}
       const next = reduceItems(state, event)[payload.id]
       if (next) await db.itemsProj.put(next)
+      return
+    }
+    case 'StockAdjusted': {
+      const payload = event.payload as { itemId: string }
+      const existing = await db.stokProj.get(payload.itemId)
+      const state = existing ? { [payload.itemId]: existing } : {}
+      const next = reduceStock(state, event)[payload.itemId]
+      if (next) await db.stokProj.put(next)
       return
     }
     default:
@@ -168,18 +177,24 @@ const rebuildItemsProj = async (events: EventEnvelope[]): Promise<void> => {
   await db.itemsProj.bulkPut(Object.values(items))
 }
 
+const rebuildStokProj = async (events: EventEnvelope[]): Promise<void> => {
+  const stock = projectStock(events)
+  await db.stokProj.clear()
+  await db.stokProj.bulkPut(Object.values(stock))
+}
+
 /**
  * Projections are a cache. Discarding and rebuilding must always produce
  * identical state, which the test suite asserts.
  *
- * One rebuild step per known projection, itemsProj being the only one with
- * real content right now. Later tasks add a rebuildStokProj/rebuildSalesProj
- * step here, and db.stokProj/db.salesProj to the transaction's table list,
- * without needing to restructure this function.
+ * One rebuild step per known projection. Later tasks add a
+ * rebuildSalesProj step here, and db.salesProj to the transaction's table
+ * list, without needing to restructure this function.
  */
 export const rebuildProjections = async (): Promise<void> => {
   const events = await getAllEvents()
-  await db.transaction('rw', db.itemsProj, async () => {
+  await db.transaction('rw', db.itemsProj, db.stokProj, async () => {
     await rebuildItemsProj(events)
+    await rebuildStokProj(events)
   })
 }

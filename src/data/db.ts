@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { EventEnvelope } from '../domain/events'
 import type { Item } from '../domain/projections/items'
+import type { StockLevel } from '../domain/projections/stock'
 
 export type MetaRow = { key: string; value: unknown }
 
@@ -34,10 +35,9 @@ class TokoDb extends Dexie {
   meta!: Table<MetaRow, string>
   itemsProj!: Table<Item, string>
   quarantine!: Table<QuarantineRow, string>
-  // Real StockLevel/Sale types and real content land in later tasks
-  // (stock.ts, sales.ts). The tables exist now, empty, so this schema bump
-  // stays additive-only going forward.
-  stokProj!: Table<unknown, string>
+  stokProj!: Table<StockLevel, string>
+  // Real Sale type and real content land in a later task (sales.ts). The
+  // table exists now, empty, so this schema bump stays additive-only.
   salesProj!: Table<unknown, string>
   outbox!: Table<OutboxRow, string>
 

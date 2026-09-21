@@ -35,10 +35,18 @@ const supplierUpsertedSchema = z.object({
   telepon: z.string().optional(),
 })
 
+const stockAdjustedSchema = z.object({
+  itemId: z.string().min(1),
+  quantity: integer.refine(n => n !== 0, 'quantity must not be zero'),
+  reason: z.enum(['initial', 'sale', 'void']),
+  saleId: z.string().optional(),    // present for 'sale' and 'void'
+})
+
 export const eventSchemas = {
   ItemUpserted: itemUpsertedSchema,
   CustomerUpserted: customerUpsertedSchema,
   SupplierUpserted: supplierUpsertedSchema,
+  StockAdjusted: stockAdjustedSchema,
 } as const
 
 export type EventType = keyof typeof eventSchemas

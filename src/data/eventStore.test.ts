@@ -13,6 +13,7 @@ const item = (id: string, harga: number) => ({
   id, nama: `Item ${id}`, baseUnit: 'sak',
   units: [{ unit: 'sak', factor: 1 }], hargaEceran: harga, stokMinimum: 0,
 })
+const adjust = (itemId: string, quantity: number) => ({ itemId, quantity, reason: 'initial' as const })
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
 
 beforeEach(async () => {
@@ -140,6 +141,22 @@ describe('appendEvents incremental fold', () => {
     // tie-break reduceItems applies during a rebuild.
     expect(incremental[0].hargaEceran).toBe(54000)
   })
+
+  it('produces the same stokProj row as rebuildProjections for accumulated StockAdjusted events', async () => {
+    const first = createEvent('StockAdjusted', adjust('semen', 10), at('2026-09-18T07:00:00.000Z'))
+    const second = createEvent('StockAdjusted', adjust('semen', -3), at('2026-09-18T07:01:00.000Z'))
+    await appendEvents([first])
+    await appendEvents([second])
+    const incremental = await db.stokProj.toArray()
+
+    await db.stokProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.stokProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    expect(incremental[0]).toMatchObject({ itemId: 'semen', quantity: 7 })
+  })
 })
 
 describe('rebuildProjections', () => {
@@ -175,6 +192,21 @@ describe('rebuildProjections', () => {
     expect(secondSnapshot).toHaveLength(1)
     // The event with the greater id (minted later) wins the tie.
     expect(secondSnapshot[0].hargaEceran).toBe(54000)
+  })
+
+  it('rebuilds stokProj identically after the cache is discarded', async () => {
+    await appendEvents([createEvent('StockAdjusted', adjust('semen', 10), at('2026-09-18T07:00:00.000Z'))])
+    await appendEvents([createEvent('StockAdjusted', adjust('semen', -3), at('2026-09-18T07:01:00.000Z'))])
+    await appendEvents([createEvent('StockAdjusted', adjust('pasir', 20), at('2026-09-18T07:02:00.000Z'))])
+    await rebuildProjections()
+    const first = await db.stokProj.toArray()
+
+    await db.stokProj.clear()
+    await rebuildProjections()
+    const second = await db.stokProj.toArray()
+
+    expect(second).toEqual(first)
+    expect(second).toHaveLength(2)
   })
 })
 
