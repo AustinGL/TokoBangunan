@@ -39,14 +39,18 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('menyimpan')
   const [pendingCount, setPendingCount] = useState(0)
 
-  // Inlined (rather than a useCallback referenced by the effect's deps) so the
-  // effect body itself is the thing that performs the sync: this is the "fetch
-  // on mount" shape react-hooks/set-state-in-effect expects, versus extracting
-  // the async work into a separately defined, effect-invoked function.
+  // One effect owns every sync trigger, so there is exactly one listener to
+  // register and exactly one place that can leak it. The effect body itself
+  // performs the first sync (the "fetch on mount" shape
+  // react-hooks/set-state-in-effect expects) and the same reporter closure is
+  // reused by the 'online' handler, so a device that was offline for a day
+  // catches up the moment the connection returns instead of waiting for a
+  // reload. runSync pages the pull internally, so one trigger is enough to
+  // drain an arbitrarily long backlog.
   useEffect(() => {
     let cancelled = false
 
-    void (async () => {
+    const sync = async () => {
       try {
         await runSync(supabaseTransport)
         if (cancelled) return
@@ -59,9 +63,20 @@ export default function App() {
         setPendingCount(pending.length)
         setSyncStatus('belum-tersinkron')
       }
-    })()
+    }
 
-    return () => { cancelled = true }
+    void sync()
+
+    const onOnline = () => {
+      setSyncStatus('menyimpan')
+      void sync()
+    }
+    window.addEventListener('online', onOnline)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('online', onOnline)
+    }
   }, [])
 
   return (

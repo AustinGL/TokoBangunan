@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import App from '../App'
+import { supabaseTransport } from '../data/sync'
 
 // The whole point of local-first: the app must mount with no network at all.
 vi.mock('../data/sync', async () => ({
@@ -70,6 +71,44 @@ describe('offline boot', () => {
     )
     expect(phoneFab).toBeInTheDocument()
     expect(phoneFab).not.toBe(desktopButton)
+  })
+
+  const pullCalls = () => vi.mocked(supabaseTransport.pull).mock.calls.length
+
+  // Without a re-sync trigger, runSync ran exactly once per page load: a
+  // device that was offline at launch stayed unsynced until the owner
+  // happened to reload, which on an installed PWA left open all day may be
+  // never.
+  it('syncs again when the connection comes back, without a reload', async () => {
+    render(<App />)
+    await screen.findByText('Belum tersinkron (0)')
+    const callsAfterMount = pullCalls()
+    expect(callsAfterMount).toBeGreaterThan(0)
+
+    window.dispatchEvent(new Event('online'))
+
+    await vi.waitFor(() => expect(pullCalls()).toBeGreaterThan(callsAfterMount))
+  })
+
+  it('stops listening for the connection once unmounted, so the listener cannot leak', async () => {
+    const { unmount } = render(<App />)
+    await screen.findByText('Belum tersinkron (0)')
+
+    // Trigger once while still mounted first. runSync does asynchronous
+    // IndexedDB work before it ever reaches the transport, so asserting
+    // "nothing happened" after a single microtask would pass even against a
+    // leaked listener. This half proves the listener is live and that the
+    // wait below is long enough for a leak to show itself.
+    const beforeTrigger = pullCalls()
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect(pullCalls()).toBeGreaterThan(beforeTrigger))
+
+    unmount()
+    const callsAtUnmount = pullCalls()
+    window.dispatchEvent(new Event('online'))
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    expect(pullCalls()).toBe(callsAtUnmount)
   })
 
   // window.history.pushState alone bypasses react-router's history
