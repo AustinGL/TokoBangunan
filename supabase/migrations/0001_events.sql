@@ -14,6 +14,13 @@ create index if not exists events_owner_seq_idx
 
 alter table public.events enable row level security;
 
+-- FORCE, not just ENABLE: without this, the table owner (postgres, which is
+-- what the Supabase SQL Editor runs queries as by default) bypasses RLS
+-- entirely, silently. A superuser running a raw UPDATE or DELETE here would
+-- succeed regardless of the policies below, which makes the SQL Editor an
+-- unreliable place to verify append-only. FORCE closes that.
+alter table public.events force row level security;
+
 -- Append-only: insert and select only. No update policy, no delete policy,
 -- for anyone. Corrections are compensating events.
 create policy events_select_own on public.events
