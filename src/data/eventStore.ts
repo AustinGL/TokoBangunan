@@ -3,6 +3,7 @@ import { classifyEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
 import { projectItems, reduceItems } from '../domain/projections/items'
 import { projectStock, reduceStock } from '../domain/projections/stock'
+import { projectSales, reduceSales } from '../domain/projections/sales'
 
 const CURSOR_KEY = 'syncCursor'
 
@@ -38,10 +39,26 @@ const foldIncremental = async (event: EventEnvelope): Promise<void> => {
       if (next) await db.stokProj.put(next)
       return
     }
+    case 'SaleRecorded': {
+      const existing = await db.salesProj.get(event.id)
+      const state = existing ? { [event.id]: existing } : {}
+      const next = reduceSales(state, event)[event.id]
+      if (next) await db.salesProj.put(next)
+      return
+    }
+    case 'SaleVoided': {
+      // Patched by a FOREIGN key (payload.saleId), not this event's own id:
+      // see reduceSales's doc comment for why no tie-break is needed here.
+      const payload = event.payload as { saleId: string }
+      const existing = await db.salesProj.get(payload.saleId)
+      const state = existing ? { [payload.saleId]: existing } : {}
+      const next = reduceSales(state, event)[payload.saleId]
+      if (next) await db.salesProj.put(next)
+      return
+    }
     default:
-      // No other event schema exists yet, so this is unreachable in
-      // practice. Later tasks add their own case above as their event type
-      // and projection module land.
+      // Every known event schema has a case above. Later tasks add their
+      // own case above as their event type and projection module land.
       return
   }
 }
@@ -183,18 +200,23 @@ const rebuildStokProj = async (events: EventEnvelope[]): Promise<void> => {
   await db.stokProj.bulkPut(Object.values(stock))
 }
 
+const rebuildSalesProj = async (events: EventEnvelope[]): Promise<void> => {
+  const sales = projectSales(events)
+  await db.salesProj.clear()
+  await db.salesProj.bulkPut(Object.values(sales))
+}
+
 /**
  * Projections are a cache. Discarding and rebuilding must always produce
  * identical state, which the test suite asserts.
  *
- * One rebuild step per known projection. Later tasks add a
- * rebuildSalesProj step here, and db.salesProj to the transaction's table
- * list, without needing to restructure this function.
+ * One rebuild step per known projection.
  */
 export const rebuildProjections = async (): Promise<void> => {
   const events = await getAllEvents()
-  await db.transaction('rw', db.itemsProj, db.stokProj, async () => {
+  await db.transaction('rw', db.itemsProj, db.stokProj, db.salesProj, async () => {
     await rebuildItemsProj(events)
     await rebuildStokProj(events)
+    await rebuildSalesProj(events)
   })
 }

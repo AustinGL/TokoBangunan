@@ -42,11 +42,45 @@ const stockAdjustedSchema = z.object({
   saleId: z.string().optional(),    // present for 'sale' and 'void'
 })
 
+const saleLineSchema = z.object({
+  itemId: z.string().min(1),
+  // Snapshots, not references. hargaEceran on ItemUpserted can change after
+  // the sale; the nota and margin math must reproduce what was actually
+  // charged on the day, not today's catalogue price -- same principle as
+  // occurredAt/recordedAt staying separate fields.
+  nama: z.string().min(1),
+  unit: z.string().min(1),          // Phase 2: always the item's baseUnit
+  qty: integer,                     // milli-units of `unit`, per quantity.ts
+  hargaSatuan: integer,             // Rupiah per whole unit, snapshot
+  subtotal: integer,                // = multiplyByQty(hargaSatuan, qty)
+})
+
+const saleRecordedSchema = z.object({
+  lines: z.array(saleLineSchema).min(1),
+  // Enum, not a plain string: only 'tunai' is legal now. Extending the enum
+  // in Phase 4 ('transfer' | 'qris' | 'bon') is additive and never
+  // invalidates events already written under this narrower schema.
+  metodeBayar: z.enum(['tunai']),
+  subtotal: integer,
+  diskon: integer.default(0),       // always 0 this phase; see Decision 6
+  total: integer,                   // subtotal - diskon
+  uangDiterima: integer.optional(), // Tunai: amount tendered
+  customerId: z.string().optional(),// a Tunai sale may carry no customer
+  deliveryIntent: z.enum(['dibawa']).default('dibawa'),
+})
+
+const saleVoidedSchema = z.object({
+  saleId: z.string().min(1),        // the id of the original SaleRecorded event
+  alasan: z.string().min(1),
+})
+
 export const eventSchemas = {
   ItemUpserted: itemUpsertedSchema,
   CustomerUpserted: customerUpsertedSchema,
   SupplierUpserted: supplierUpsertedSchema,
   StockAdjusted: stockAdjustedSchema,
+  SaleRecorded: saleRecordedSchema,
+  SaleVoided: saleVoidedSchema,
 } as const
 
 export type EventType = keyof typeof eventSchemas

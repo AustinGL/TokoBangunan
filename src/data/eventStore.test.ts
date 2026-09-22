@@ -14,6 +14,14 @@ const item = (id: string, harga: number) => ({
   units: [{ unit: 'sak', factor: 1 }], hargaEceran: harga, stokMinimum: 0,
 })
 const adjust = (itemId: string, quantity: number) => ({ itemId, quantity, reason: 'initial' as const })
+const sale = (itemId: string, total: number) => ({
+  lines: [{ itemId, nama: `Item ${itemId}`, unit: 'sak', qty: 1000, hargaSatuan: total, subtotal: total }],
+  metodeBayar: 'tunai' as const,
+  subtotal: total,
+  diskon: 0,
+  total,
+})
+const voidSale = (saleId: string, alasan: string) => ({ saleId, alasan })
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
 
 beforeEach(async () => {
@@ -157,6 +165,25 @@ describe('appendEvents incremental fold', () => {
     expect(incremental).toHaveLength(1)
     expect(incremental[0]).toMatchObject({ itemId: 'semen', quantity: 7 })
   })
+
+  it('produces the same salesProj row as rebuildProjections for a SaleRecorded followed by a SaleVoided in a separate append', async () => {
+    // Specifically exercises the patch-by-foreign-key wiring in
+    // foldIncremental: the SaleVoided case must look up and write back
+    // db.salesProj keyed by payload.saleId, not the void event's own id.
+    const recorded = createEvent('SaleRecorded', sale('semen', 52000), at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([recorded])
+    const voided = createEvent('SaleVoided', voidSale(recorded.id, 'salah input'), at('2026-09-18T07:01:00.000Z'))
+    await appendEvents([voided])
+    const incremental = await db.salesProj.toArray()
+
+    await db.salesProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.salesProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    expect(incremental[0]).toMatchObject({ id: recorded.id, status: 'batal', voidedReason: 'salah input' })
+  })
 })
 
 describe('rebuildProjections', () => {
@@ -208,12 +235,28 @@ describe('rebuildProjections', () => {
     expect(second).toEqual(first)
     expect(second).toHaveLength(2)
   })
+
+  it('rebuilds salesProj identically after the cache is discarded, for a recorded and voided sale', async () => {
+    const recorded = createEvent('SaleRecorded', sale('semen', 52000), at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([recorded])
+    await appendEvents([createEvent('SaleVoided', voidSale(recorded.id, 'salah input'), at('2026-09-18T07:01:00.000Z'))])
+    await rebuildProjections()
+    const first = await db.salesProj.toArray()
+
+    await db.salesProj.clear()
+    await rebuildProjections()
+    const second = await db.salesProj.toArray()
+
+    expect(second).toEqual(first)
+    expect(second).toHaveLength(1)
+    expect(second[0]).toMatchObject({ id: recorded.id, status: 'batal' })
+  })
 })
 
 describe('applyRemoteEvents partitioning', () => {
   const unknownType = (id: string, recordedAt: string) => ({
     id,
-    type: 'SaleRecorded',
+    type: 'NotYetKnownType',
     payload: { total: 125000 },
     occurredAt: recordedAt,
     recordedAt,
@@ -223,11 +266,11 @@ describe('applyRemoteEvents partitioning', () => {
 
   it('applies the valid events in a batch whose middle event has an unknown type', async () => {
     // The forward-compatibility case, and the reason this cannot throw: the
-    // counter laptop updates to a release that emits SaleRecorded while the
-    // phone is still on this one. An all-or-nothing map(parseEvent) would
-    // throw before the bulkPut, leave the cursor un-advanced, and make every
-    // later sync refetch and rethrow on the same page forever. The log is
-    // append-only, so the poison row never goes away.
+    // counter laptop updates to a release that emits a new event type while
+    // the phone is still on this one. An all-or-nothing map(parseEvent)
+    // would throw before the bulkPut, leave the cursor un-advanced, and
+    // make every later sync refetch and rethrow on the same page forever.
+    // The log is append-only, so the poison row never goes away.
     const first = { ...createEvent('ItemUpserted', item('a', 100), at('2026-09-18T07:00:00.000Z')), serverSeq: 1 }
     const third = { ...createEvent('ItemUpserted', item('c', 300), at('2026-09-18T07:02:00.000Z')), serverSeq: 3 }
 
@@ -246,7 +289,7 @@ describe('applyRemoteEvents partitioning', () => {
     const [row] = await getQuarantined()
     expect(row.key).toBe('evt-sale')
     expect(row.raw).toEqual(raw)
-    expect(row.reason).toContain('SaleRecorded')
+    expect(row.reason).toContain('NotYetKnownType')
   })
 
   it('keys an unkeyed record so a batch of them cannot collapse into one row', async () => {

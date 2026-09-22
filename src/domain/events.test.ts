@@ -175,11 +175,11 @@ describe('classifyEvent', () => {
   // record is usable later and must be distinguishable from corruption.
   it('separates an unknown event type from an invalid record', () => {
     const e = createEvent('ItemUpserted', itemPayload, opts)
-    const result = classifyEvent({ ...e, type: 'SaleRecorded' })
+    const result = classifyEvent({ ...e, type: 'NotYetKnownType' })
     expect(result.status).toBe('unknown-type')
     if (result.status === 'unknown-type') {
       expect(result.event.id).toBe(e.id)
-      expect(result.reason).toContain('SaleRecorded')
+      expect(result.reason).toContain('NotYetKnownType')
     }
   })
 
