@@ -224,6 +224,19 @@
   --z-scrim:    40;
   --z-modal:    50;
   --z-toast:    60;
+
+  /* Sticky element reservation (MASTER.md section 7). A sticky bar that
+     covers a focused control is a WCAG 2.2 failure, so scrollable regions
+     near one reserve space via scroll-padding and a bottom inset. */
+  --sticky-top:    64px;
+  --sticky-bottom: 96px;
+}
+
+.scroll-region {
+  scroll-padding-top: var(--sticky-top);
+  scroll-padding-bottom: var(--sticky-bottom);
+  /* The bottom inset so the last row is not stranded behind a sticky footer. */
+  padding-bottom: var(--sticky-bottom);
 }
 
 /* 1.5 Component tokens */
