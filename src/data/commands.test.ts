@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
-import { recordItem, recordSale, type RecordSaleInput } from './commands'
+import { recordItem, recordSale, voidSale, type RecordSaleInput } from './commands'
 import { fixedClock } from '../domain/clock'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
@@ -203,5 +203,109 @@ describe('recordSale', () => {
 
     const [saleEvent] = (await db.events.toArray()).filter(e => e.type === 'SaleRecorded')
     expect(saleEvent.id).toBe(saleId)
+  })
+})
+
+describe('voidSale', () => {
+  it('writes one SaleVoided and one StockAdjusted(void) reversing the sale, and both projections reflect it', async () => {
+    // Before: -3000 (sale deduction). qty 3000 reversed by +3000: after = 0.
+    const cart: RecordSaleInput = {
+      lines: [
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 3000, hargaSatuan: 52000, subtotal: 156000 },
+      ],
+      metodeBayar: 'tunai',
+    }
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+
+    const stockBeforeVoid = await db.stokProj.get('semen')
+    expect(stockBeforeVoid?.quantity).toBe(-3000)
+
+    await voidSale(saleId, 'Salah input', at('2026-09-18T09:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    // 1 SaleRecorded + 1 StockAdjusted('sale') + 1 SaleVoided + 1 StockAdjusted('void') = 4.
+    expect(events).toHaveLength(4)
+
+    const voidEvent = events.find(e => e.type === 'SaleVoided')!
+    expect(voidEvent.payload).toMatchObject({ saleId, alasan: 'Salah input' })
+
+    const reversalEvent = events.find(e => e.type === 'StockAdjusted' && (e.payload as { reason: string }).reason === 'void')!
+    expect(reversalEvent.payload).toMatchObject({ itemId: 'semen', quantity: 3000, reason: 'void', saleId })
+
+    const sale = await db.salesProj.get(saleId)
+    expect(sale?.status).toBe('batal')
+    expect(sale?.voidedReason).toBe('Salah input')
+
+    // -3000 (sale) + 3000 (void reversal) = 0: the deduction is fully undone.
+    const stockAfterVoid = await db.stokProj.get('semen')
+    expect(stockAfterVoid?.quantity).toBe(0)
+  })
+
+  it('reverses every line of a multi-line sale, not just the first', async () => {
+    const cart: RecordSaleInput = {
+      lines: [
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 3000, hargaSatuan: 52000, subtotal: 156000 },
+        { itemId: 'pasir', nama: 'Pasir', unit: 'm3', qty: 2000, hargaSatuan: 180000, subtotal: 360000 },
+      ],
+      metodeBayar: 'tunai',
+    }
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+
+    await voidSale(saleId, 'Batal dari pelanggan', at('2026-09-18T09:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    const reversalEvents = events.filter(e => e.type === 'StockAdjusted' && (e.payload as { reason: string }).reason === 'void')
+    expect(reversalEvents).toHaveLength(2)
+
+    const semenReversal = reversalEvents.find(e => (e.payload as { itemId: string }).itemId === 'semen')!
+    const pasirReversal = reversalEvents.find(e => (e.payload as { itemId: string }).itemId === 'pasir')!
+    expect(semenReversal.payload).toMatchObject({ quantity: 3000, saleId })
+    expect(pasirReversal.payload).toMatchObject({ quantity: 2000, saleId })
+
+    // Each line's deduction (-3000, -2000) is exactly undone by its reversal.
+    const semenStock = await db.stokProj.get('semen')
+    const pasirStock = await db.stokProj.get('pasir')
+    expect(semenStock?.quantity).toBe(0)
+    expect(pasirStock?.quantity).toBe(0)
+  })
+
+  it('throws on a nonexistent sale id and writes nothing', async () => {
+    await expect(voidSale('no-such-sale', 'Alasan apapun', at('2026-09-18T09:00:00.000Z')))
+      .rejects.toThrow('Transaksi tidak ditemukan.')
+
+    expect(await db.events.count()).toBe(0)
+  })
+
+  it('throws on an already-batal sale and does not double-adjust stokProj (the load-bearing double-void guard)', async () => {
+    const cart: RecordSaleInput = {
+      lines: [
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 3000, hargaSatuan: 52000, subtotal: 156000 },
+      ],
+      metodeBayar: 'tunai',
+    }
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+    await voidSale(saleId, 'Salah input', at('2026-09-18T09:00:00.000Z'))
+
+    const eventCountAfterFirstVoid = await db.events.count()
+    // -3000 (sale) + 3000 (first void reversal) = 0.
+    const stockAfterFirstVoid = await db.stokProj.get('semen')
+    expect(stockAfterFirstVoid?.quantity).toBe(0)
+
+    await expect(voidSale(saleId, 'Coba lagi', at('2026-09-18T10:00:00.000Z')))
+      .rejects.toThrow('Transaksi sudah dibatalkan.')
+
+    // No new events at all from the rejected second call.
+    expect(await db.events.count()).toBe(eventCountAfterFirstVoid)
+
+    // The load-bearing assertion: if the guard were missing, a second void
+    // would append a second +3000 StockAdjusted('void'), taking quantity to
+    // 3000 even though reduceSales would still (idempotently) report the
+    // sale as 'batal'. Proving quantity is STILL 0, not 3000, is what shows
+    // stock was not silently double-reversed.
+    const stockAfterSecondAttempt = await db.stokProj.get('semen')
+    expect(stockAfterSecondAttempt?.quantity).toBe(0)
+
+    const sale = await db.salesProj.get(saleId)
+    expect(sale?.status).toBe('batal')
   })
 })

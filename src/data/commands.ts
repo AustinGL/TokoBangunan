@@ -1,4 +1,5 @@
 import { appendEvents } from './eventStore'
+import { db } from './db'
 import { createEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
 import { toBase } from '../domain/quantity'
@@ -140,4 +141,40 @@ export const recordSale = async (cart: RecordSaleInput, ctx: CommandContext): Pr
 
   await appendEvents([saleEvent, ...stockEvents])
   return saleEvent.id
+}
+
+/**
+ * Cancels an existing sale: writes SaleVoided and reverses its stock
+ * deduction, one StockAdjusted('void') per original line, all as one
+ * atomic appendEvents call. Reads db.salesProj first (the only command
+ * function so far that reads before it writes) to recover the original
+ * sale's lines - SaleVoided itself carries no line data, so there is no
+ * other source for "what was on this sale" than the projection it already
+ * produced.
+ *
+ * The status guard below is load-bearing, not defensive fluff.
+ * reduceSales already treats a second SaleVoided on an already-'batal'
+ * sale as a no-op at the projection level, but reduceStock has no such
+ * guard: it unconditionally accumulates every StockAdjusted event it
+ * sees. If voidSale ran twice for the same sale (a stale UI letting a
+ * double-click through, two devices racing before a live query catches
+ * up), the projection-level idempotency would hide the fact that stock
+ * got reversed TWICE, a real, silent stock-count corruption. Throwing
+ * here, before any event is built, is what prevents that.
+ */
+export async function voidSale(saleId: string, alasan: string, ctx: CommandContext): Promise<void> {
+  const sale = await db.salesProj.get(saleId)
+  if (!sale) throw new Error('Transaksi tidak ditemukan.')
+  if (sale.status === 'batal') throw new Error('Transaksi sudah dibatalkan.')
+
+  const voidEvent = createEvent('SaleVoided', { saleId, alasan }, ctx)
+  // StockAdjusted.quantity is POSITIVE line.qty, reversing recordSale's
+  // negative deduction exactly. StockAdjusted.saleId is the ORIGINAL
+  // sale's id (the saleId parameter), not voidEvent's own id, so "which
+  // sale does this stock movement belong to" stays consistent across both
+  // 'sale' and 'void' reasons.
+  const stockEvents = sale.lines.map(line =>
+    createEvent('StockAdjusted', { itemId: line.itemId, quantity: line.qty, reason: 'void', saleId }, ctx),
+  )
+  await appendEvents([voidEvent, ...stockEvents])
 }
