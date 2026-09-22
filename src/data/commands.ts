@@ -2,6 +2,7 @@ import { appendEvents } from './eventStore'
 import { createEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
 import { toBase } from '../domain/quantity'
+import { add, rupiah, subtract, type Rupiah } from '../domain/money'
 import type { Clock } from '../domain/clock'
 
 /**
@@ -68,4 +69,75 @@ export const recordItem = async (input: RecordItemInput, ctx: CommandContext): P
 
   await appendEvents(events)
   return id
+}
+
+/**
+ * A cart line as commands.ts needs it: structurally what useCart.ts's
+ * CartLine produces (plus, harmlessly, any extra fields on that type -
+ * TypeScript's structural typing accepts a CartLine[] argument here without
+ * a cast). Kept as this file's own type, not an import from features/kasir,
+ * since data/ is a lower layer than features/ (see this file's own doc
+ * comment above: features import commands.ts, not the reverse).
+ */
+export type RecordSaleLine = {
+  itemId: string
+  nama: string
+  unit: string
+  /** Milli-units of `unit`, per quantity.ts. Positive: a cart holds what is being sold, not the stock delta. */
+  qty: number
+  hargaSatuan: number
+  subtotal: number
+}
+
+export type RecordSaleInput = {
+  lines: RecordSaleLine[]
+  /** Phase 2 accepts only tunai; matches saleRecordedSchema's narrower enum. */
+  metodeBayar: 'tunai'
+  uangDiterima?: number
+  /** No customer picker exists yet (Task 6b territory); always undefined this phase. */
+  customerId?: string
+}
+
+/**
+ * Records a sale and its stock deduction as one atomic write: one
+ * SaleRecorded event plus one StockAdjusted('sale') event per cart line,
+ * all in a single appendEvents call. Assumes cart.lines has at least one
+ * line, the same way recordItem assumes its caller already validated
+ * required fields -- CartPanel (Task 6b) disables its save action on an
+ * empty cart, so an empty-cart call is unreachable from the UI rather than
+ * defended against here (saleLineSchema's array also has .min(1) and would
+ * reject it regardless).
+ */
+export const recordSale = async (cart: RecordSaleInput, ctx: CommandContext): Promise<string> => {
+  const subtotal = cart.lines.reduce(
+    (sum, line) => add(sum, rupiah(line.subtotal)),
+    rupiah(0),
+  )
+  const diskon: Rupiah = rupiah(0)
+  const total = subtract(subtotal, diskon)
+
+  const saleEvent = createEvent('SaleRecorded', {
+    lines: cart.lines,
+    metodeBayar: cart.metodeBayar,
+    subtotal,
+    diskon,
+    total,
+    uangDiterima: cart.uangDiterima,
+    customerId: cart.customerId,
+    deliveryIntent: 'dibawa',
+  }, ctx)
+
+  // One StockAdjusted per line, quantity negated: the cart line's own qty is
+  // a positive milli-quantity (what was sold), but a sale deducts stock.
+  const stockEvents: EventEnvelope[] = cart.lines.map(line =>
+    createEvent('StockAdjusted', {
+      itemId: line.itemId,
+      quantity: -line.qty,
+      reason: 'sale',
+      saleId: saleEvent.id,
+    }, ctx),
+  )
+
+  await appendEvents([saleEvent, ...stockEvents])
+  return saleEvent.id
 }

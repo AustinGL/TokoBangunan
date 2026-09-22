@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
-import { recordItem } from './commands'
+import { recordItem, recordSale, type RecordSaleInput } from './commands'
 import { fixedClock } from '../domain/clock'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
@@ -91,5 +91,117 @@ describe('recordItem', () => {
 
     const [event] = await db.events.toArray()
     expect((event.payload as { units: unknown }).units).toEqual([{ unit: 'kaleng', factor: 1 }])
+  })
+})
+
+describe('recordSale', () => {
+  it('writes one SaleRecorded and one StockAdjusted event atomically for a single-line cart, and both projections reflect it', async () => {
+    const cart: RecordSaleInput = {
+      lines: [
+        // 3 sak at Rp 52.000/sak, milli-qty 3000: subtotal = 52000 * 3000 / 1000 = 156000.
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 3000, hargaSatuan: 52000, subtotal: 156000 },
+      ],
+      metodeBayar: 'tunai',
+      uangDiterima: 200000,
+    }
+
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    expect(events).toHaveLength(2)
+
+    const saleEvent = events.find(e => e.type === 'SaleRecorded')!
+    expect(saleEvent.id).toBe(saleId)
+    expect(saleEvent.payload).toMatchObject({
+      subtotal: 156000,
+      diskon: 0,
+      total: 156000,
+      metodeBayar: 'tunai',
+      uangDiterima: 200000,
+      deliveryIntent: 'dibawa',
+    })
+
+    const stockEvent = events.find(e => e.type === 'StockAdjusted')!
+    // A sale deducts stock: the cart line's qty (3000, positive) becomes -3000.
+    expect(stockEvent.payload).toMatchObject({
+      itemId: 'semen',
+      quantity: -3000,
+      reason: 'sale',
+      saleId,
+    })
+
+    const sales = await db.salesProj.toArray()
+    expect(sales).toHaveLength(1)
+    expect(sales[0]).toMatchObject({ id: saleId, subtotal: 156000, total: 156000, status: 'aktif' })
+
+    const stock = await db.stokProj.toArray()
+    expect(stock).toHaveLength(1)
+    expect(stock[0]).toMatchObject({ itemId: 'semen', quantity: -3000 })
+  })
+
+  it('writes N+1 events atomically for a multi-line cart and sums subtotal/total correctly', async () => {
+    const cart: RecordSaleInput = {
+      lines: [
+        // 3 sak at Rp 52.000/sak: 52000 * 3000 / 1000 = 156000.
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 3000, hargaSatuan: 52000, subtotal: 156000 },
+        // 2 m3 at Rp 180.000/m3: 180000 * 2000 / 1000 = 360000.
+        { itemId: 'pasir', nama: 'Pasir', unit: 'm3', qty: 2000, hargaSatuan: 180000, subtotal: 360000 },
+      ],
+      metodeBayar: 'tunai',
+    }
+
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    // 1 SaleRecorded + 2 StockAdjusted = 3 events, one appendEvents call.
+    expect(events).toHaveLength(3)
+    expect(events.filter(e => e.type === 'StockAdjusted')).toHaveLength(2)
+
+    const saleEvent = events.find(e => e.type === 'SaleRecorded')!
+    // Sum: 156000 + 360000 = 516000. diskon is always 0, so total === subtotal.
+    expect(saleEvent.payload).toMatchObject({ subtotal: 516000, diskon: 0, total: 516000 })
+
+    const stockEvents = events.filter(e => e.type === 'StockAdjusted')
+    const bySemen = stockEvents.find(e => (e.payload as { itemId: string }).itemId === 'semen')!
+    const byPasir = stockEvents.find(e => (e.payload as { itemId: string }).itemId === 'pasir')!
+    expect(bySemen.payload).toMatchObject({ quantity: -3000, saleId })
+    expect(byPasir.payload).toMatchObject({ quantity: -2000, saleId })
+
+    const stock = await db.stokProj.toArray()
+    expect(stock).toHaveLength(2)
+
+    const sales = await db.salesProj.toArray()
+    expect(sales).toHaveLength(1)
+    expect(sales[0].lines).toHaveLength(2)
+  })
+
+  it('always hardcodes diskon to 0, so total equals subtotal', async () => {
+    const cart: RecordSaleInput = {
+      lines: [
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 52000, subtotal: 52000 },
+      ],
+      metodeBayar: 'tunai',
+    }
+
+    await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+
+    const [saleEvent] = (await db.events.toArray()).filter(e => e.type === 'SaleRecorded')
+    const payload = saleEvent.payload as { subtotal: number; diskon: number; total: number }
+    expect(payload.diskon).toBe(0)
+    expect(payload.total).toBe(payload.subtotal)
+  })
+
+  it('returns the sale id, matching the written SaleRecorded event id', async () => {
+    const cart: RecordSaleInput = {
+      lines: [
+        { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 52000, subtotal: 52000 },
+      ],
+      metodeBayar: 'tunai',
+    }
+
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+
+    const [saleEvent] = (await db.events.toArray()).filter(e => e.type === 'SaleRecorded')
+    expect(saleEvent.id).toBe(saleId)
   })
 })
