@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { ItemList } from '../features/stok/ItemList'
 import { Kasir } from '../features/kasir/Kasir'
+import { SaleList } from '../features/transaksi/SaleList'
 
 const Placeholder = ({ name }: { name: string }) => (
   <main className="p-8">
@@ -20,7 +21,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/"          element={<Placeholder name="Beranda" />} />
-      <Route path="/transaksi" element={<Placeholder name="Transaksi" />} />
+      <Route path="/transaksi" element={<SaleList />} />
       <Route path="/stok"      element={<ItemList />} />
       <Route path="/piutang"   element={<Placeholder name="Piutang" />} />
       <Route path="/supplier"  element={<Placeholder name="Supplier" />} />
