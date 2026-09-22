@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { ItemList } from '../features/stok/ItemList'
+import { Kasir } from '../features/kasir/Kasir'
 
 const Placeholder = ({ name }: { name: string }) => (
   <main className="p-8">
@@ -25,9 +26,7 @@ export function AppRoutes() {
       <Route path="/supplier"  element={<Placeholder name="Supplier" />} />
       <Route path="/laporan"   element={<Placeholder name="Laporan" />} />
       <Route path="/lainnya"   element={<Placeholder name="Lainnya" />} />
-      {/* No Kasir screen exists yet, but the primary "Transaksi baru" button
-          and the F2 shortcut both navigate here. */}
-      <Route path="/kasir"     element={<Placeholder name="Kasir" />} />
+      <Route path="/kasir"     element={<Kasir />} />
       {/* Genuinely unmatched paths (typos, stale bookmarks, future dead
           links) get honest not-found copy, not the Kasir label above. */}
       <Route path="*"          element={<NotFound />} />

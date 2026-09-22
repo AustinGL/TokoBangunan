@@ -130,6 +130,15 @@ describe('ItemForm', () => {
     expect(screen.getByLabelText(/nama barang/i)).toHaveValue('Semen Tiga Roda')
   })
 
+  it('seeds nama/barcode from initialValues on first render, added for Kasir\'s inline item creation (Task 6b)', () => {
+    render(<ItemForm onSubmit={vi.fn()} initialValues={{ nama: 'Paku Beton', barcode: '9990001112223' }} />)
+
+    expect(screen.getByLabelText(/nama barang/i)).toHaveValue('Paku Beton')
+    expect(screen.getByLabelText(/barcode/i)).toHaveValue('9990001112223')
+    // Every other field is unaffected by the seed.
+    expect(screen.getByLabelText(/satuan dasar/i)).toHaveValue('')
+  })
+
   it('disables the submit button while a submission is in flight', async () => {
     const user = userEvent.setup()
     let resolveSubmit: () => void = () => {}

@@ -1,21 +1,28 @@
+import 'fake-indexeddb/auto'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { db } from '../data/db'
 import { AppRoutes } from './routes'
 
-// /kasir is where the F2 shortcut and the "Transaksi baru" buttons currently
-// send the user (no Kasir screen exists until a later phase). Without a
-// catch-all route, that navigation renders nothing at all under a live nav
-// bar - the app's single most prominent action would land on a blank pane.
-describe('AppRoutes: the explicit /kasir route and the catch-all', () => {
-  it('renders a placeholder instead of a blank pane for /kasir', () => {
+beforeEach(async () => {
+  await db.delete()
+  await db.open()
+})
+
+// /kasir used to render a placeholder (no Kasir screen existed until Task
+// 6). Task 6b wires the real screen in, so this now asserts the live Kasir
+// UI mounts, not the "dibangun di fase berikutnya" placeholder copy.
+describe('AppRoutes: the /kasir route and the catch-all', () => {
+  it('renders the real Kasir screen for /kasir, not the placeholder', () => {
     render(
       <MemoryRouter initialEntries={['/kasir']}>
         <AppRoutes />
       </MemoryRouter>,
     )
-    expect(screen.getByText('Kasir')).toBeInTheDocument()
-    expect(screen.getByText('Layar ini dibangun di fase berikutnya.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Kasir' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/cari barang/i)).toBeInTheDocument()
+    expect(screen.queryByText('Layar ini dibangun di fase berikutnya.')).toBeNull()
   })
 
   // The catch-all used to serve double duty as the Kasir landing pane,

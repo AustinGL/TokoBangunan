@@ -22,6 +22,14 @@ type Props = {
    * into a visible error rather than letting it go unhandled.
    */
   onSubmit: (values: ItemFormValues) => void | Promise<void>
+  /**
+   * Seeds nama/barcode on first render only, added for Kasir's inline
+   * item-creation flow (Task 6b): a scanned unknown barcode or a typed
+   * unknown name should land pre-filled in the form rather than making the
+   * owner retype what they already entered. Optional and additive so every
+   * existing caller (Stok's "+ Tambah barang") is unaffected.
+   */
+  initialValues?: { nama?: string; barcode?: string }
 }
 
 type FieldKey = 'nama' | 'baseUnit' | 'hargaEceran' | 'stokMinimum' | 'stokAwal'
@@ -82,13 +90,13 @@ function FormField({ id, label, type = 'text', value, onChange, required, error 
   )
 }
 
-export function ItemForm({ onSubmit }: Props) {
-  const [nama, setNama] = useState('')
+export function ItemForm({ onSubmit, initialValues }: Props) {
+  const [nama, setNama] = useState(initialValues?.nama ?? '')
   const [baseUnit, setBaseUnit] = useState('')
   const [hargaEceran, setHargaEceran] = useState('')
   const [stokMinimum, setStokMinimum] = useState('')
   const [stokAwal, setStokAwal] = useState('')
-  const [barcode, setBarcode] = useState('')
+  const [barcode, setBarcode] = useState(initialValues?.barcode ?? '')
   const [kategori, setKategori] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
