@@ -112,4 +112,34 @@ describe('ItemForm', () => {
     render(<ItemForm onSubmit={vi.fn()} />)
     expect(screen.getByRole('button', { name: /simpan barang/i })).toHaveClass('min-h-tap')
   })
+
+  it('shows a focusable, visible error and keeps the entered values when onSubmit rejects', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValue(new Error('write failed'))
+    render(<ItemForm onSubmit={onSubmit} />)
+
+    await fillValid(user)
+    await user.click(screen.getByRole('button', { name: /simpan barang/i }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/gagal disimpan/i)
+    expect(alert).toHaveAttribute('tabindex', '-1')
+    expect(document.activeElement).toBe(alert)
+    // The form itself is untouched: nothing was cleared, no crash from the
+    // unhandled rejection.
+    expect(screen.getByLabelText(/nama barang/i)).toHaveValue('Semen Tiga Roda')
+  })
+
+  it('disables the submit button while a submission is in flight', async () => {
+    const user = userEvent.setup()
+    let resolveSubmit: () => void = () => {}
+    const onSubmit = vi.fn(() => new Promise<void>(resolve => { resolveSubmit = resolve }))
+    render(<ItemForm onSubmit={onSubmit} />)
+
+    await fillValid(user)
+    await user.click(screen.getByRole('button', { name: /simpan barang/i }))
+
+    expect(screen.getByRole('button', { name: /menyimpan/i })).toBeDisabled()
+    resolveSubmit()
+  })
 })

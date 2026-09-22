@@ -6,8 +6,8 @@ import {
   type StokFilterState, type StokRow, type StokStatus,
 } from './useStokList'
 import { recordItem } from '../../data/commands'
+import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
-import { newEventId } from '../../domain/ids'
 import { formatRupiah, rupiah } from '../../domain/money'
 
 /**
@@ -44,35 +44,6 @@ function StatusPill({ status }: { status: StokStatus }) {
       {STATUS_LABEL[status]}
     </span>
   )
-}
-
-// A device identifier is only needed here (where a Stok write is first
-// actually issued from a UI event); every other CommandContext.deviceId in
-// the codebase so far comes from a test fixture. No app-wide device-id
-// source exists yet, so this is a minimal, self-contained one: a UUIDv7
-// minted once and kept in localStorage, not a new shared module.
-const DEVICE_ID_KEY = 'toko-device-id'
-let cachedDeviceId: string | null = null
-
-function getDeviceId(): string {
-  if (cachedDeviceId) return cachedDeviceId
-  try {
-    const existing = localStorage.getItem(DEVICE_ID_KEY)
-    if (existing) {
-      cachedDeviceId = existing
-      return existing
-    }
-    const id = newEventId()
-    localStorage.setItem(DEVICE_ID_KEY, id)
-    cachedDeviceId = id
-    return id
-  } catch {
-    // Storage unavailable (private mode, disabled storage): fall back to a
-    // session-only id rather than failing the write outright.
-    const id = newEventId()
-    cachedDeviceId = id
-    return id
-  }
 }
 
 function SkeletonRow({ index }: { index: number }) {
@@ -131,6 +102,10 @@ export function ItemList() {
   const visibleRows = useMemo(() => (rows ? filterStokRows(rows, filters) : []), [rows, filters])
 
   const handleSubmit = async (values: ItemFormValues) => {
+    // A rejected recordItem (IndexedDB write failure, quota exceeded, and so
+    // on) throws out of this await, so setFormOpen(false) below never runs:
+    // the panel only closes on actual success. ItemForm awaits this same
+    // promise and turns the rejection into a visible error for the user.
     await recordItem(values, { clock: systemClock, deviceId: getDeviceId() })
     setFormOpen(false)
   }

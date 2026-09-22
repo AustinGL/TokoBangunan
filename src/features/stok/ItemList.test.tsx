@@ -1,13 +1,23 @@
 import 'fake-indexeddb/auto'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
+import { recordItem } from '../../data/commands'
 import { ItemList } from './ItemList'
+
+// recordItem is wrapped as a spy over its real implementation, so every
+// existing test still writes through to fake-indexeddb as before; only the
+// "recordItem fails" test below overrides it for a single call.
+vi.mock('../../data/commands', async () => {
+  const actual = await vi.importActual<typeof import('../../data/commands')>('../../data/commands')
+  return { ...actual, recordItem: vi.fn(actual.recordItem) }
+})
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
+  vi.mocked(recordItem).mockClear()
 })
 
 const seedItem = async (overrides: {
@@ -113,5 +123,28 @@ describe('ItemList: item creation round trip', () => {
 
     expect(screen.queryByLabelText(/nama barang/i)).toBeNull()
     expect(await db.events.toArray()).toHaveLength(0)
+  })
+
+  it('shows a visible error and keeps the panel open when recordItem fails', async () => {
+    vi.mocked(recordItem).mockRejectedValueOnce(new Error('quota exceeded'))
+    const user = userEvent.setup()
+    render(<ItemList />)
+
+    await screen.findByText('Belum ada barang. Mulai tambahkan barang.')
+    await user.click(screen.getByRole('button', { name: /tambah barang/i }))
+    await user.type(screen.getByLabelText(/nama barang/i), 'Semen Tiga Roda')
+    await user.type(screen.getByLabelText(/satuan dasar/i), 'sak')
+    await user.type(screen.getByLabelText(/harga eceran/i), '52000')
+    await user.type(screen.getByLabelText(/stok minimum/i), '10')
+    await user.click(screen.getByRole('button', { name: /simpan barang/i }))
+
+    // The failure is surfaced, not silently swallowed.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/gagal disimpan/i)
+    // The panel stays open, unlike the successful round trip above, and the
+    // entered values are preserved rather than lost.
+    expect(screen.getByLabelText(/nama barang/i)).toHaveValue('Semen Tiga Roda')
+    // Nothing landed in the event store; the item never appears in the list.
+    expect(await db.events.toArray()).toHaveLength(0)
+    expect(screen.queryByText('Semen Tiga Roda', { selector: 'td' })).toBeNull()
   })
 })

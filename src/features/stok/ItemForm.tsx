@@ -16,9 +16,12 @@ type Props = {
    * Receives the validated values. The caller (not ItemForm) is responsible
    * for building a CommandContext and calling commands.recordItem, so this
    * component stays a pure presentation/validation piece, testable without a
-   * real Dexie instance.
+   * real Dexie instance. The caller's handler may be async and may reject
+   * (a real IndexedDB write can fail: quota exceeded, storage unavailable,
+   * and so on); ItemForm awaits whatever is returned and turns a rejection
+   * into a visible error rather than letting it go unhandled.
    */
-  onSubmit: (values: ItemFormValues) => void
+  onSubmit: (values: ItemFormValues) => void | Promise<void>
 }
 
 type FieldKey = 'nama' | 'baseUnit' | 'hargaEceran' | 'stokMinimum' | 'stokAwal'
@@ -88,17 +91,21 @@ export function ItemForm({ onSubmit }: Props) {
   const [barcode, setBarcode] = useState('')
   const [kategori, setKategori] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const summaryRef = useRef<HTMLDivElement>(null)
 
   const errorList = Object.entries(errors) as Array<[FieldKey, string]>
+  const showSummary = errorList.length > 1 || submitError !== null
 
   useEffect(() => {
-    // A failed submit with more than one error moves focus to the summary.
-    // Never on blur, only as a direct result of the submit that produced it.
-    if (Object.keys(errors).length > 1) summaryRef.current?.focus()
-  }, [errors])
+    // A failed submit with more than one validation error, or a failed
+    // submit call itself, moves focus to the summary. Never on blur, only as
+    // a direct result of the submit that produced it.
+    if (showSummary) summaryRef.current?.focus()
+  }, [showSummary])
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
     const nextErrors: FieldErrors = {}
@@ -124,36 +131,55 @@ export function ItemForm({ onSubmit }: Props) {
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
-    onSubmit({
-      nama: nama.trim(),
-      baseUnit: baseUnit.trim(),
-      hargaEceran: Number(hargaEceran),
-      stokMinimum: Number(stokMinimum),
-      stokAwal: stokAwal.trim() === '' ? undefined : Number(stokAwal),
-      barcode: barcode.trim() === '' ? undefined : barcode.trim(),
-      kategori: kategori.trim() === '' ? undefined : kategori.trim(),
-    })
+    setSubmitError(null)
+    setSubmitting(true)
+    try {
+      await onSubmit({
+        nama: nama.trim(),
+        baseUnit: baseUnit.trim(),
+        hargaEceran: Number(hargaEceran),
+        stokMinimum: Number(stokMinimum),
+        stokAwal: stokAwal.trim() === '' ? undefined : Number(stokAwal),
+        barcode: barcode.trim() === '' ? undefined : barcode.trim(),
+        kategori: kategori.trim() === '' ? undefined : kategori.trim(),
+      })
+    } catch {
+      // The caller's handler (commands.recordItem, ultimately an IndexedDB
+      // write) can fail: quota exceeded, storage unavailable, and so on.
+      // Surface it the same way a validation failure is surfaced, rather
+      // than letting the rejection go unhandled and the panel silently stay
+      // open with no feedback.
+      setSubmitError('Barang gagal disimpan. Coba lagi.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex max-w-md flex-col gap-4">
-      {errorList.length > 1 && (
+      {showSummary && (
         <div
           ref={summaryRef}
           role="alert"
           tabIndex={-1}
           className="rounded-field border border-danger bg-danger-bg p-4 text-[14px] text-danger focus-visible:outline-none"
         >
-          <p className="font-semibold">Periksa kembali isian berikut:</p>
-          <ul className="mt-2 list-disc pl-5">
-            {errorList.map(([field, message]) => (
-              <li key={field}>
-                <a href={`#${field}`} className="underline">
-                  {FIELD_LABELS[field]}: {message}
-                </a>
-              </li>
-            ))}
-          </ul>
+          {submitError ? (
+            <p className="font-semibold">{submitError}</p>
+          ) : (
+            <>
+              <p className="font-semibold">Periksa kembali isian berikut:</p>
+              <ul className="mt-2 list-disc pl-5">
+                {errorList.map(([field, message]) => (
+                  <li key={field}>
+                    <a href={`#${field}`} className="underline">
+                      {FIELD_LABELS[field]}: {message}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
 
@@ -167,9 +193,10 @@ export function ItemForm({ onSubmit }: Props) {
 
       <button
         type="submit"
-        className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-primary-fg)]"
+        disabled={submitting}
+        className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
       >
-        Simpan barang
+        {submitting ? 'Menyimpan...' : 'Simpan barang'}
       </button>
     </form>
   )
