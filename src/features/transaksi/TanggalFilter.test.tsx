@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { db } from '../../data/db'
 import { recordSale, type RecordSaleInput } from '../../data/commands'
 import { fixedClock } from '../../domain/clock'
@@ -89,5 +89,57 @@ describe('TanggalFilter: narrows SaleList by date', () => {
     await user.click(screen.getByRole('button', { name: 'Tampilkan semua' }))
 
     expect(await screen.findByText('Pasir')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The shop this app is built for is always somewhere in Asia (UTC+7/+8/+9),
+ * and never UTC. TopNav and formatTanggal.ts both render dates in the
+ * browser's local timezone, so the filter's day boundaries must be computed
+ * from local midnight too, or it disagrees with the dates printed on this
+ * same screen for any sale recorded in the few local morning hours whose
+ * UTC timestamp still falls on the previous UTC day.
+ *
+ * process.env.TZ is read by Node/V8's Date implementation for every new
+ * Date(...), including inside jsdom, so pinning it here (rather than relying
+ * on whatever timezone happens to run the suite) makes this test meaningful
+ * regardless of the machine it runs on.
+ */
+describe('TanggalFilter: local-day boundaries, not UTC', () => {
+  const originalTZ = process.env.TZ
+
+  beforeEach(() => {
+    process.env.TZ = 'Asia/Jakarta' // UTC+7, matching the app's target shop
+  })
+
+  afterEach(() => {
+    if (originalTZ === undefined) delete process.env.TZ
+    else process.env.TZ = originalTZ
+  })
+
+  it('includes a sale under the LOCAL calendar day it falls on, even when that differs from its UTC calendar day', async () => {
+    // 2026-09-22T18:30:00.000Z is 2026-09-23T01:30 local time in UTC+7: the
+    // local calendar day is 23 Sep, the UTC calendar day is still 22 Sep.
+    await recordSale(semenCart, at('2026-09-22T18:30:00.000Z'))
+
+    render(<SaleList />)
+    await screen.findByText('Semen Tiga Roda')
+
+    const dateInput = screen.getByLabelText('Tanggal')
+    fireEvent.change(dateInput, { target: { value: '2026-09-23' } })
+
+    expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
+  })
+
+  it('does not file that same sale under the UTC calendar day a UTC-boundary filter would have used', async () => {
+    await recordSale(semenCart, at('2026-09-22T18:30:00.000Z'))
+
+    render(<SaleList />)
+    await screen.findByText('Semen Tiga Roda')
+
+    const dateInput = screen.getByLabelText('Tanggal')
+    fireEvent.change(dateInput, { target: { value: '2026-09-22' } })
+
+    expect(await screen.findByText('Tidak ada transaksi pada tanggal ini.')).toBeInTheDocument()
   })
 })

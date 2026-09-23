@@ -101,9 +101,27 @@ function SaleTable({ rows, onSelect }: { rows: Sale[]; onSelect: (saleId: string
   )
 }
 
-/** yyyy-mm-dd (a TanggalFilter value) -> the UTC-day boundaries occurredAt is stored under. */
+/**
+ * yyyy-mm-dd (a TanggalFilter value) -> the local-day boundaries occurredAt
+ * (a UTC ISO string) is compared against.
+ *
+ * This app is Bahasa-Indonesia-only, built for a single real shop that is
+ * always somewhere in Asia (UTC+7/+8/+9), and TopNav / formatTanggal.ts
+ * both render dates in the browser's local timezone. Computing the filter's
+ * day boundaries in UTC instead of local time made this screen's own filter
+ * disagree with the dates it prints: a sale recorded at 06:30 local time
+ * shows a "23 Sep" label but would silently vanish from that day's filter.
+ * `new Date(`${date}T00:00:00`)` parses as local midnight in the browser,
+ * so the boundaries below are built from that instead. The upper bound is
+ * exclusive (next local midnight), matched by the between() call's own
+ * includeUpper argument, so a sale recorded exactly at a day boundary is
+ * never double-counted.
+ */
 function dayBounds(date: string): [string, string] {
-  return [`${date}T00:00:00.000Z`, `${date}T23:59:59.999Z`]
+  const start = new Date(`${date}T00:00:00`)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return [start.toISOString(), end.toISOString()]
 }
 
 export function SaleList() {
@@ -115,7 +133,7 @@ export function SaleList() {
       return db.salesProj.orderBy('occurredAt').reverse().toArray()
     }
     const [start, end] = dayBounds(dateFilter)
-    return db.salesProj.where('occurredAt').between(start, end, true, true).reverse().toArray()
+    return db.salesProj.where('occurredAt').between(start, end, true, false).reverse().toArray()
   }, [dateFilter])
 
   return (
