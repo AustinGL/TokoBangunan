@@ -326,6 +326,24 @@ describe('applyRemoteEvents partitioning', () => {
 
     expect(await getQuarantined()).toHaveLength(1)
   })
+
+  it('clears the outbox row for an event that comes back from a pull with a real serverSeq', async () => {
+    // The lost-ack path the architecture doc documents: appendEvents wrote
+    // the event and put it in the outbox, a push to the server succeeded,
+    // but the ack never reached this device (a retried push then hits
+    // ON CONFLICT (id) DO NOTHING and returns no row, so markSynced is never
+    // called). The event is then pulled back with its real serverSeq on the
+    // next sync, and its now-stale outbox row must be cleaned up here or it
+    // would be re-pushed forever.
+    const e = createEvent('ItemUpserted', item('a', 100), at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([e])
+    expect(await db.outbox.toArray()).toEqual([{ id: e.id }])
+
+    await applyRemoteEvents([{ ...e, serverSeq: 5 }])
+
+    expect(await db.outbox.toArray()).toEqual([])
+    expect((await db.events.get(e.id))?.serverSeq).toBe(5)
+  })
 })
 
 describe('promoteQuarantined', () => {

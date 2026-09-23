@@ -132,8 +132,20 @@ export const applyRemoteEvents = async (raw: unknown[]): Promise<ApplyResult> =>
     rejected.push({ key: quarantineKey(row), raw: row, reason: result.reason, quarantinedAt })
   }
 
-  await db.transaction('rw', db.events, db.quarantine, async () => {
-    if (valid.length > 0) await db.events.bulkPut(valid)
+  await db.transaction('rw', db.events, db.quarantine, db.outbox, async () => {
+    if (valid.length > 0) {
+      await db.events.bulkPut(valid)
+      // A pulled event always carries a real serverSeq, so it is either
+      // brand new to this device, or it is this device's own event coming
+      // back around after a push whose ack was lost (the retry then hit
+      // ON CONFLICT (id) DO NOTHING on the server, so markSynced never ran
+      // and the outbox row survived). Either way, once an event has a real
+      // serverSeq, its outbox row (if any) is stale and must go, or it
+      // would be re-pushed forever, inflating getUnsyncedEvents() and the
+      // "belum tersinkron (n)" count in violation of the outbox <=>
+      // serverSeq === null invariant.
+      await db.outbox.bulkDelete(valid.map(e => e.id))
+    }
     if (rejected.length > 0) await db.quarantine.bulkPut(rejected)
   })
 
