@@ -1,35 +1,15 @@
 import 'fake-indexeddb/auto'
-import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/db'
 import { Kasir } from './Kasir'
+import { simulateScan } from './testHelpers'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
 })
-
-/**
- * SearchScanField distinguishes a scan from human typing by inter-key
- * interval (its own SCAN_MAX_INTERVAL_MS=30ms threshold). userEvent.type's
- * own internal scheduling still costs a handful of milliseconds per
- * keystroke, which is fine on a quiet machine but flakes under the full
- * suite's parallel load, where an occasional keystroke gap creeps past
- * 30ms. fireEvent dispatches synchronously with no scheduling overhead, so
- * firing one keydown per character back-to-back keeps every interval at
- * effectively 0ms regardless of machine load, then a final Enter completes
- * the scan the same way a real HID scanner burst would.
- */
-function simulateScan(input: HTMLElement, value: string) {
-  act(() => {
-    for (const char of value) {
-      fireEvent.keyDown(input, { key: char })
-    }
-    fireEvent.change(input, { target: { value } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-  })
-}
 
 const seedItem = async (overrides: {
   id: string; nama: string; hargaEceran: number; barcode?: string; baseUnit?: string
