@@ -251,6 +251,26 @@ describe('rebuildProjections', () => {
     expect(second).toHaveLength(1)
     expect(second[0]).toMatchObject({ id: recorded.id, status: 'batal' })
   })
+
+  it('does not lose an event appended while a rebuild is in flight', async () => {
+    // getAllEvents used to run in its own transaction OUTSIDE the
+    // clear-and-rewrite transaction. IndexedDB queues read-write
+    // transactions with overlapping scope in the order they were created,
+    // but never interleaves their operations, so once db.events is part of
+    // rebuildProjections's own transaction, a concurrent appendEvents call
+    // is fully ordered before it (and this read sees the new event) or
+    // after it (and the new event folds on top afterward) - never lost in
+    // between, unlike the old two-transaction version.
+    await appendEvents([createEvent('ItemUpserted', item('semen', 52000), at('2026-09-18T07:00:00.000Z'))])
+    await rebuildProjections()
+
+    const late = createEvent('ItemUpserted', item('pasir', 180000), at('2026-09-18T07:05:00.000Z'))
+
+    await Promise.all([rebuildProjections(), appendEvents([late])])
+
+    const projected = await db.itemsProj.toArray()
+    expect(projected.map(p => p.id).sort()).toEqual(['pasir', 'semen'])
+  })
 })
 
 describe('applyRemoteEvents partitioning', () => {

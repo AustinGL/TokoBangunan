@@ -213,8 +213,19 @@ const rebuildSalesProj = async (events: EventEnvelope[]): Promise<void> => {
  * One rebuild step per known projection.
  */
 export const rebuildProjections = async (): Promise<void> => {
-  const events = await getAllEvents()
-  await db.transaction('rw', db.itemsProj, db.stokProj, db.salesProj, async () => {
+  // The read used to happen in its own transaction OUTSIDE the
+  // clear-and-rewrite transaction below. IndexedDB queues overlapping
+  // transactions in creation order but does not interleave them, so a local
+  // appendEvents call that was requested after this read but committed
+  // before the clear-and-rewrite transaction started could vanish: the
+  // rebuild would then clear the projections and rewrite them from a
+  // snapshot that predates the new event. Reading db.events inside the same
+  // 'rw' transaction as the rewrite makes the whole rebuild one atomic unit,
+  // so a concurrent appendEvents transaction is fully ordered either before
+  // (and this read sees it) or after (and it folds on top afterward) -
+  // never lost in between.
+  await db.transaction('rw', db.events, db.itemsProj, db.stokProj, db.salesProj, async () => {
+    const events = await getAllEvents()
     await rebuildItemsProj(events)
     await rebuildStokProj(events)
     await rebuildSalesProj(events)
