@@ -52,7 +52,7 @@ test.describe('offline boot', () => {
     await context.setOffline(false)
   })
 
-  test('F2 opens the Kasir placeholder while offline', async ({ page, context }) => {
+  test('F2 opens Kasir while offline', async ({ page, context }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Beranda')
     await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })

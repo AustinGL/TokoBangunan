@@ -1,0 +1,174 @@
+import { test, expect, type Page } from '@playwright/test'
+import { contrastRatio, parseRgb, effectiveBackground } from './contrast'
+
+// Phase 2's headline claim: "the shop can run on this". offline.spec.ts
+// proves the shell boots and navigates offline; this spec proves the actual
+// core-sale workflow (create an item, sell it, see it in the sales list)
+// works end to end against a real service worker with the network disabled,
+// plus real-browser touch-target and contrast checks for the screens this
+// phase built (Stok, Kasir).
+
+async function createItemViaStok(
+  page: Page,
+  opts: { nama: string; baseUnit?: string; harga?: string; stokMinimum?: string; stokAwal?: string },
+) {
+  await page.goto('/stok')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stok', { timeout: 10_000 })
+
+  await page.getByRole('button', { name: '+ Tambah barang' }).click()
+  await page.getByLabel('Nama barang').fill(opts.nama)
+  await page.getByLabel('Satuan dasar').fill(opts.baseUnit ?? 'sak')
+  await page.getByLabel('Harga eceran').fill(opts.harga ?? '52000')
+  await page.getByLabel('Stok minimum').fill(opts.stokMinimum ?? '5')
+  if (opts.stokAwal !== undefined) {
+    await page.getByLabel('Stok awal').fill(opts.stokAwal)
+  }
+  await page.getByRole('button', { name: 'Simpan barang' }).click()
+
+  // The inline panel only closes on a successful write (ItemList.tsx's
+  // handleSubmit), so this doubles as proof the write actually landed.
+  await expect(page.getByText(opts.nama)).toBeVisible()
+}
+
+test.describe('core sale flow, offline', () => {
+  // TopNav (and its "Transaksi" link) is `hidden md:flex`; BottomNav's phone
+  // bar has no direct Transaksi tab (it lives inside the not-yet-built
+  // "Lainnya" sheet, per navItems.ts), so this flow has no offline-reachable
+  // path to /transaksi on a phone viewport yet. Desktop-only, matching how
+  // shell.spec.ts gates its own desktop-nav checks.
+  test.skip(({ isMobile }) => !!isMobile, 'Transaksi is reachable only from the desktop TopNav this phase')
+
+  test('creating an item, selling it in Kasir, and seeing it in Transaksi works fully offline', async ({ page, context }, testInfo) => {
+    // This is a functional proof, not a visual one: the flow does not
+    // depend on colour scheme, and this is the heaviest test in the suite
+    // (multiple full-page reloads plus a real service-worker install).
+    // playwright.config.ts already notes that high worker counts starve
+    // page.goto() under contention; running once (desktop-light) rather
+    // than once per theme keeps this spec's contribution to that load
+    // down without dropping coverage the brief actually asks for.
+    test.skip(testInfo.project.name.endsWith('-dark'), 'functional flow does not depend on colour scheme')
+    const heading = page.getByRole('heading', { level: 1 })
+    const itemName = 'E2E Semen Offline'
+
+    // Same setup ritual as offline.spec.ts: load online so the service
+    // worker installs and precaches, reload once so the now-active worker
+    // starts controlling requests, then go offline.
+    await page.goto('/')
+    await expect(heading).toHaveText('Beranda')
+    await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })
+    await page.reload()
+    await expect(heading).toHaveText('Beranda')
+
+    await context.setOffline(true)
+
+    // 1. Create a real item with real starting stock, offline.
+    await page.getByRole('link', { name: 'Stok' }).first().click()
+    await expect(heading).toHaveText('Stok', { timeout: 10_000 })
+    await createItemViaStok(page, { nama: itemName, harga: '52000', stokMinimum: '5', stokAwal: '20' })
+
+    // 2. Sell it in Kasir, offline. F2 is this codebase's own proven offline
+    // route to Kasir (see offline.spec.ts's second test).
+    await page.keyboard.press('F2')
+    await expect(heading).toHaveText('Kasir')
+
+    await page.getByLabel('Cari barang').fill(itemName)
+    await page.getByRole('button', { name: `Tambah ${itemName} ke keranjang` }).click()
+
+    await expect(page.getByTestId('kasir-total')).toContainText('Rp 52.000')
+
+    await page.getByRole('button', { name: 'Simpan transaksi' }).click()
+    await expect(page.getByText('Transaksi tersimpan')).toBeVisible()
+
+    // 3. Confirm it landed in Transaksi, offline, with the right total.
+    await page.getByRole('link', { name: 'Transaksi' }).first().click()
+    await expect(heading).toHaveText('Transaksi', { timeout: 10_000 })
+    const row = page.locator('tbody tr').filter({ hasText: itemName })
+    await expect(row).toBeVisible()
+    await expect(row.getByText('Rp 52.000')).toBeVisible()
+
+    await context.setOffline(false)
+  })
+})
+
+test.describe('Kasir touch targets', () => {
+  test('the add-to-cart button and the cart qty stepper buttons render at least 44px', async ({ page }, testInfo) => {
+    // Box size comes from the min-h-tap/min-w-tap utilities (fixed 44px),
+    // not from colour scheme, so light-theme coverage on both viewports is
+    // enough; running the dark variant too would only add load (see the
+    // contention note on the offline flow test above) for zero extra signal.
+    test.skip(testInfo.project.name.endsWith('-dark'), 'touch-target size does not depend on colour scheme')
+
+    const itemName = 'E2E Touch Target'
+    await createItemViaStok(page, { nama: itemName, harga: '15000', stokMinimum: '5', stokAwal: '10' })
+
+    await page.goto('/kasir')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir')
+    await page.getByLabel('Cari barang').fill(itemName)
+
+    const addButton = page.getByRole('button', { name: `Tambah ${itemName} ke keranjang` })
+    const addBox = await addButton.boundingBox()
+    expect(addBox, 'add-to-cart button has no box').not.toBeNull()
+    expect(addBox!.height, 'add-to-cart button height').toBeGreaterThanOrEqual(44)
+    expect(addBox!.width, 'add-to-cart button width').toBeGreaterThanOrEqual(44)
+
+    await addButton.click()
+
+    const minus = page.getByRole('button', { name: 'Kurangi jumlah' })
+    const plus = page.getByRole('button', { name: 'Tambah jumlah' })
+    for (const stepper of [minus, plus]) {
+      const box = await stepper.boundingBox()
+      expect(box, 'qty stepper button has no box').not.toBeNull()
+      expect(box!.height, 'qty stepper button height').toBeGreaterThanOrEqual(44)
+      expect(box!.width, 'qty stepper button width').toBeGreaterThanOrEqual(44)
+    }
+  })
+})
+
+test.describe('status color contrast', () => {
+  // Colour values are theme-driven, not viewport-driven: the desktop
+  // light/dark projects already exercise both themes MASTER.md section 3
+  // measures, so the phone projects are skipped here to hold down total
+  // load (see the contention note on the offline flow test above) rather
+  // than re-measuring the same computed colours a second time.
+  test.skip(({ isMobile }) => !!isMobile, 'colour does not depend on viewport; desktop covers both themes')
+
+  // An item left with no "Stok awal" carries quantity 0, which is the
+  // "habis" status: the same danger colouring MASTER.md section 12 warns
+  // the old Kasir/Beranda mockups got wrong (white text on the old mint
+  // CTA, by extension the highest-risk status color to leave unverified).
+  test('the Stok status pill renders readable text against its actual background', async ({ page }) => {
+    const itemName = 'E2E Kontras Stok'
+    await createItemViaStok(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
+
+    // Scoped to tbody: StockFilters' own "Habis" status-toggle button also
+    // carries the exact text "Habis" outside the table.
+    const pillSelector = 'tbody >> text="Habis"'
+    const pill = page.locator(pillSelector)
+    await expect(pill).toBeVisible()
+
+    const textColor = await pill.evaluate((el) => getComputedStyle(el).color)
+    const bgColor = await effectiveBackground(page, pillSelector)
+
+    const ratio = contrastRatio(parseRgb(textColor), parseRgb(bgColor))
+    expect(ratio, `text ${textColor} on background ${bgColor}`).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test('the Kasir product-card status line renders readable text against its actual background', async ({ page }) => {
+    const itemName = 'E2E Kontras Kasir'
+    await createItemViaStok(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
+
+    await page.goto('/kasir')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir')
+    await page.getByLabel('Cari barang').fill(itemName)
+
+    const lineSelector = 'text="Habis - 0 sak"'
+    const line = page.locator(lineSelector)
+    await expect(line).toBeVisible()
+
+    const textColor = await line.evaluate((el) => getComputedStyle(el).color)
+    const bgColor = await effectiveBackground(page, lineSelector)
+
+    const ratio = contrastRatio(parseRgb(textColor), parseRgb(bgColor))
+    expect(ratio, `text ${textColor} on background ${bgColor}`).toBeGreaterThanOrEqual(4.5)
+  })
+})
