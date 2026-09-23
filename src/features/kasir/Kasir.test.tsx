@@ -121,6 +121,37 @@ describe('Kasir: inline item creation from an unknown barcode scan', () => {
   })
 })
 
+describe('Kasir: scanning right after typed input and a click-add', () => {
+  it('a scan after typing a search term and clicking Tambah adds the scanned item directly, without offering to create it', async () => {
+    // The exact sequence the whole-branch review flagged: the owner types a
+    // search term (slow, human-speed keystrokes), clicks a product's add
+    // button (which used to leave the search field's internal scan-timing
+    // state untouched), then scans the next item's barcode. Both halves of
+    // the fix are exercised together here: Kasir clears the search value on
+    // a click-add, and SearchScanField restarts its own timing run after a
+    // slow keystroke regardless.
+    await seedItem({ id: 'semen', nama: 'Semen Tiga Roda', hargaEceran: 52000 })
+    await seedItem({ id: 'paku', nama: 'Paku 5cm', hargaEceran: 25000, barcode: '8991234567890' })
+    const user = userEvent.setup({ delay: 40 })
+    render(<Kasir />)
+
+    await screen.findByText('Semen Tiga Roda')
+    const search = screen.getByLabelText('Cari barang')
+    await user.type(search, 'semen')
+    await user.click(await screen.findByRole('button', { name: 'Tambah Semen Tiga Roda ke keranjang' }))
+
+    expect(search).toHaveValue('')
+
+    simulateScan(search, '8991234567890')
+
+    await waitFor(() => expect(screen.queryByText('Tambah barang baru')).toBeNull())
+    expect(await screen.findByLabelText('Jumlah Paku 5cm')).toHaveValue(1)
+    // Still no event created for a new item: the scan matched Paku 5cm, it
+    // was not offered as an unknown barcode.
+    expect(await db.events.toArray()).toHaveLength(0)
+  }, 10000)
+})
+
 describe('Kasir: inline item creation from a typed search with no matches', () => {
   it('offers "Tambah barang baru" prefilled with the typed name once the catalog resolves to zero matches', async () => {
     await seedItem({ id: 'semen', nama: 'Semen Tiga Roda', hargaEceran: 52000 })

@@ -54,6 +54,11 @@ export function Kasir() {
 
   const handleAddToCart = (item: ProductRow) => {
     cart.addItem({ id: item.itemId, nama: item.nama, baseUnit: item.baseUnit, hargaEceran: item.hargaEceran })
+    // Clears whatever was typed to find this item, so a scan right after a
+    // click-add starts its keystroke-timing run from an empty field rather
+    // than one still holding earlier typed text (SearchScanField's own fix
+    // handles the timing side of that; this clears the value side).
+    setSearchValue('')
   }
 
   const handleScan = (value: string) => {

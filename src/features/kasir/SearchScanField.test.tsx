@@ -57,6 +57,28 @@ describe('SearchScanField', () => {
     expect(document.activeElement).toBe(input)
   })
 
+  it('a scan immediately after slow typed input reports only the scanned value, not the typed text plus the scan', async () => {
+    // The owner types a search term (slow, human-speed keystrokes), then
+    // scans the next item's barcode without ever pressing Enter or clearing
+    // the field in between. The slow keystrokes must not poison the timing
+    // window for the scan that follows: a fresh run starts at the point the
+    // gap since the last keystroke got too slow to be part of a scan, and
+    // only that run's characters are reported.
+    const slowUser = userEvent.setup({ delay: 60 })
+    const fastUser = userEvent.setup()
+    const onScan = vi.fn()
+    render(<Wrapper onScan={onScan} />)
+
+    const input = screen.getByLabelText('Cari barang')
+    await slowUser.type(input, 'semen')
+    expect(input).toHaveValue('semen')
+
+    await fastUser.type(input, '8991234567890{Enter}')
+
+    expect(onScan).toHaveBeenCalledTimes(1)
+    expect(onScan).toHaveBeenCalledWith('8991234567890')
+  }, 10000)
+
   it('a short fast burst below the minimum scan length is not treated as a scan', async () => {
     const user = userEvent.setup()
     const onScan = vi.fn()

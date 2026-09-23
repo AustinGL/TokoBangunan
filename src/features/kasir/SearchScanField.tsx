@@ -51,6 +51,13 @@ type Props = {
 export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const keyTimestampsRef = useRef<number[]>([])
+  // The field's value at the moment the CURRENT fast-keystroke run started
+  // (see handleKeyDown's reset branch below), not since the last Enter. A
+  // scan following typed input (or a click that added an item without
+  // clearing the field, see Kasir.tsx's handleAddToCart) must only report
+  // the freshly-scanned characters, never the leftover text glued in front
+  // of them.
+  const runStartValueRef = useRef('')
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value)
@@ -63,15 +70,24 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
       const isScan =
         timestamps.length >= SCAN_MIN_LENGTH &&
         intervals.every(interval => interval <= SCAN_MAX_INTERVAL_MS)
+      const runStartValue = runStartValueRef.current
 
       keyTimestampsRef.current = []
+      runStartValueRef.current = ''
 
       if (isScan) {
         e.preventDefault()
         // Read the live DOM value rather than the value prop: this keeps
         // detection correct regardless of whether the parent's re-render
         // from the last keystroke's onChange has landed yet.
-        const scanned = inputRef.current?.value ?? value
+        const currentValue = inputRef.current?.value ?? value
+        // Only the characters typed during the current fast run are the
+        // scan: whatever was in the field before that run started (slow
+        // typed text, or a leftover value the parent never cleared) is not
+        // part of it.
+        const scanned = currentValue.startsWith(runStartValue)
+          ? currentValue.slice(runStartValue.length)
+          : currentValue
         onScan(scanned)
         // Cleared so the next scan starts from an empty field, and refocused
         // so consecutive scans land correctly (MASTER.md / architecture doc
@@ -89,7 +105,27 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
     // on) neither type a character nor indicate scan speed, and must not
     // reset or pollute the measured sequence.
     if (e.key.length !== 1) return
-    keyTimestampsRef.current.push(Date.now())
+
+    const now = Date.now()
+    const timestamps = keyTimestampsRef.current
+    const previous = timestamps[timestamps.length - 1]
+    if (timestamps.length === 0 || (previous !== undefined && now - previous > SCAN_MAX_INTERVAL_MS)) {
+      // A fresh run: either the very first keystroke since mount/last Enter,
+      // or the gap since the previous keystroke was too slow to be part of
+      // the same scan. The old timestamps are DISCARDED (not merely added
+      // to), or their slow intervals would keep failing the isScan check on
+      // Enter forever. Restarting the run here (rather than letting a slow
+      // interval poison the whole "since Enter" sequence) is what makes a
+      // scan detectable even right after slow human typing: the slow
+      // keystroke ends its own run instead of following it forever.
+      // inputRef reflects the value BEFORE this keystroke's character lands
+      // (keydown fires ahead of the input's value update), so it is exactly
+      // the prefix this run's scanned value must be sliced past.
+      runStartValueRef.current = inputRef.current?.value ?? value
+      keyTimestampsRef.current = [now]
+    } else {
+      timestamps.push(now)
+    }
   }
 
   const handleScanButtonClick = () => {
