@@ -103,7 +103,7 @@ function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: n
             than tapped forty times." The item name is included as
             screen-reader-only text so each line's accessible name stays
             unique without visually repeating it on every row. */}
-        <label htmlFor={inputId} className="text-[11px] font-medium text-ink-faint">
+        <label htmlFor={inputId} className="text-[12px] font-medium text-ink-faint">
           Jumlah<span className="sr-only"> {line.nama}</span>
         </label>
         <input
@@ -143,7 +143,7 @@ function CartLineRow({
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[14px] font-semibold text-ink">{line.nama}</p>
-          <p className="text-[12px] text-ink-faint">
+          <p className="text-[12px] tabular-nums text-ink-faint">
             {formatRupiah(rupiah(line.hargaSatuan))} / {line.unit}
           </p>
         </div>
@@ -391,7 +391,7 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
             className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
           />
           {kembalian !== undefined && (
-            <p className={`text-[13px] font-medium ${kembalian < 0 ? 'text-danger' : 'text-ink-muted'}`}>
+            <p className={`text-[13px] font-medium tabular-nums ${kembalian < 0 ? 'text-danger' : 'text-ink-muted'}`}>
               Kembalian: {formatRupiah(kembalian)}
             </p>
           )}

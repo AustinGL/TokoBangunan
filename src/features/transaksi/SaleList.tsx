@@ -74,6 +74,19 @@ function SaleTable({ rows, onSelect }: { rows: Sale[]; onSelect: (saleId: string
           <tr
             key={sale.id}
             onClick={() => onSelect(sale.id)}
+            onKeyDown={e => {
+              // The row opens SaleDetail on click; MASTER.md section 11's
+              // Keyboard rule ("visible focus everywhere ... no traps")
+              // still applies to a clickable table row, so Enter/Space
+              // reaches the same handler a mouse click does. tabIndex below
+              // makes the row focusable, and the app-wide :focus-visible
+              // rule (src/ui/tokens.css) supplies the visible ring.
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onSelect(sale.id)
+              }
+            }}
+            tabIndex={0}
             className="cursor-pointer border-b border-[var(--table-row-bd)] text-[14px] hover:bg-[var(--table-row-hover)]"
           >
             <td className="p-3 text-ink">{formatTanggal(sale.occurredAt)}</td>
