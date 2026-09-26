@@ -3,8 +3,11 @@ import { classifyEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
 import { compareCausal } from './eventOrder'
 import { projectItems, reduceItems } from '../domain/projections/items'
-import { projectStock, reduceStock } from '../domain/projections/stock'
+import { projectStock, reduceStock, type StockState } from '../domain/projections/stock'
 import { projectSales, reduceSales } from '../domain/projections/sales'
+import { projectBarang, reduceBarang } from '../domain/projections/barang'
+import { projectSuppliers, reduceSuppliers } from '../domain/projections/suppliers'
+import { projectBatches, reduceBatches, type BatchesState } from '../domain/projections/batches'
 
 const CURSOR_KEY = 'syncCursor'
 
@@ -13,7 +16,9 @@ const CURSOR_KEY = 'syncCursor'
  * in place, instead of rebuilding the whole projection from the log. Each
  * branch reads the one existing row the event addresses (if any), calls the
  * matching pure reducer against a one-key slice of state, and writes the
- * single resulting row back.
+ * single resulting row back - except StockReceived, whose lines can each
+ * touch a different item and a different batch in one event, so that case
+ * reads/writes the full set of keys its own lines mention.
  *
  * Valid only under the same assumption reduceItems's single-event LWW check
  * already makes: events are locally authored and appended in non-decreasing
@@ -33,11 +38,22 @@ const foldIncremental = async (event: EventEnvelope): Promise<void> => {
       return
     }
     case 'StockAdjusted': {
-      const payload = event.payload as { itemId: string }
-      const existing = await db.stokProj.get(payload.itemId)
-      const state = existing ? { [payload.itemId]: existing } : {}
-      const next = reduceStock(state, event)[payload.itemId]
-      if (next) await db.stokProj.put(next)
+      const payload = event.payload as { itemId: string; batchId?: string }
+      const existingStock = await db.stokProj.get(payload.itemId)
+      const stockState = existingStock ? { [payload.itemId]: existingStock } : {}
+      const nextStock = reduceStock(stockState, event)[payload.itemId]
+      if (nextStock) await db.stokProj.put(nextStock)
+
+      if (payload.batchId) {
+        const existingBatch = await db.batchesProj.get(payload.batchId)
+        // No existing row: reduceBatches would drop this event anyway (see
+        // batches.ts's own doc comment), so skip the read/write for the
+        // same outcome without a wasted call.
+        if (existingBatch) {
+          const nextBatch = reduceBatches({ [payload.batchId]: existingBatch }, event)[payload.batchId]
+          if (nextBatch) await db.batchesProj.put(nextBatch)
+        }
+      }
       return
     }
     case 'SaleRecorded': {
@@ -57,20 +73,69 @@ const foldIncremental = async (event: EventEnvelope): Promise<void> => {
       if (next) await db.salesProj.put(next)
       return
     }
+    case 'BarangUpserted': {
+      const payload = event.payload as { id: string }
+      const existing = await db.barangProj.get(payload.id)
+      const state = existing ? { [payload.id]: existing } : {}
+      const next = reduceBarang(state, event)[payload.id]
+      if (next) await db.barangProj.put(next)
+      return
+    }
+    case 'SupplierUpserted': {
+      const payload = event.payload as { id: string }
+      const existing = await db.suppliersProj.get(payload.id)
+      const state = existing ? { [payload.id]: existing } : {}
+      const next = reduceSuppliers(state, event)[payload.id]
+      if (next) await db.suppliersProj.put(next)
+      return
+    }
+    case 'StockReceived': {
+      const payload = event.payload as { lines: Array<{ batchId: string; itemId: string; qty: number }> }
+
+      const itemIds = [...new Set(payload.lines.map(l => l.itemId))]
+      const existingLevels = await db.stokProj.bulkGet(itemIds)
+      const stockState: StockState = {}
+      itemIds.forEach((id, i) => {
+        const row = existingLevels[i]
+        if (row) stockState[id] = row
+      })
+      await db.stokProj.bulkPut(Object.values(reduceStock(stockState, event)))
+
+      const batchIds = [...new Set(payload.lines.map(l => l.batchId))]
+      const existingBatches = await db.batchesProj.bulkGet(batchIds)
+      const batchState: BatchesState = {}
+      batchIds.forEach((id, i) => {
+        const row = existingBatches[i]
+        if (row) batchState[id] = row
+      })
+      await db.batchesProj.bulkPut(Object.values(reduceBatches(batchState, event)))
+      return
+    }
+    case 'BatchCorrected': {
+      const payload = event.payload as { batchId: string }
+      const existing = await db.batchesProj.get(payload.batchId)
+      if (!existing) return // reduceBatches drops a correction for an unknown batch
+      const next = reduceBatches({ [payload.batchId]: existing }, event)[payload.batchId]
+      if (next) await db.batchesProj.put(next)
+      return
+    }
     default:
-      // Every known event schema has a case above. Later tasks add their
-      // own case above as their event type and projection module land.
+      // Every known event schema has a case above.
       return
   }
 }
 
 export const appendEvents = async (events: EventEnvelope[]): Promise<void> => {
   if (events.length === 0) return
-  await db.transaction('rw', db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, async () => {
-    await db.events.bulkAdd(events)
-    await db.outbox.bulkPut(events.map(e => ({ id: e.id })))
-    for (const event of events) await foldIncremental(event)
-  })
+  await db.transaction(
+    'rw',
+    [db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj],
+    async () => {
+      await db.events.bulkAdd(events)
+      await db.outbox.bulkPut(events.map(e => ({ id: e.id })))
+      for (const event of events) await foldIncremental(event)
+    },
+  )
 }
 
 /**
@@ -222,6 +287,24 @@ const rebuildSalesProj = async (events: EventEnvelope[]): Promise<void> => {
   await db.salesProj.bulkPut(Object.values(sales))
 }
 
+const rebuildBarangProj = async (events: EventEnvelope[]): Promise<void> => {
+  const barang = projectBarang(events)
+  await db.barangProj.clear()
+  await db.barangProj.bulkPut(Object.values(barang))
+}
+
+const rebuildSuppliersProj = async (events: EventEnvelope[]): Promise<void> => {
+  const suppliers = projectSuppliers(events)
+  await db.suppliersProj.clear()
+  await db.suppliersProj.bulkPut(Object.values(suppliers))
+}
+
+const rebuildBatchesProj = async (events: EventEnvelope[]): Promise<void> => {
+  const batches = projectBatches(events)
+  await db.batchesProj.clear()
+  await db.batchesProj.bulkPut(Object.values(batches))
+}
+
 /**
  * Projections are a cache. Discarding and rebuilding must always produce
  * identical state, which the test suite asserts.
@@ -240,10 +323,17 @@ export const rebuildProjections = async (): Promise<void> => {
   // so a concurrent appendEvents transaction is fully ordered either before
   // (and this read sees it) or after (and it folds on top afterward) -
   // never lost in between.
-  await db.transaction('rw', db.events, db.itemsProj, db.stokProj, db.salesProj, async () => {
-    const events = await getAllEvents()
-    await rebuildItemsProj(events)
-    await rebuildStokProj(events)
-    await rebuildSalesProj(events)
-  })
+  await db.transaction(
+    'rw',
+    [db.events, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj],
+    async () => {
+      const events = await getAllEvents()
+      await rebuildItemsProj(events)
+      await rebuildStokProj(events)
+      await rebuildSalesProj(events)
+      await rebuildBarangProj(events)
+      await rebuildSuppliersProj(events)
+      await rebuildBatchesProj(events)
+    },
+  )
 }

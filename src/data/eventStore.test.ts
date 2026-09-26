@@ -23,6 +23,12 @@ const sale = (itemId: string, total: number) => ({
 })
 const voidSale = (saleId: string, alasan: string) => ({ saleId, alasan })
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
+const received = (batchId: string, itemId: string, qty: number, extra: Partial<{ supplierId: string; hargaBeli: number; hargaJual: number }> = {}) => ({
+  supplierId: extra.supplierId ?? 'sup-1',
+  lines: [{ batchId, itemId, qty, hargaBeli: extra.hargaBeli ?? 60000, hargaJual: extra.hargaJual ?? 67000 }],
+})
+const barang = (id: string, nama: string) => ({ id, nama })
+const supplier = (id: string, nama: string) => ({ id, nama })
 
 beforeEach(async () => {
   await db.delete()
@@ -377,5 +383,110 @@ describe('promoteQuarantined', () => {
 
   it('is a no-op with an empty quarantine', async () => {
     expect(await promoteQuarantined()).toBe(0)
+  })
+})
+
+describe('appendEvents incremental fold: barang, suppliers, batches', () => {
+  it('produces the same barangProj row as rebuildProjections for a new BarangUpserted', async () => {
+    const e = createEvent('BarangUpserted', barang('b1', 'Semen Tiga Roda'), at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([e])
+    const incremental = await db.barangProj.toArray()
+
+    await db.barangProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.barangProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    expect(incremental[0]).toMatchObject({ id: 'b1', nama: 'Semen Tiga Roda' })
+  })
+
+  it('produces the same suppliersProj row as rebuildProjections for a new SupplierUpserted', async () => {
+    const e = createEvent('SupplierUpserted', supplier('sup-1', 'CV Maju'), at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([e])
+    const incremental = await db.suppliersProj.toArray()
+
+    await db.suppliersProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.suppliersProj.toArray()
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toHaveLength(1)
+    expect(incremental[0]).toMatchObject({ id: 'sup-1', nama: 'CV Maju', perluDilengkapi: false })
+  })
+
+  it('produces the same batchesProj row as rebuildProjections for a StockReceived with multiple lines', async () => {
+    const e = createEvent('StockReceived', {
+      supplierId: 'sup-1',
+      lines: [
+        { batchId: 'b1', itemId: 'semen', qty: 40000, hargaBeli: 60000, hargaJual: 67000 },
+        { batchId: 'b2', itemId: 'pasir', qty: 2000, hargaJual: 180000 },
+      ],
+    }, at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([e])
+    const incrementalBatches = await db.batchesProj.toArray()
+    const incrementalStock = await db.stokProj.toArray()
+
+    await db.batchesProj.clear()
+    await db.stokProj.clear()
+    await rebuildProjections()
+
+    expect(await db.batchesProj.toArray()).toEqual(incrementalBatches)
+    expect(await db.stokProj.toArray()).toEqual(incrementalStock)
+    expect(incrementalBatches).toHaveLength(2)
+    expect(incrementalStock.find(s => s.itemId === 'semen')?.quantity).toBe(40000)
+    expect(incrementalStock.find(s => s.itemId === 'pasir')?.quantity).toBe(2000)
+  })
+
+  it('produces the same batchesProj sisa as rebuildProjections after a sale StockAdjusted against the batch', async () => {
+    await appendEvents([createEvent('StockReceived', received('b1', 'semen', 40000), at('2026-09-18T07:00:00.000Z'))])
+    await appendEvents([createEvent('StockAdjusted', { itemId: 'semen', quantity: -3000, reason: 'sale' as const, batchId: 'b1' }, at('2026-09-18T08:00:00.000Z'))])
+    const incremental = await db.batchesProj.get('b1')
+
+    await db.batchesProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.batchesProj.get('b1')
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental?.sisa).toBe(37000)
+  })
+
+  it('drops a StockAdjusted referencing a batch this device has never received, both incrementally and on rebuild', async () => {
+    await appendEvents([createEvent('StockAdjusted', { itemId: 'semen', quantity: -1000, reason: 'sale' as const, batchId: 'unknown-batch' }, at('2026-09-18T08:00:00.000Z'))])
+
+    expect(await db.batchesProj.toArray()).toEqual([])
+    await rebuildProjections()
+    expect(await db.batchesProj.toArray()).toEqual([])
+  })
+
+  it('produces the same batchesProj row as rebuildProjections after a BatchCorrected', async () => {
+    await appendEvents([createEvent('StockReceived', received('b1', 'semen', 40000), at('2026-09-18T07:00:00.000Z'))])
+    await appendEvents([createEvent('BatchCorrected', {
+      batchId: 'b1', supplierId: 'sup-2', hargaBeli: 58000, hargaJual: 65000, tanggalBeli: '2026-09-15T00:00:00.000Z',
+    }, at('2026-09-18T09:00:00.000Z'))])
+    const incremental = await db.batchesProj.get('b1')
+
+    await db.batchesProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.batchesProj.get('b1')
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental).toMatchObject({ supplierId: 'sup-2', hargaBeli: 58000, hargaJual: 65000 })
+  })
+
+  it('rebuild and incremental agree on batchesProj sisa even when a synced sale has an earlier recordedAt than its batch (clock skew across devices)', async () => {
+    const receivedEvent = { ...createEvent('StockReceived', received('b1', 'semen', 40000), at('2026-09-18T10:00:00.000Z')), serverSeq: 1 }
+    // A device running a few minutes behind pulls receivedEvent, then
+    // authors and pushes a sale against it - its own recordedAt is earlier
+    // than the batch's, but it can only exist causally after, so its
+    // serverSeq is greater. This is the scenario the prior plan's final
+    // review flagged; eventOrder.ts's compareCausal (Task 1) is what makes
+    // it safe here.
+    const saleEvent = { ...createEvent('StockAdjusted', { itemId: 'semen', quantity: -3000, reason: 'sale' as const, batchId: 'b1' }, at('2026-09-18T09:59:00.000Z')), serverSeq: 2 }
+
+    await applyRemoteEvents([receivedEvent, saleEvent])
+    await rebuildProjections()
+
+    expect((await db.batchesProj.get('b1'))?.sisa).toBe(37000)
   })
 })
