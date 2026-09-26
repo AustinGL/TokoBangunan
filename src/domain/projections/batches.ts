@@ -28,9 +28,16 @@ function isNewer(existingAt: string, existingId: string, event: EventEnvelope): 
  * StockReceived creates the batch row (metadata plus the initial sisa/
  * diterima). StockAdjusted with a batchId (sale, void, koreksi) only moves
  * sisa - and is dropped, not crashed on, if this device has never folded a
- * StockReceived for that batchId (see this task's own doc comment on the
- * plan for why that is a safe, structurally-unreachable-in-practice
- * fallback, not routine behaviour). BatchCorrected overwrites metadata
+ * StockReceived for that batchId. That is a real, reachable case, not just
+ * a corrupted-log fallback: this projection is not yet wired into
+ * eventStore.ts (Task 7), and once it is, rebuildProjections()'s
+ * recordedAt-ordered fold can genuinely see a batch's movement before its
+ * StockReceived when devices' clocks disagree (e.g. laptop receives a
+ * batch at 10:00 by its own clock, a phone running a few minutes behind
+ * sells from it and records the sale at 09:59). Task 7 must sort the
+ * rebuild causally (by serverSeq, nulls last, before recordedAt/id) so a
+ * device only ever folds a batch's movements after that device has itself
+ * pulled the StockReceived - not by recordedAt alone. BatchCorrected overwrites metadata
  * (last-write-wins) and, only when it carries a jumlah, also corrects
  * diterima for display - never sisa, which only a companion
  * StockAdjusted('koreksi') can change, by its own explicit signed delta.
