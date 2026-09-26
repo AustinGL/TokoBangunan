@@ -208,3 +208,77 @@ export const updateBarang = async (input: UpdateBarangInput, ctx: CommandContext
     diarsipkan: input.diarsipkan ?? existing.diarsipkan,
   }, ctx)])
 }
+
+export type RecordUkuranInput = {
+  barangId: string
+  /** e.g. "50 kg" - becomes both baseUnit and units[0].unit (factor 1). */
+  ukuran: string
+  hargaEceran: number
+  stokMinimum: number
+  barcode?: string
+}
+
+/**
+ * Creates a new ukuran (still an ItemUpserted event under the hood) under
+ * an existing barang, snapshotting the barang's current nama/kategori the
+ * same way every ItemUpserted has since Kamus Barang's schema extension.
+ */
+export const recordUkuran = async (input: RecordUkuranInput, ctx: CommandContext): Promise<string> => {
+  const barangRow = await db.barangProj.get(input.barangId)
+  if (!barangRow) throw new Error('Barang tidak ditemukan.')
+
+  const id = newEventId()
+  await appendEvents([createEvent('ItemUpserted', {
+    id,
+    nama: barangRow.nama,
+    baseUnit: input.ukuran,
+    units: [{ unit: input.ukuran, factor: 1 }],
+    hargaEceran: input.hargaEceran,
+    stokMinimum: input.stokMinimum,
+    barcode: input.barcode,
+    kategori: barangRow.kategori,
+    barangId: input.barangId,
+    diarsipkan: false,
+  }, ctx)])
+  return id
+}
+
+export type UpdateUkuranInput = {
+  id: string
+  ukuran?: string
+  hargaEceran?: number
+  stokMinimum?: number
+  barcode?: string
+  /** Set to move the ukuran to a different barang ("Pindahkan ke barang lain"). */
+  barangId?: string
+  diarsipkan?: boolean
+}
+
+/**
+ * ItemUpserted is a full-replace, last-write-wins event, so an update reads
+ * the current row first (same precedent as updateBarang/voidSale). When
+ * barangId changes (or is set for the first time), nama/kategori are
+ * re-snapshotted from that barang; a legacy item's undefined barangId is
+ * preserved, not invented, when the caller doesn't set one.
+ */
+export const updateUkuran = async (input: UpdateUkuranInput, ctx: CommandContext): Promise<void> => {
+  const existing = await db.itemsProj.get(input.id)
+  if (!existing) throw new Error('Ukuran tidak ditemukan.')
+
+  const barangId = input.barangId ?? existing.barangId
+  const barangRow = barangId ? await db.barangProj.get(barangId) : undefined
+  const ukuran = input.ukuran ?? existing.baseUnit
+
+  await appendEvents([createEvent('ItemUpserted', {
+    id: existing.id,
+    nama: barangRow?.nama ?? existing.nama,
+    baseUnit: ukuran,
+    units: [{ unit: ukuran, factor: 1 }],
+    hargaEceran: input.hargaEceran ?? existing.hargaEceran,
+    stokMinimum: input.stokMinimum ?? existing.stokMinimum,
+    barcode: input.barcode ?? existing.barcode,
+    kategori: barangRow?.kategori ?? existing.kategori,
+    barangId,
+    diarsipkan: input.diarsipkan ?? existing.diarsipkan,
+  }, ctx)])
+}
