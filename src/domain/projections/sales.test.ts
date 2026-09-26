@@ -113,3 +113,36 @@ describe('projectSales', () => {
     expect(state[recorded.id].voidedAt).toBeUndefined()
   })
 })
+
+describe('reduceSales: batchId/hargaNormal passthrough and derived indexes', () => {
+  it('retains batchId and hargaNormal on each line', () => {
+    const e = createEvent('SaleRecorded', {
+      lines: [{ itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000, batchId: 'batch-1', hargaNormal: 65000 }],
+      metodeBayar: 'tunai' as const, subtotal: 63000, diskon: 0, total: 63000,
+    }, at('2026-09-18T07:00:00.000Z'))
+    const state = projectSales([e])
+    expect(state[e.id].lines[0]).toMatchObject({ batchId: 'batch-1', hargaNormal: 65000 })
+  })
+
+  it('derives itemIds and batchIds, deduplicated, across multiple lines', () => {
+    const e = createEvent('SaleRecorded', {
+      lines: [
+        { itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000, batchId: 'batch-1' },
+        { itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 500, hargaSatuan: 63000, subtotal: 31500, batchId: 'batch-1' },
+        { itemId: 'pasir', nama: 'Pasir', unit: 'm3', qty: 1000, hargaSatuan: 180000, subtotal: 180000 },
+      ],
+      metodeBayar: 'tunai' as const, subtotal: 274500, diskon: 0, total: 274500,
+    }, at('2026-09-18T07:00:00.000Z'))
+    const state = projectSales([e])
+    expect(state[e.id].itemIds.sort()).toEqual(['pasir', 'semen'])
+    expect(state[e.id].batchIds).toEqual(['batch-1'])
+  })
+
+  it('gives an empty batchIds array for a sale with no batch on any line (legacy pool)', () => {
+    const e = createEvent('SaleRecorded', {
+      lines: [{ itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000 }],
+      metodeBayar: 'tunai' as const, subtotal: 63000, diskon: 0, total: 63000,
+    }, at('2026-09-18T07:00:00.000Z'))
+    expect(projectSales([e])[e.id].batchIds).toEqual([])
+  })
+})

@@ -1,6 +1,17 @@
 import type { EventEnvelope } from '../events'
 
-export type SaleLine = { itemId: string; nama: string; unit: string; qty: number; hargaSatuan: number; subtotal: number }
+export type SaleLine = {
+  itemId: string
+  nama: string
+  unit: string
+  qty: number
+  hargaSatuan: number
+  subtotal: number
+  /** Which purchase batch this line was sold from. Absent for the legacy ("Stok lama") pool, or a sale recorded before batches existed. */
+  batchId?: string
+  /** The ukuran's default harga jual at the moment this line was added, for the UI's "Harga diubah" flag. */
+  hargaNormal?: number
+}
 export type Sale = {
   id: string                 // = the SaleRecorded event's own id
   lines: SaleLine[]
@@ -17,8 +28,14 @@ export type Sale = {
   status: 'aktif' | 'batal'
   voidedAt?: string
   voidedReason?: string
+  /** Derived from lines at fold time, for Dexie's *itemIds multi-entry index (Transaksi's item filter). */
+  itemIds: string[]
+  /** Derived from lines at fold time, excluding lines with no batch, for Dexie's *batchIds multi-entry index (Transaksi's batch filter). */
+  batchIds: string[]
 }
 export type SalesState = Record<string, Sale>
+
+const dedupe = (values: string[]): string[] => Array.from(new Set(values))
 
 /**
  * Unlike reduceItems/reduceStock (which key by the folding event's own
@@ -32,8 +49,16 @@ export type SalesState = Record<string, Sale>
 export function reduceSales(state: SalesState, event: EventEnvelope): SalesState {
   if (event.type === 'SaleRecorded') {
     if (state[event.id]) return state  // idempotent: replayed insert is a no-op
-    const payload = event.payload as Omit<Sale, 'id' | 'occurredAt' | 'recordedAt' | 'deviceId' | 'status' | 'voidedAt' | 'voidedReason'>
-    return { ...state, [event.id]: { id: event.id, ...payload, occurredAt: event.occurredAt, recordedAt: event.recordedAt, deviceId: event.deviceId, status: 'aktif' } }
+    const payload = event.payload as Omit<Sale, 'id' | 'occurredAt' | 'recordedAt' | 'deviceId' | 'status' | 'voidedAt' | 'voidedReason' | 'itemIds' | 'batchIds'>
+    const itemIds = dedupe(payload.lines.map(l => l.itemId))
+    const batchIds = dedupe(payload.lines.map(l => l.batchId).filter((id): id is string => id !== undefined))
+    return {
+      ...state,
+      [event.id]: {
+        id: event.id, ...payload, occurredAt: event.occurredAt, recordedAt: event.recordedAt,
+        deviceId: event.deviceId, status: 'aktif', itemIds, batchIds,
+      },
+    }
   }
   if (event.type === 'SaleVoided') {
     const payload = event.payload as { saleId: string; alasan: string }

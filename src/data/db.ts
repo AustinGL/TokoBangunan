@@ -101,6 +101,16 @@ class TokoDb extends Dexie {
       await tx.table('batchesProj').bulkPut(Object.values(projectBatches(sorted)))
       await tx.table('meta').put({ key: 'syncCursor', value: 0 })
     })
+    // Additive: itemIds/batchIds are new multi-entry indexes on an existing
+    // store. Dexie re-derives them from whatever is already on each stored
+    // row's itemIds/batchIds properties - rows written before this version
+    // simply lack those properties until next touched (an incremental fold
+    // or a rebuild), the same self-healing precedent version(4)'s reviewer
+    // noted for diarsipkan. No upgrade() callback: nothing needs backfilling
+    // atomically here, unlike version(4)'s brand-new tables.
+    this.version(5).stores({
+      salesProj: 'id, occurredAt, *itemIds, *batchIds',
+    })
   }
 }
 

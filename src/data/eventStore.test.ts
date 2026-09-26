@@ -490,3 +490,22 @@ describe('appendEvents incremental fold: barang, suppliers, batches', () => {
     expect((await db.batchesProj.get('b1'))?.sisa).toBe(37000)
   })
 })
+
+describe('appendEvents incremental fold: sale itemIds/batchIds', () => {
+  it('produces the same salesProj row as rebuildProjections, with itemIds/batchIds populated', async () => {
+    const e = createEvent('SaleRecorded', {
+      lines: [{ itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000, batchId: 'b1' }],
+      metodeBayar: 'tunai' as const, subtotal: 63000, diskon: 0, total: 63000,
+    }, at('2026-09-18T07:00:00.000Z'))
+    await appendEvents([e])
+    const incremental = await db.salesProj.get(e.id)
+
+    await db.salesProj.clear()
+    await rebuildProjections()
+    const rebuilt = await db.salesProj.get(e.id)
+
+    expect(incremental).toEqual(rebuilt)
+    expect(incremental?.itemIds).toEqual(['semen'])
+    expect(incremental?.batchIds).toEqual(['b1'])
+  })
+})
