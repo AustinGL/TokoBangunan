@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
-import { recordItem, recordSale, voidSale, type RecordSaleInput } from './commands'
+import { recordItem, recordSale, voidSale, recordBarang, updateBarang, type RecordSaleInput } from './commands'
 import { fixedClock } from '../domain/clock'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
@@ -307,5 +307,41 @@ describe('voidSale', () => {
 
     const sale = await db.salesProj.get(saleId)
     expect(sale?.status).toBe('batal')
+  })
+})
+
+describe('recordBarang', () => {
+  it('writes a BarangUpserted event, defaulting diarsipkan to false', async () => {
+    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    expect(events).toHaveLength(1)
+    expect(events[0].type).toBe('BarangUpserted')
+
+    const barang = await db.barangProj.get(id)
+    expect(barang).toMatchObject({ nama: 'Semen Tiga Roda', kategori: 'Semen', diarsipkan: false })
+  })
+})
+
+describe('updateBarang', () => {
+  it('rejects an id that does not exist', async () => {
+    await expect(updateBarang({ id: 'ghost', nama: 'X' }, at('2026-09-18T07:00:00.000Z'))).rejects.toThrow('tidak ditemukan')
+  })
+
+  it('preserves fields not given in the input', async () => {
+    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+
+    await updateBarang({ id, nama: 'Semen Tiga Roda 50kg' }, at('2026-09-18T08:00:00.000Z'))
+
+    const barang = await db.barangProj.get(id)
+    expect(barang).toMatchObject({ nama: 'Semen Tiga Roda 50kg', kategori: 'Semen' })
+  })
+
+  it('archives a barang by setting diarsipkan', async () => {
+    const id = await recordBarang({ nama: 'Semen Tiga Roda' }, at('2026-09-18T07:00:00.000Z'))
+
+    await updateBarang({ id, diarsipkan: true }, at('2026-09-18T08:00:00.000Z'))
+
+    expect((await db.barangProj.get(id))?.diarsipkan).toBe(true)
   })
 })

@@ -178,3 +178,33 @@ export async function voidSale(saleId: string, alasan: string, ctx: CommandConte
   )
   await appendEvents([voidEvent, ...stockEvents])
 }
+
+export type RecordBarangInput = { nama: string; kategori?: string }
+
+/** Creates a new Kamus Barang parent. Generates its own id (newEventId), same as recordItem. */
+export const recordBarang = async (input: RecordBarangInput, ctx: CommandContext): Promise<string> => {
+  const id = newEventId()
+  await appendEvents([createEvent('BarangUpserted', {
+    id, nama: input.nama, kategori: input.kategori, diarsipkan: false,
+  }, ctx)])
+  return id
+}
+
+export type UpdateBarangInput = { id: string; nama?: string; kategori?: string; diarsipkan?: boolean }
+
+/**
+ * BarangUpserted is a full-replace, last-write-wins event, so an update
+ * must read the current row first to carry forward whatever field the
+ * caller didn't set - same precedent as voidSale's read-before-write.
+ */
+export const updateBarang = async (input: UpdateBarangInput, ctx: CommandContext): Promise<void> => {
+  const existing = await db.barangProj.get(input.id)
+  if (!existing) throw new Error('Barang tidak ditemukan.')
+
+  await appendEvents([createEvent('BarangUpserted', {
+    id: existing.id,
+    nama: input.nama ?? existing.nama,
+    kategori: input.kategori ?? existing.kategori,
+    diarsipkan: input.diarsipkan ?? existing.diarsipkan,
+  }, ctx)])
+}
