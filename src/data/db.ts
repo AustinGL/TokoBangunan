@@ -3,6 +3,13 @@ import type { EventEnvelope } from '../domain/events'
 import type { Item } from '../domain/projections/items'
 import type { StockLevel } from '../domain/projections/stock'
 import type { Sale } from '../domain/projections/sales'
+import type { Barang } from '../domain/projections/barang'
+import type { Supplier } from '../domain/projections/suppliers'
+import type { Batch } from '../domain/projections/batches'
+import { projectBarang } from '../domain/projections/barang'
+import { projectSuppliers } from '../domain/projections/suppliers'
+import { projectBatches } from '../domain/projections/batches'
+import { compareCausal } from './eventOrder'
 
 export type MetaRow = { key: string; value: unknown }
 
@@ -39,6 +46,9 @@ class TokoDb extends Dexie {
   stokProj!: Table<StockLevel, string>
   salesProj!: Table<Sale, string>
   outbox!: Table<OutboxRow, string>
+  barangProj!: Table<Barang, string>
+  suppliersProj!: Table<Supplier, string>
+  batchesProj!: Table<Batch, string>
 
   constructor() {
     super('toko-bahan-bangunan')
@@ -66,6 +76,30 @@ class TokoDb extends Dexie {
       if (unsynced.length > 0) {
         await tx.table('outbox').bulkPut(unsynced.map((e: EventEnvelope) => ({ id: e.id })))
       }
+    })
+    // barangProj, suppliersProj and batchesProj are new tables folded from
+    // event types that predate this version (SupplierUpserted) or are brand
+    // new (BarangUpserted, StockReceived, BatchCorrected). Either way the
+    // safest backfill is the same full rebuild rebuildProjections() performs
+    // routinely, run once here inside the upgrade transaction. The sync
+    // cursor reset alongside it is a separate fix: a device that already
+    // pulled a new-shaped event while still on the old schema stored it with
+    // that event's new field zod-stripped (z.object silently drops unknown
+    // keys), and nothing else re-fetches or re-parses it. Resetting the
+    // cursor makes the next sync re-pull the whole log; applyRemoteEvents's
+    // bulkPut then overwrites each such row by id with a copy this schema
+    // parses in full.
+    this.version(4).stores({
+      barangProj: 'id, nama',
+      suppliersProj: 'id, nama',
+      batchesProj: 'batchId, itemId, supplierId, tanggalBeli',
+    }).upgrade(async tx => {
+      const events = (await tx.table('events').toArray()) as EventEnvelope[]
+      const sorted = [...events].sort(compareCausal)
+      await tx.table('barangProj').bulkPut(Object.values(projectBarang(sorted)))
+      await tx.table('suppliersProj').bulkPut(Object.values(projectSuppliers(sorted)))
+      await tx.table('batchesProj').bulkPut(Object.values(projectBatches(sorted)))
+      await tx.table('meta').put({ key: 'syncCursor', value: 0 })
     })
   }
 }
