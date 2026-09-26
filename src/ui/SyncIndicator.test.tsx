@@ -74,14 +74,21 @@ describe('SyncIndicator', () => {
     expect(svg).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('gives each status a different icon path, so shape carries the meaning and not just colour', () => {
-    const shapes = (['tersinkron', 'menyimpan', 'belum-tersinkron'] as const).map((status) => {
+  it('gives each status a visually distinct icon, so shape carries the meaning and not just colour', () => {
+    // lucide-react icons vary in internal shape - some use <path>, some use
+    // <circle>/<line> only (verified by rendering each: AlertCircle has no
+    // <path> element at all) - so comparing a single path's `d` attribute is
+    // not a reliable cross-icon signal. Each lucide icon's root <svg> does
+    // carry a unique `class` naming the icon itself, which is what actually
+    // proves three different icons render, not an accident of one icon
+    // happening to have no <path>.
+    const classes = (['tersinkron', 'menyimpan', 'belum-tersinkron'] as const).map((status) => {
       const { container, unmount } = render(<SyncIndicator status={status} pendingCount={0} />)
-      const d = container.querySelector('svg path')?.getAttribute('d')
+      const className = container.querySelector('svg')?.getAttribute('class') ?? ''
       unmount()
-      return d
+      return className
     })
 
-    expect(new Set(shapes).size).toBe(3)
+    expect(new Set(classes).size).toBe(3)
   })
 })
