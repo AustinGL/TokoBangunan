@@ -49,7 +49,17 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
       // codebase does.
       onClose={onClose}
       aria-labelledby={titleId}
-      className={`fixed m-0 max-h-none max-w-none border-0 bg-transparent p-0 backdrop:bg-[var(--scrim)] open:flex open:flex-col ${VARIANT_POSITION[variant]}`}
+      // No unconditional max-h-none here: browsers already give <dialog> a
+      // native UA-stylesheet max-height, but author-origin styles (any of
+      // our own classes) always beat that regardless of specificity, so
+      // each variant's own max-h-[85vh] (and the side variant's md:max-h-none
+      // for its desktop full-height case) already fully override it. Adding
+      // an unprefixed max-h-none here would instead defeat those same caps:
+      // Tailwind compiles .max-h-none after .max-h-[85vh] in this project's
+      // build, so two classes of equal specificity on one element cascade by
+      // that compiled order, not by their order in this string - verified in
+      // Sheet.test.tsx.
+      className={`fixed m-0 max-w-none border-0 bg-transparent p-0 backdrop:bg-[var(--scrim)] open:flex open:flex-col ${VARIANT_POSITION[variant]}`}
     >
       <div className="glass-strong flex h-full flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-border p-4">

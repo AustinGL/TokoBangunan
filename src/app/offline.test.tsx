@@ -121,6 +121,48 @@ describe('offline boot', () => {
     expect(await screen.findByText('Kasir')).toBeInTheDocument()
   })
 
+  // The F2 listener moved here from the deleted TopNav.tsx verbatim (same
+  // effect body, same dependency array), but its own two robustness tests
+  // did not move with it when TopNav.test.tsx was deleted: nothing in the
+  // suite proved that a regression in this listener's focus-independence or
+  // cleanup would still be caught. Restoring that coverage at its new home.
+  it('still triggers F2 when focus sits on an unrelated element elsewhere on the page', async () => {
+    render(<App />)
+    await screen.findByText('Toko Bahan Bangunan')
+
+    // Tab to whatever the shell's first real focusable element is (the
+    // Sidebar's own CTA or nav links), rather than assuming a specific
+    // field exists on the default Beranda route. Any focused element other
+    // than the page body proves focus moved somewhere before F2 fires.
+    await userEvent.tab()
+    expect(document.activeElement).not.toBe(document.body)
+
+    await userEvent.keyboard('{F2}')
+
+    expect(await screen.findByText('Kasir')).toBeInTheDocument()
+  })
+
+  it('stops listening for F2 once unmounted, so it cannot fire twice after the app is torn down', async () => {
+    // App.tsx builds its own navigate callback internally (via
+    // useNavigate()), unlike the deleted TopNav, which took onNewTransaction
+    // as an external prop a test could spy on directly. With no equivalent
+    // injection point here, spying on window.removeEventListener - the same
+    // technique the project's own phase-1 handoff notes recommend for this
+    // exact class of test ("a timing threshold, not a structural one...
+    // spy on removeEventListener instead") - proves the effect's cleanup
+    // function actually ran, rather than inferring it from timing or a
+    // thrown error.
+    const removeSpy = vi.spyOn(window, 'removeEventListener')
+    const { unmount } = render(<App />)
+    await screen.findByText('Toko Bahan Bangunan')
+
+    unmount()
+
+    const removedKeydown = removeSpy.mock.calls.some(([type]) => type === 'keydown')
+    expect(removedKeydown).toBe(true)
+    removeSpy.mockRestore()
+  })
+
   it('actually shows the Kasir pane when the desktop Transaksi baru button is clicked', async () => {
     render(<App />)
     await screen.findByText('Toko Bahan Bangunan')

@@ -54,4 +54,30 @@ describe('Sheet', () => {
     render(<Sheet open variant="center" title="Konfirmasi" onClose={vi.fn()}>Yakin?</Sheet>)
     expect(screen.getByRole('dialog', { name: 'Konfirmasi' })).toBeInTheDocument()
   })
+
+  // Tailwind utilities of equal specificity (every class here is a plain
+  // single-class selector) cascade by their position in the COMPILED
+  // stylesheet, not by the order classes appear in a className string -
+  // verified directly against this project's real build: .max-h-none
+  // compiles AFTER .max-h-[85vh], so an element carrying both classes
+  // unprefixed always resolves to max-height: none, regardless of which
+  // order they are written in JSX. Every variant sets its own max-height
+  // explicitly (max-h-[85vh] unprefixed, and md:max-h-none for the side
+  // variant's desktop full-height case, which is gated by a media query and
+  // so never competes with the unprefixed rule at the same breakpoint), so
+  // the dialog element itself must never also carry an unprefixed
+  // max-h-none: that would silently defeat every variant's cap at every
+  // width a breakpoint override does not explicitly reclaim.
+  it.each(['side', 'center'] as const)('the %s variant never combines an unprefixed max-h-none with its own height cap', (variant) => {
+    render(<Sheet open variant={variant} title="Cek" onClose={vi.fn()}>Isi</Sheet>)
+    const className = screen.getByRole('dialog').className
+
+    const hasUnprefixedNone = /(^|\s)max-h-none(\s|$)/.test(className)
+    const hasUnprefixedCap = /(^|\s)max-h-\[[^\]]+\](\s|$)/.test(className)
+
+    expect(
+      hasUnprefixedNone && hasUnprefixedCap,
+      `dialog className carries both an unprefixed max-h-none and a max-h-[...] cap, so the cap never applies: "${className}"`,
+    ).toBe(false)
+  })
 })
