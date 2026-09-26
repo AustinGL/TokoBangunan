@@ -88,6 +88,10 @@ export type RecordSaleLine = {
   qty: number
   hargaSatuan: number
   subtotal: number
+  /** Which purchase batch this line was sold from. Absent for the legacy ("Stok lama") pool. */
+  batchId?: string
+  /** The ukuran's default harga jual at add-time, for the "Harga diubah" flag. */
+  hargaNormal?: number
 }
 
 export type RecordSaleInput = {
@@ -130,12 +134,15 @@ export const recordSale = async (cart: RecordSaleInput, ctx: CommandContext): Pr
 
   // One StockAdjusted per line, quantity negated: the cart line's own qty is
   // a positive milli-quantity (what was sold), but a sale deducts stock.
+  // Each line's own batchId (if any) travels onto its StockAdjusted so
+  // batchesProj can credit the right batch's sisa.
   const stockEvents: EventEnvelope[] = cart.lines.map(line =>
     createEvent('StockAdjusted', {
       itemId: line.itemId,
       quantity: -line.qty,
       reason: 'sale',
       saleId: saleEvent.id,
+      batchId: line.batchId,
     }, ctx),
   )
 
@@ -174,7 +181,7 @@ export async function voidSale(saleId: string, alasan: string, ctx: CommandConte
   // sale does this stock movement belong to" stays consistent across both
   // 'sale' and 'void' reasons.
   const stockEvents = sale.lines.map(line =>
-    createEvent('StockAdjusted', { itemId: line.itemId, quantity: line.qty, reason: 'void', saleId }, ctx),
+    createEvent('StockAdjusted', { itemId: line.itemId, quantity: line.qty, reason: 'void', saleId, batchId: line.batchId }, ctx),
   )
   await appendEvents([voidEvent, ...stockEvents])
 }

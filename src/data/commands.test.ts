@@ -313,6 +313,54 @@ describe('voidSale', () => {
   })
 })
 
+describe('recordSale: batchId/hargaNormal', () => {
+  it('carries batchId and hargaNormal through onto the SaleRecorded line and the sale StockAdjusted', async () => {
+    const saleId = await recordSale({
+      lines: [{ itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000, batchId: 'batch-1', hargaNormal: 65000 }],
+      metodeBayar: 'tunai',
+    }, at('2026-09-18T07:00:00.000Z'))
+
+    const sale = await db.salesProj.get(saleId)
+    expect(sale?.lines[0]).toMatchObject({ batchId: 'batch-1', hargaNormal: 65000 })
+
+    const events = await db.events.toArray()
+    const stockEvent = events.find(e => e.type === 'StockAdjusted')
+    expect(stockEvent?.payload).toMatchObject({ batchId: 'batch-1', reason: 'sale' })
+  })
+
+  it('omits batchId entirely for a legacy line with none', async () => {
+    await recordSale({
+      lines: [{ itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000 }],
+      metodeBayar: 'tunai',
+    }, at('2026-09-18T07:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    const stockEvent = events.find(e => e.type === 'StockAdjusted')
+    expect((stockEvent?.payload as { batchId?: string }).batchId).toBeUndefined()
+  })
+})
+
+describe('voidSale: batchId reversal', () => {
+  it('reverses each line against its own original batch', async () => {
+    const saleId = await recordSale({
+      lines: [
+        { itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000, batchId: 'batch-1' },
+        { itemId: 'pasir', nama: 'Pasir', unit: 'm3', qty: 500, hargaSatuan: 180000, subtotal: 90000 },
+      ],
+      metodeBayar: 'tunai',
+    }, at('2026-09-18T07:00:00.000Z'))
+
+    await voidSale(saleId, 'salah input', at('2026-09-18T08:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    const voidAdjustments = events.filter(e => e.type === 'StockAdjusted' && (e.payload as { reason: string }).reason === 'void')
+    const semenVoid = voidAdjustments.find(e => (e.payload as { itemId: string }).itemId === 'semen')
+    const pasirVoid = voidAdjustments.find(e => (e.payload as { itemId: string }).itemId === 'pasir')
+    expect((semenVoid?.payload as { batchId?: string }).batchId).toBe('batch-1')
+    expect((pasirVoid?.payload as { batchId?: string }).batchId).toBeUndefined()
+  })
+})
+
 describe('recordBarang', () => {
   it('writes a BarangUpserted event, defaulting diarsipkan to false', async () => {
     const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
