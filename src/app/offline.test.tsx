@@ -27,9 +27,12 @@ describe('offline boot', () => {
   it('renders the shell even though sync fails', async () => {
     render(<App />)
     expect(await screen.findByText('Toko Bahan Bangunan')).toBeInTheDocument()
-    // Both TopNav and BottomNav stay mounted (CSS hides one per breakpoint,
-    // see the dedicated test below), so both carry a "Transaksi baru" control.
-    expect(screen.getAllByRole('button', { name: 'Transaksi baru' })).toHaveLength(2)
+    // Both Sidebar and BottomNav stay mounted (CSS hides one per breakpoint,
+    // see the dedicated test below), so between them there are two distinct
+    // "start a sale" controls: Sidebar's labeled "+ Transaksi baru", the
+    // phone FAB labeled "Transaksi baru" (an aria-label, no visible "+").
+    expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Transaksi baru' })).toBeInTheDocument()
   })
 
   it('reports the unsynced state rather than crashing', async () => {
@@ -44,31 +47,24 @@ describe('offline boot', () => {
     expect(await screen.findByText('Belum tersinkron (0)')).toBeInTheDocument()
   })
 
-  // Load-bearing: TopNav owns the global F2 keydown listener. Every nav test
-  // elsewhere mounts TopNav or BottomNav directly, so a JS conditional in App
-  // that renders only one of them (instead of relying on CSS breakpoints to
-  // hide/show) would break the F2 shortcut on phone width with a fully green
-  // suite otherwise. This pins both navs into the DOM in the same render.
-  it('keeps both the desktop nav and the phone nav mounted at once', async () => {
+  it('keeps both the desktop sidebar and the phone bottom nav mounted at once', async () => {
     render(<App />)
     await screen.findByText('Toko Bahan Bangunan')
 
     const desktopButton = within(screen.getByRole('banner')).getByRole(
       'button',
-      { name: 'Transaksi baru' },
+      { name: '+ Transaksi baru' },
     )
     expect(desktopButton).toBeInTheDocument()
 
-    // 'Lainnya' only exists in BottomNav's PHONE_ITEMS, so it uniquely
-    // identifies the phone nav's <nav> element regardless of CSS visibility.
-    const phoneOnlyLink = screen.getByRole('link', { name: 'Lainnya' })
-    const phoneNav = phoneOnlyLink.closest('nav')
-    expect(phoneNav).not.toBeNull()
-
-    const phoneFab = within(phoneNav as HTMLElement).getByRole(
-      'button',
-      { name: 'Transaksi baru' },
-    )
+    // aria-label uniquely identifies the phone nav regardless of CSS
+    // visibility, the same role both bars' own <nav> elements otherwise
+    // share. Multiple <nav> landmarks on one page are expected to carry
+    // distinct accessible names (WCAG technique ARIA11); this labels each
+    // one honestly rather than repurposing a phone-only link as an
+    // incidental test hook the way the old "Lainnya" link used to be.
+    const phoneNav = screen.getByRole('navigation', { name: 'Navigasi telepon' })
+    const phoneFab = within(phoneNav).getByRole('button', { name: 'Transaksi baru' })
     expect(phoneFab).toBeInTheDocument()
     expect(phoneFab).not.toBe(desktopButton)
   })
@@ -131,7 +127,7 @@ describe('offline boot', () => {
 
     const desktopButton = within(screen.getByRole('banner')).getByRole(
       'button',
-      { name: 'Transaksi baru' },
+      { name: '+ Transaksi baru' },
     )
     await userEvent.click(desktopButton)
 

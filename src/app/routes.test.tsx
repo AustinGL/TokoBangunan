@@ -1,6 +1,5 @@
 import 'fake-indexeddb/auto'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../data/db'
@@ -42,32 +41,14 @@ describe('AppRoutes: the /kasir route and the catch-all', () => {
   })
 })
 
-// Flow spec section 4: "Lainnya holds: Transaksi, Supplier, Laporan." On a
-// phone, BottomNav's "Lainnya" tab used to land on a placeholder with no
-// links at all, leaving Transaksi unreachable without typing the URL.
-describe('AppRoutes: /lainnya links to Transaksi, Supplier, and Laporan', () => {
-  it('renders real links to all three destinations', () => {
+describe('AppRoutes: /lainnya redirects home (the sheet replaces the old route)', () => {
+  it('redirects a legacy /lainnya bookmark to Beranda rather than 404ing it', () => {
     render(
       <MemoryRouter initialEntries={['/lainnya']}>
         <AppRoutes />
       </MemoryRouter>,
     )
-
-    expect(screen.getByRole('link', { name: 'Transaksi' })).toHaveAttribute('href', '/transaksi')
-    expect(screen.getByRole('link', { name: 'Supplier' })).toHaveAttribute('href', '/supplier')
-    expect(screen.getByRole('link', { name: 'Laporan' })).toHaveAttribute('href', '/laporan')
-  })
-
-  it('the Transaksi link actually navigates to the real Transaksi screen', async () => {
-    const user = userEvent.setup()
-    render(
-      <MemoryRouter initialEntries={['/lainnya']}>
-        <AppRoutes />
-      </MemoryRouter>,
-    )
-
-    await user.click(screen.getByRole('link', { name: 'Transaksi' }))
-
-    expect(screen.getByRole('heading', { name: 'Transaksi' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Beranda' })).toBeInTheDocument()
+    expect(screen.queryByText('Halaman tidak ditemukan')).toBeNull()
   })
 })
