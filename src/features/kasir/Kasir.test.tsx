@@ -17,7 +17,7 @@ const seedItem = async (overrides: {
   await db.itemsProj.put({
     id: overrides.id, nama: overrides.nama, baseUnit: overrides.baseUnit ?? 'sak',
     units: [{ unit: overrides.baseUnit ?? 'sak', factor: 1 }], hargaEceran: overrides.hargaEceran,
-    stokMinimum: 5, barcode: overrides.barcode,
+    stokMinimum: 5, barcode: overrides.barcode, diarsipkan: false,
     updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1',
   })
   await db.stokProj.put({

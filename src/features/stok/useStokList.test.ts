@@ -35,7 +35,7 @@ describe('useStokList (live join over real fake-indexeddb)', () => {
   it('treats an item with no stokProj row at all as quantity 0 and status habis', async () => {
     await db.itemsProj.put({
       id: 'semen', nama: 'Semen Tiga Roda', baseUnit: 'sak',
-      units: [{ unit: 'sak', factor: 1 }], hargaEceran: 52000, stokMinimum: 10,
+      units: [{ unit: 'sak', factor: 1 }], hargaEceran: 52000, stokMinimum: 10, diarsipkan: false,
       updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1',
     })
 
@@ -49,7 +49,7 @@ describe('useStokList (live join over real fake-indexeddb)', () => {
   it('converts stokProj milli-units back to whole units for the join, matching fromBase', async () => {
     await db.itemsProj.put({
       id: 'semen', nama: 'Semen Tiga Roda', baseUnit: 'sak',
-      units: [{ unit: 'sak', factor: 1 }], hargaEceran: 52000, stokMinimum: 10,
+      units: [{ unit: 'sak', factor: 1 }], hargaEceran: 52000, stokMinimum: 10, diarsipkan: false,
       updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1',
     })
     // 50 sak stored as 50000 milli-sak (factor 1 base unit).

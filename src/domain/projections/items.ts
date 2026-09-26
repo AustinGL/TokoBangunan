@@ -10,6 +10,11 @@ export type Item = {
   stokMinimum: number
   barcode?: string
   kategori?: string
+  /** The Kamus Barang parent this ukuran belongs to. Absent on every item
+   * created before Kamus Barang existed - katalog.ts's groupUkuranByBarang
+   * gives those a virtual barang instead of requiring a migration event. */
+  barangId?: string
+  diarsipkan: boolean
   /** recordedAt of the write that produced this state, for last-write-wins. */
   updatedAt: string
   /**

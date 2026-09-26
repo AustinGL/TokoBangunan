@@ -82,3 +82,13 @@ describe('projectItems', () => {
     expect(reversed['semen'].hargaEceran).toBe(54000)
   })
 })
+
+describe('projectItems: barangId and diarsipkan', () => {
+  it('retains barangId and diarsipkan through the projection', () => {
+    const e = createEvent('ItemUpserted', {
+      ...base, barangId: 'barang-semen', diarsipkan: true,
+    }, at('2026-09-18T07:00:00.000Z'))
+    const state = projectItems([e])
+    expect(state['semen']).toMatchObject({ barangId: 'barang-semen', diarsipkan: true })
+  })
+})

@@ -56,8 +56,8 @@ describe('ProductGrid (live join over real fake-indexeddb)', () => {
     await db.delete()
     await db.open()
     await db.itemsProj.bulkPut([
-      { id: 'semen', nama: 'Semen Tiga Roda', baseUnit: 'sak', units: [{ unit: 'sak', factor: 1 }], hargaEceran: 52000, stokMinimum: 10, barcode: '8991234567890', kategori: 'Semen', updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
-      { id: 'pasir', nama: 'Pasir Halus', baseUnit: 'm3', units: [{ unit: 'm3', factor: 1 }], hargaEceran: 180000, stokMinimum: 5, kategori: 'Agregat', updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2' },
+      { id: 'semen', nama: 'Semen Tiga Roda', baseUnit: 'sak', units: [{ unit: 'sak', factor: 1 }], hargaEceran: 52000, stokMinimum: 10, barcode: '8991234567890', kategori: 'Semen', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+      { id: 'pasir', nama: 'Pasir Halus', baseUnit: 'm3', units: [{ unit: 'm3', factor: 1 }], hargaEceran: 180000, stokMinimum: 5, kategori: 'Agregat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2' },
     ])
     await db.stokProj.bulkPut([
       { itemId: 'semen', quantity: 50000, lastMovementAt: '2026-09-18T07:00:00.000Z', lastMovementEventId: 'e1' },
