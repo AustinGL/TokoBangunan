@@ -26,8 +26,8 @@ export type SalesState = Record<string, Sale>
  * (payload.saleId), not the void event's own id. No (recordedAt, id)
  * tie-break is needed because a SaleVoided can only be authored, in this
  * phase's UI, after its SaleRecorded already exists -- ordering is
- * guaranteed by getAllEvents()'s recordedAt sort, the same guarantee
- * items.ts already leans on.
+ * guaranteed by getAllEvents()'s causal sort (eventOrder.ts's
+ * compareCausal), the same guarantee items.ts already leans on.
  */
 export function reduceSales(state: SalesState, event: EventEnvelope): SalesState {
   if (event.type === 'SaleRecorded') {

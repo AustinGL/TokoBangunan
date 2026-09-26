@@ -1,6 +1,7 @@
 import { db, type QuarantineRow } from './db'
 import { classifyEvent, type EventEnvelope } from '../domain/events'
 import { newEventId } from '../domain/ids'
+import { compareCausal } from './eventOrder'
 import { projectItems, reduceItems } from '../domain/projections/items'
 import { projectStock, reduceStock } from '../domain/projections/stock'
 import { projectSales, reduceSales } from '../domain/projections/sales'
@@ -73,12 +74,15 @@ export const appendEvents = async (events: EventEnvelope[]): Promise<void> => {
 }
 
 /**
- * Correctness for two events with an identical recordedAt comes from the
- * deterministic tie-break inside projectItems (by event id), not from this
- * query's ordering. Do not rely on Dexie's tie-break here for correctness.
+ * Correctness for two events with an identical recordedAt, or with
+ * recordedAt values that disagree with causal order across devices, comes
+ * from compareCausal - not from Dexie's own storage order. See
+ * eventOrder.ts.
  */
-export const getAllEvents = (): Promise<EventEnvelope[]> =>
-  db.events.orderBy('recordedAt').toArray()
+export const getAllEvents = async (): Promise<EventEnvelope[]> => {
+  const events = await db.events.toArray()
+  return events.sort(compareCausal)
+}
 
 export const getUnsyncedEvents = async (): Promise<EventEnvelope[]> => {
   const ids = await db.outbox.toArray()
