@@ -1,62 +1,59 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi } from 'vitest'
 import { BottomNav } from './BottomNav'
 
-const renderNav = (path = '/') =>
+const renderNav = (path = '/', supplierAlertCount = 0) =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <BottomNav onNewTransaction={vi.fn()} />
+      <BottomNav onNewTransaction={vi.fn()} supplierAlertCount={supplierAlertCount} />
     </MemoryRouter>,
   )
 
 describe('BottomNav', () => {
-  it('shows four tabs plus the centre action, staying within the 5 target limit', () => {
+  it('shows three tabs, the centre action, and the Lainnya button', () => {
     renderNav()
-    expect(screen.getAllByRole('link')).toHaveLength(4)
+    expect(screen.getAllByRole('link')).toHaveLength(3)
     expect(screen.getByRole('button', { name: 'Transaksi baru' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Lainnya' })).toBeInTheDocument()
   })
 
-  it('has exactly five interactive targets in total, not just four links plus a named button', () => {
-    // Counting links and separately asserting a named button exists (the
-    // test above) does not bound the total: a sixth target, such as an
-    // extra icon button, could be added without either assertion catching
-    // it. This counts every link, button, and explicitly-tabbable element
-    // in the bar together, so a sixth target fails this test.
+  it('has exactly five interactive targets in total', () => {
     const { container } = renderNav()
-    const interactiveTargets = container.querySelectorAll('a, button, [tabindex]')
+    const bar = container.querySelector('nav[aria-label="Navigasi telepon"]') as HTMLElement
+    const interactiveTargets = bar.querySelectorAll('a, button, [tabindex]')
     expect(interactiveTargets).toHaveLength(5)
   })
 
-  it('keeps Stok on the bar and folds Transaksi into Lainnya', () => {
+  it('keeps Beranda, Stok and Piutang as real links, and does not turn Lainnya into one', () => {
     renderNav()
+    expect(screen.getByRole('link', { name: 'Beranda' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Stok' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Lainnya' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Transaksi' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Piutang' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Lainnya' })).toBeNull()
   })
 
-  it('gives every tab the minimum tap-target class, and sizes the centre action past it explicitly', () => {
-    // As in TopNav: jsdom cannot measure a rendered pixel height, so this
-    // pins token classes as a regression guard, not proof that anything
-    // renders at 44px. The four tabs use the min-h-tap token directly. The
-    // centre FAB does not use that class in this implementation - it is
-    // sized with explicit h-14/w-14 (56px), which already clears the 44px
-    // floor by a larger, fixed amount, so it is pinned by its own size
-    // classes rather than the token.
+  it('opens LainnyaSheet when the Lainnya button is activated', async () => {
+    const user = userEvent.setup()
+    renderNav()
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Lainnya' }))
+
+    expect(screen.getByRole('dialog', { name: 'Lainnya' })).toBeInTheDocument()
+  })
+
+  it('gives every tab, the centre action and the Lainnya button the minimum tap-target class', () => {
     renderNav()
     expect(screen.getByRole('link', { name: 'Beranda' })).toHaveClass('min-h-tap')
     expect(screen.getByRole('link', { name: 'Stok' })).toHaveClass('min-h-tap')
     expect(screen.getByRole('link', { name: 'Piutang' })).toHaveClass('min-h-tap')
-    expect(screen.getByRole('link', { name: 'Lainnya' })).toHaveClass('min-h-tap')
     expect(screen.getByRole('button', { name: 'Transaksi baru' })).toHaveClass('h-14', 'w-14')
+    expect(screen.getByRole('button', { name: 'Lainnya' })).toHaveClass('min-h-tap')
   })
 
   it('separates the centre action from the tabs it abuts', () => {
-    // The four tabs stay edge-to-edge on purpose: they are full-height flex-1
-    // targets far wider than 44px, and a gap between them would only open dead
-    // strips along the bottom edge of a phone. The FAB is different - it is a
-    // 56px circle wedged between two of them - so it carries the 8px
-    // separation MASTER.md section 11 requires between adjacent targets.
     renderNav()
     expect(screen.getByRole('button', { name: 'Transaksi baru' })).toHaveClass('mx-2')
   })
@@ -65,5 +62,15 @@ describe('BottomNav', () => {
     renderNav('/stok')
     expect(screen.getByRole('link', { name: 'Stok' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Beranda' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('folds the supplier alert count into the Lainnya button’s own accessible name', () => {
+    renderNav('/', 2)
+    expect(screen.getByRole('button', { name: 'Lainnya, 2 perlu dilengkapi' })).toBeInTheDocument()
+  })
+
+  it('carries a distinct aria-label on its own nav landmark, so it can be told apart from Sidebar’s', () => {
+    renderNav()
+    expect(screen.getByRole('navigation', { name: 'Navigasi telepon' })).toBeInTheDocument()
   })
 })
