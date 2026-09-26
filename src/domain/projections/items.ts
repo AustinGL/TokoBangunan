@@ -47,7 +47,18 @@ export function reduceItems(state: ItemsState, event: EventEnvelope): ItemsState
   }
   return {
     ...state,
-    [payload.id]: { ...payload, updatedAt: event.recordedAt, updatedByEventId: event.id },
+    [payload.id]: {
+      ...payload,
+      // Zod's .default() only applies at createEvent/parse time - every
+      // ItemUpserted written before this field existed has no diarsipkan
+      // key at all in its stored payload, and a raw envelope replayed
+      // directly from the log (a rebuild, or a v3->v4 upgrade backfill)
+      // would otherwise leave it undefined despite the type saying
+      // boolean. Same precedent as reduceSuppliers's perluDilengkapi.
+      diarsipkan: payload.diarsipkan ?? false,
+      updatedAt: event.recordedAt,
+      updatedByEventId: event.id,
+    },
   }
 }
 

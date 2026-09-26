@@ -70,6 +70,11 @@ describe('findNearDuplicate', () => {
     expect(findNearDuplicate('50 KG', ['40 kg', '50 kg'])).toBe('50 kg')
   })
 
+  it('finds a match even when the candidate omits the space entirely', () => {
+    // The most common near-duplicate a shop owner actually types.
+    expect(findNearDuplicate('50KG', ['50 kg'])).toBe('50 kg')
+  })
+
   it('returns undefined when nothing matches', () => {
     expect(findNearDuplicate('60 kg', ['40 kg', '50 kg'])).toBeUndefined()
   })

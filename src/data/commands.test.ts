@@ -347,6 +347,14 @@ describe('updateBarang', () => {
 
     expect((await db.barangProj.get(id))?.diarsipkan).toBe(true)
   })
+
+  it('clears kategori when explicitly given null', async () => {
+    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+
+    await updateBarang({ id, kategori: null }, at('2026-09-18T08:00:00.000Z'))
+
+    expect((await db.barangProj.get(id))?.kategori).toBeUndefined()
+  })
 })
 
 describe('recordUkuran', () => {
@@ -401,6 +409,33 @@ describe('updateUkuran', () => {
 
     const item = await db.itemsProj.get(ukuranId)
     expect(item).toMatchObject({ barangId: semenGudangId, nama: 'Semen Gudang Garam', hargaEceran: 65000 })
+  })
+
+  it('moving to a barang with no kategori clears the ukuran\'s kategori, rather than keeping the old barang\'s', async () => {
+    const semenId = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+    const pakuId = await recordBarang({ nama: 'Paku' }, at('2026-09-18T07:01:00.000Z'))
+    const ukuranId = await recordUkuran(
+      { barangId: semenId, ukuran: '50 kg', hargaEceran: 65000, stokMinimum: 10 },
+      at('2026-09-18T07:02:00.000Z'),
+    )
+
+    await updateUkuran({ id: ukuranId, barangId: pakuId }, at('2026-09-18T08:00:00.000Z'))
+
+    const item = await db.itemsProj.get(ukuranId)
+    expect(item).toMatchObject({ barangId: pakuId, nama: 'Paku' })
+    expect(item?.kategori).toBeUndefined()
+  })
+
+  it('clears the barcode when explicitly given null', async () => {
+    const barangId = await recordBarang({ nama: 'Semen Tiga Roda' }, at('2026-09-18T07:00:00.000Z'))
+    const ukuranId = await recordUkuran(
+      { barangId, ukuran: '50 kg', hargaEceran: 65000, stokMinimum: 10, barcode: '999' },
+      at('2026-09-18T07:01:00.000Z'),
+    )
+
+    await updateUkuran({ id: ukuranId, barcode: null }, at('2026-09-18T08:00:00.000Z'))
+
+    expect((await db.itemsProj.get(ukuranId))?.barcode).toBeUndefined()
   })
 
   it('archives an ukuran by setting diarsipkan', async () => {
@@ -459,5 +494,15 @@ describe('updateSupplier', () => {
 
     const supplier = await db.suppliersProj.get(id)
     expect(supplier).toMatchObject({ nama: 'UD Baru', telepon: '0812', perluDilengkapi: false })
+  })
+
+  it('clears telepon when explicitly given null, without touching alamat/kontak/catatan', async () => {
+    const id = await recordSupplier({ nama: 'CV Maju', telepon: '0812', alamat: 'Jl. Merdeka 1' }, at('2026-09-18T07:00:00.000Z'))
+
+    await updateSupplier({ id, telepon: null }, at('2026-09-18T08:00:00.000Z'))
+
+    const supplier = await db.suppliersProj.get(id)
+    expect(supplier?.telepon).toBeUndefined()
+    expect(supplier?.alamat).toBe('Jl. Merdeka 1')
   })
 })

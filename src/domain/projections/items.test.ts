@@ -91,4 +91,18 @@ describe('projectItems: barangId and diarsipkan', () => {
     const state = projectItems([e])
     expect(state['semen']).toMatchObject({ barangId: 'barang-semen', diarsipkan: true })
   })
+
+  it('defaults diarsipkan to false for a legacy raw payload replayed without the field, matching reduceSuppliers\'s precedent', () => {
+    // Zod's .default() only applies at createEvent/parse time - a raw
+    // envelope replayed directly from the log (a rebuild, or a v3->v4
+    // upgrade backfill) can genuinely lack the key, since every real
+    // ItemUpserted written before this field existed has no diarsipkan key
+    // at all in its stored payload.
+    const legacyEvent = {
+      ...createEvent('ItemUpserted', base, at('2026-09-18T07:00:00.000Z')),
+      payload: { ...base },
+    }
+    const state = projectItems([legacyEvent])
+    expect(state['semen'].diarsipkan).toBe(false)
+  })
 })

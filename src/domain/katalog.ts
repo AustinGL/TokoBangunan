@@ -46,11 +46,20 @@ export function normalizeUkuran(ukuran: string): string {
 }
 
 /**
+ * Stricter than normalizeUkuran: strips whitespace entirely rather than
+ * just collapsing it, so "50kg" and "50 kg" - the most common near-duplicate
+ * a shop owner actually types - compare equal. Kept separate from
+ * normalizeUkuran, whose own collapsed-not-stripped form is still what a
+ * caller would want to display.
+ */
+const compactUkuran = (ukuran: string): string => normalizeUkuran(ukuran).replace(/\s+/g, '')
+
+/**
  * Returns the existing ukuran text that normalizes the same as `candidate`,
  * so the UI can offer "Pakai yang ada" instead of creating a near-duplicate
- * (e.g. "50 kg" vs "50KG").
+ * (e.g. "50 kg" vs "50KG" vs "50kg").
  */
 export function findNearDuplicate(candidate: string, existingUkuran: string[]): string | undefined {
-  const normalizedCandidate = normalizeUkuran(candidate)
-  return existingUkuran.find(u => normalizeUkuran(u) === normalizedCandidate)
+  const key = compactUkuran(candidate)
+  return existingUkuran.find(u => compactUkuran(u) === key)
 }

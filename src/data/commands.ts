@@ -190,12 +190,20 @@ export const recordBarang = async (input: RecordBarangInput, ctx: CommandContext
   return id
 }
 
-export type UpdateBarangInput = { id: string; nama?: string; kategori?: string; diarsipkan?: boolean }
+export type UpdateBarangInput = {
+  id: string
+  nama?: string
+  /** Omitted (or undefined): keep. null: clear. A string: set. */
+  kategori?: string | null
+  diarsipkan?: boolean
+}
 
 /**
  * BarangUpserted is a full-replace, last-write-wins event, so an update
  * must read the current row first to carry forward whatever field the
  * caller didn't set - same precedent as voidSale's read-before-write.
+ * kategori distinguishes "omitted" (keep) from "explicitly null" (clear):
+ * `??` alone cannot, since it treats null and undefined identically.
  */
 export const updateBarang = async (input: UpdateBarangInput, ctx: CommandContext): Promise<void> => {
   const existing = await db.barangProj.get(input.id)
@@ -204,7 +212,7 @@ export const updateBarang = async (input: UpdateBarangInput, ctx: CommandContext
   await appendEvents([createEvent('BarangUpserted', {
     id: existing.id,
     nama: input.nama ?? existing.nama,
-    kategori: input.kategori ?? existing.kategori,
+    kategori: input.kategori === null ? undefined : (input.kategori ?? existing.kategori),
     diarsipkan: input.diarsipkan ?? existing.diarsipkan,
   }, ctx)])
 }
@@ -248,7 +256,8 @@ export type UpdateUkuranInput = {
   ukuran?: string
   hargaEceran?: number
   stokMinimum?: number
-  barcode?: string
+  /** Omitted (or undefined): keep. null: clear. A string: set. */
+  barcode?: string | null
   /** Set to move the ukuran to a different barang ("Pindahkan ke barang lain"). */
   barangId?: string
   diarsipkan?: boolean
@@ -258,8 +267,12 @@ export type UpdateUkuranInput = {
  * ItemUpserted is a full-replace, last-write-wins event, so an update reads
  * the current row first (same precedent as updateBarang/voidSale). When
  * barangId changes (or is set for the first time), nama/kategori are
- * re-snapshotted from that barang; a legacy item's undefined barangId is
- * preserved, not invented, when the caller doesn't set one.
+ * re-snapshotted from that barang - using a plain ternary on barangRow's
+ * own presence, not `??`, because the target barang's kategori can itself
+ * be legitimately undefined (a barang with no kategori), which `??` would
+ * otherwise treat as "no snapshot" and fall through to the OLD barang's
+ * kategori. A legacy item's undefined barangId is preserved, not invented,
+ * when the caller doesn't set one.
  */
 export const updateUkuran = async (input: UpdateUkuranInput, ctx: CommandContext): Promise<void> => {
   const existing = await db.itemsProj.get(input.id)
@@ -271,13 +284,13 @@ export const updateUkuran = async (input: UpdateUkuranInput, ctx: CommandContext
 
   await appendEvents([createEvent('ItemUpserted', {
     id: existing.id,
-    nama: barangRow?.nama ?? existing.nama,
+    nama: barangRow ? barangRow.nama : existing.nama,
     baseUnit: ukuran,
     units: [{ unit: ukuran, factor: 1 }],
     hargaEceran: input.hargaEceran ?? existing.hargaEceran,
     stokMinimum: input.stokMinimum ?? existing.stokMinimum,
-    barcode: input.barcode ?? existing.barcode,
-    kategori: barangRow?.kategori ?? existing.kategori,
+    barcode: input.barcode === null ? undefined : (input.barcode ?? existing.barcode),
+    kategori: barangRow ? barangRow.kategori : existing.kategori,
     barangId,
     diarsipkan: input.diarsipkan ?? existing.diarsipkan,
   }, ctx)])
@@ -310,11 +323,15 @@ export const recordSupplier = async (input: RecordSupplierInput, ctx: CommandCon
 export type UpdateSupplierInput = {
   id: string
   nama?: string
-  telepon?: string
-  alamat?: string
-  kontak?: string
-  catatan?: string
+  /** Each optional field: omitted (or undefined) keeps the existing value, null clears it, a string sets it. */
+  telepon?: string | null
+  alamat?: string | null
+  kontak?: string | null
+  catatan?: string | null
 }
+
+const resolveClearable = (input: string | null | undefined, existing: string | undefined): string | undefined =>
+  input === null ? undefined : (input ?? existing)
 
 /**
  * A full-form save on the Supplier page. Always clears perluDilengkapi,
@@ -328,10 +345,10 @@ export const updateSupplier = async (input: UpdateSupplierInput, ctx: CommandCon
   await appendEvents([createEvent('SupplierUpserted', {
     id: existing.id,
     nama: input.nama ?? existing.nama,
-    telepon: input.telepon ?? existing.telepon,
-    alamat: input.alamat ?? existing.alamat,
-    kontak: input.kontak ?? existing.kontak,
-    catatan: input.catatan ?? existing.catatan,
+    telepon: resolveClearable(input.telepon, existing.telepon),
+    alamat: resolveClearable(input.alamat, existing.alamat),
+    kontak: resolveClearable(input.kontak, existing.kontak),
+    catatan: resolveClearable(input.catatan, existing.catatan),
     perluDilengkapi: false,
   }, ctx)])
 }
