@@ -233,3 +233,158 @@ describe('parseEvent payload validation', () => {
     expect(parsed.payload).not.toHaveProperty('extra')
   })
 })
+
+describe('BarangUpserted', () => {
+  const payload = { id: 'barang-semen', nama: 'Semen Tiga Roda' }
+
+  it('accepts a minimal payload, defaulting diarsipkan to false', () => {
+    const e = createEvent('BarangUpserted', payload, opts)
+    expect(e.payload).toMatchObject({ id: 'barang-semen', nama: 'Semen Tiga Roda', diarsipkan: false })
+  })
+
+  it('accepts kategori and an explicit diarsipkan', () => {
+    const e = createEvent('BarangUpserted', { ...payload, kategori: 'Semen', diarsipkan: true }, opts)
+    expect(e.payload).toMatchObject({ kategori: 'Semen', diarsipkan: true })
+  })
+
+  it('rejects a missing nama', () => {
+    expect(() => createEvent('BarangUpserted', { id: 'x' }, opts)).toThrow()
+  })
+})
+
+describe('ItemUpserted extensions (barangId, diarsipkan)', () => {
+  it('accepts a payload carrying barangId and diarsipkan', () => {
+    const e = createEvent('ItemUpserted', { ...itemPayload, barangId: 'barang-semen', diarsipkan: true }, opts)
+    expect(e.payload).toMatchObject({ barangId: 'barang-semen', diarsipkan: true })
+  })
+
+  it('still accepts a legacy payload with neither field, defaulting diarsipkan to false', () => {
+    const e = createEvent('ItemUpserted', itemPayload, opts)
+    expect(e.payload).toMatchObject({ diarsipkan: false })
+    expect((e.payload as { barangId?: string }).barangId).toBeUndefined()
+  })
+})
+
+describe('SupplierUpserted extensions (alamat, kontak, catatan, perluDilengkapi)', () => {
+  const payload = { id: 'sup-1', nama: 'CV Maju' }
+
+  it('accepts the new optional fields and an explicit perluDilengkapi', () => {
+    const e = createEvent('SupplierUpserted', {
+      ...payload, alamat: 'Jl. Merdeka 1', kontak: 'Pak Budi', catatan: 'Langganan lama', perluDilengkapi: true,
+    }, opts)
+    expect(e.payload).toMatchObject({ alamat: 'Jl. Merdeka 1', kontak: 'Pak Budi', catatan: 'Langganan lama', perluDilengkapi: true })
+  })
+
+  it('still accepts a legacy payload with none of the new fields, defaulting perluDilengkapi to false', () => {
+    const e = createEvent('SupplierUpserted', payload, opts)
+    expect(e.payload).toMatchObject({ perluDilengkapi: false })
+  })
+})
+
+describe('StockAdjusted extensions (koreksi reason, batchId)', () => {
+  const base = { itemId: 'semen', quantity: 10 }
+
+  it('accepts the new koreksi reason', () => {
+    const e = createEvent('StockAdjusted', { ...base, reason: 'koreksi' as const, batchId: 'batch-1' }, opts)
+    expect(e.payload).toMatchObject({ reason: 'koreksi', batchId: 'batch-1' })
+  })
+
+  it('rejects a reason outside the enum', () => {
+    expect(() => createEvent('StockAdjusted', { ...base, reason: 'opname' }, opts)).toThrow()
+  })
+
+  it('still accepts a legacy payload with the original three reasons and no batchId', () => {
+    const e = createEvent('StockAdjusted', { ...base, reason: 'initial' as const }, opts)
+    expect((e.payload as { batchId?: string }).batchId).toBeUndefined()
+  })
+})
+
+describe('SaleRecorded line extensions (batchId, hargaNormal)', () => {
+  const lineWithExtras = {
+    itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000,
+    hargaSatuan: 63000, subtotal: 63000, batchId: 'batch-1', hargaNormal: 65000,
+  }
+  const saleBase = { metodeBayar: 'tunai' as const, subtotal: 63000, diskon: 0, total: 63000 }
+
+  it('accepts a line carrying batchId and hargaNormal', () => {
+    const e = createEvent('SaleRecorded', { ...saleBase, lines: [lineWithExtras] }, opts)
+    expect((e.payload as { lines: unknown[] }).lines[0]).toMatchObject({ batchId: 'batch-1', hargaNormal: 65000 })
+  })
+
+  it('still accepts a legacy line with neither field (the Phase 2 shape)', () => {
+    const legacyLine = { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000 }
+    const e = createEvent('SaleRecorded', { ...saleBase, lines: [legacyLine] }, opts)
+    const line = (e.payload as { lines: Array<{ batchId?: string; hargaNormal?: number }> }).lines[0]
+    expect(line.batchId).toBeUndefined()
+    expect(line.hargaNormal).toBeUndefined()
+  })
+})
+
+describe('StockReceived', () => {
+  const payload = {
+    supplierId: 'sup-1',
+    lines: [{ batchId: 'batch-1', itemId: 'semen', qty: 40000, hargaBeli: 60000, hargaJual: 67000 }],
+  }
+
+  it('accepts a minimal single-line payload', () => {
+    const e = createEvent('StockReceived', payload, opts)
+    expect(e.payload).toMatchObject(payload)
+  })
+
+  it('accepts a line with hargaBeli omitted', () => {
+    const lineWithoutCost = omit(payload.lines[0], 'hargaBeli')
+    const e = createEvent('StockReceived', { ...payload, lines: [lineWithoutCost] }, opts)
+    expect((e.payload as { lines: Array<{ hargaBeli?: number }> }).lines[0].hargaBeli).toBeUndefined()
+  })
+
+  it('accepts supplierId omitted (opening stock or unknown source)', () => {
+    const withoutSupplier = omit(payload, 'supplierId')
+    const e = createEvent('StockReceived', withoutSupplier, opts)
+    expect((e.payload as { supplierId?: string }).supplierId).toBeUndefined()
+  })
+
+  it('rejects an empty lines array', () => {
+    expect(() => createEvent('StockReceived', { ...payload, lines: [] }, opts)).toThrow()
+  })
+
+  it('rejects a non-positive qty', () => {
+    expect(() => createEvent('StockReceived', { ...payload, lines: [{ ...payload.lines[0], qty: 0 }] }, opts)).toThrow()
+  })
+
+  it('supports multiple lines in one event, for a future multi-item nota pembelian', () => {
+    const secondLine = { batchId: 'batch-2', itemId: 'pasir', qty: 2000, hargaJual: 180000 }
+    const e = createEvent('StockReceived', { ...payload, lines: [payload.lines[0], secondLine] }, opts)
+    expect((e.payload as { lines: unknown[] }).lines).toHaveLength(2)
+  })
+})
+
+describe('BatchCorrected', () => {
+  const payload = {
+    batchId: 'batch-1', supplierId: 'sup-1', hargaBeli: 60000, hargaJual: 67000,
+    tanggalBeli: '2026-09-15T00:00:00.000Z',
+  }
+
+  it('accepts a full metadata correction', () => {
+    const e = createEvent('BatchCorrected', payload, opts)
+    expect(e.payload).toMatchObject(payload)
+  })
+
+  it('accepts an optional jumlah correction', () => {
+    const e = createEvent('BatchCorrected', { ...payload, jumlah: 40000 }, opts)
+    expect((e.payload as { jumlah?: number }).jumlah).toBe(40000)
+  })
+
+  it('leaves jumlah undefined when omitted (a metadata-only correction)', () => {
+    const e = createEvent('BatchCorrected', payload, opts)
+    expect((e.payload as { jumlah?: number }).jumlah).toBeUndefined()
+  })
+
+  it('rejects a missing hargaJual', () => {
+    const withoutHargaJual = omit(payload, 'hargaJual')
+    expect(() => createEvent('BatchCorrected', withoutHargaJual, opts)).toThrow()
+  })
+
+  it('rejects a malformed tanggalBeli', () => {
+    expect(() => createEvent('BatchCorrected', { ...payload, tanggalBeli: 'kemarin' }, opts)).toThrow()
+  })
+})

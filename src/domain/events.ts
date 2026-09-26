@@ -18,6 +18,12 @@ const itemUpsertedSchema = z.object({
   stokMinimum: integer,
   barcode: z.string().optional(),
   kategori: z.string().optional(),
+  /** The Kamus Barang parent this ukuran belongs to. Absent on every item
+   * created before Kamus Barang existed - src/domain/katalog.ts's
+   * groupUkuranByBarang gives those a virtual barang instead of requiring a
+   * migration event. */
+  barangId: z.string().min(1).optional(),
+  diarsipkan: z.boolean().default(false),
 })
 
 const customerUpsertedSchema = z.object({
@@ -33,13 +39,24 @@ const supplierUpsertedSchema = z.object({
   id: z.string().min(1),
   nama: z.string().min(1),
   telepon: z.string().optional(),
+  alamat: z.string().optional(),
+  kontak: z.string().optional(),
+  catatan: z.string().optional(),
+  /** Set by a quick-add from Tambah stok's supplier picker; cleared by a
+   * full form save. Drives the Supplier nav badge. */
+  perluDilengkapi: z.boolean().default(false),
 })
 
 const stockAdjustedSchema = z.object({
   itemId: z.string().min(1),
   quantity: integer.refine(n => n !== 0, 'quantity must not be zero'),
-  reason: z.enum(['initial', 'sale', 'void']),
+  reason: z.enum(['initial', 'sale', 'void', 'koreksi']),
   saleId: z.string().optional(),    // present for 'sale' and 'void'
+  /** The batch this movement affects, when it has one. Sale and void
+   * deductions carry the line's batch (or omit it for the legacy,
+   * pre-batch stock pool); a 'koreksi' StockAdjusted targeting a specific
+   * batch's sisa also carries it. */
+  batchId: z.string().min(1).optional(),
 })
 
 const saleLineSchema = z.object({
@@ -53,6 +70,13 @@ const saleLineSchema = z.object({
   qty: integer,                     // milli-units of `unit`, per quantity.ts
   hargaSatuan: integer,             // Rupiah per whole unit, snapshot
   subtotal: integer,                // = multiplyByQty(hargaSatuan, qty)
+  /** Which purchase batch this line was sold from. Absent for the legacy
+   * ("Stok lama") pool, or for any sale recorded before batches existed. */
+  batchId: z.string().min(1).optional(),
+  /** The ukuran's default harga jual at the moment this line was added,
+   * captured so the UI can flag hargaSatuan !== hargaNormal as "Harga
+   * diubah". Absent for the same legacy reasons as batchId. */
+  hargaNormal: integer.optional(),
 })
 
 const saleRecordedSchema = z.object({
@@ -74,6 +98,44 @@ const saleVoidedSchema = z.object({
   alasan: z.string().min(1),
 })
 
+const barangUpsertedSchema = z.object({
+  id: z.string().min(1),
+  nama: z.string().min(1),
+  kategori: z.string().optional(),
+  diarsipkan: z.boolean().default(false),
+})
+
+const stockReceivedLineSchema = z.object({
+  batchId: z.string().min(1),
+  itemId: z.string().min(1),
+  qty: integer.refine(n => n > 0, 'qty must be positive'),
+  hargaBeli: integer.optional(),
+  hargaJual: integer,
+})
+
+const stockReceivedSchema = z.object({
+  supplierId: z.string().optional(),
+  catatan: z.string().optional(),
+  // Multi-line even though this phase's UI only ever sends one: a future
+  // nota pembelian covering several ukuran in one purchase needs no new
+  // event type, only a UI that builds a longer lines array.
+  lines: z.array(stockReceivedLineSchema).min(1),
+})
+
+const batchCorrectedSchema = z.object({
+  batchId: z.string().min(1),
+  supplierId: z.string().optional(),
+  hargaBeli: integer.optional(),
+  hargaJual: integer,
+  tanggalBeli: z.string().datetime(),
+  /** Corrects the batch's own recorded "originally received" quantity
+   * (src/domain/projections/batches.ts's Batch.diterima), for display only.
+   * Does not by itself change sisa - a companion StockAdjusted('koreksi')
+   * does that, so a purchase-record typo fix never silently erases or
+   * double-counts sales already made from the batch. */
+  jumlah: integer.optional(),
+})
+
 export const eventSchemas = {
   ItemUpserted: itemUpsertedSchema,
   CustomerUpserted: customerUpsertedSchema,
@@ -81,6 +143,9 @@ export const eventSchemas = {
   StockAdjusted: stockAdjustedSchema,
   SaleRecorded: saleRecordedSchema,
   SaleVoided: saleVoidedSchema,
+  BarangUpserted: barangUpsertedSchema,
+  StockReceived: stockReceivedSchema,
+  BatchCorrected: batchCorrectedSchema,
 } as const
 
 export type EventType = keyof typeof eventSchemas
