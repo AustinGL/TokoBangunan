@@ -282,3 +282,56 @@ export const updateUkuran = async (input: UpdateUkuranInput, ctx: CommandContext
     diarsipkan: input.diarsipkan ?? existing.diarsipkan,
   }, ctx)])
 }
+
+export type RecordSupplierInput = {
+  nama: string
+  telepon?: string
+  alamat?: string
+  kontak?: string
+  catatan?: string
+  /** True for a quick-add from a picker (e.g. Tambah stok's supplier field): lights the Supplier nav dot until updateSupplier clears it. */
+  quickAdd?: boolean
+}
+
+export const recordSupplier = async (input: RecordSupplierInput, ctx: CommandContext): Promise<string> => {
+  const id = newEventId()
+  await appendEvents([createEvent('SupplierUpserted', {
+    id,
+    nama: input.nama,
+    telepon: input.telepon,
+    alamat: input.alamat,
+    kontak: input.kontak,
+    catatan: input.catatan,
+    perluDilengkapi: input.quickAdd ?? false,
+  }, ctx)])
+  return id
+}
+
+export type UpdateSupplierInput = {
+  id: string
+  nama?: string
+  telepon?: string
+  alamat?: string
+  kontak?: string
+  catatan?: string
+}
+
+/**
+ * A full-form save on the Supplier page. Always clears perluDilengkapi,
+ * regardless of which fields the save touches - "Nanti saja" is simply not
+ * calling this command, not a flag passed to it.
+ */
+export const updateSupplier = async (input: UpdateSupplierInput, ctx: CommandContext): Promise<void> => {
+  const existing = await db.suppliersProj.get(input.id)
+  if (!existing) throw new Error('Supplier tidak ditemukan.')
+
+  await appendEvents([createEvent('SupplierUpserted', {
+    id: existing.id,
+    nama: input.nama ?? existing.nama,
+    telepon: input.telepon ?? existing.telepon,
+    alamat: input.alamat ?? existing.alamat,
+    kontak: input.kontak ?? existing.kontak,
+    catatan: input.catatan ?? existing.catatan,
+    perluDilengkapi: false,
+  }, ctx)])
+}

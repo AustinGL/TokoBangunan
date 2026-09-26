@@ -1,7 +1,10 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
-import { recordItem, recordSale, voidSale, recordBarang, updateBarang, recordUkuran, updateUkuran, type RecordSaleInput } from './commands'
+import {
+  recordItem, recordSale, voidSale, recordBarang, updateBarang, recordUkuran, updateUkuran,
+  recordSupplier, updateSupplier, type RecordSaleInput,
+} from './commands'
 import { fixedClock } from '../domain/clock'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
@@ -426,5 +429,35 @@ describe('updateUkuran', () => {
     const item = await db.itemsProj.get(legacyId)
     expect(item?.barangId).toBeUndefined()
     expect(item?.hargaEceran).toBe(27000)
+  })
+})
+
+describe('recordSupplier', () => {
+  it('defaults perluDilengkapi to false for an ordinary create', async () => {
+    const id = await recordSupplier({ nama: 'CV Maju' }, at('2026-09-18T07:00:00.000Z'))
+
+    const supplier = await db.suppliersProj.get(id)
+    expect(supplier).toMatchObject({ nama: 'CV Maju', perluDilengkapi: false })
+  })
+
+  it('sets perluDilengkapi when quickAdd is true', async () => {
+    const id = await recordSupplier({ nama: 'UD Baru', quickAdd: true }, at('2026-09-18T07:00:00.000Z'))
+
+    expect((await db.suppliersProj.get(id))?.perluDilengkapi).toBe(true)
+  })
+})
+
+describe('updateSupplier', () => {
+  it('rejects an id that does not exist', async () => {
+    await expect(updateSupplier({ id: 'ghost', nama: 'X' }, at('2026-09-18T07:00:00.000Z'))).rejects.toThrow('tidak ditemukan')
+  })
+
+  it('preserves fields not given in the input and clears perluDilengkapi', async () => {
+    const id = await recordSupplier({ nama: 'UD Baru', quickAdd: true }, at('2026-09-18T07:00:00.000Z'))
+
+    await updateSupplier({ id, telepon: '0812' }, at('2026-09-18T08:00:00.000Z'))
+
+    const supplier = await db.suppliersProj.get(id)
+    expect(supplier).toMatchObject({ nama: 'UD Baru', telepon: '0812', perluDilengkapi: false })
   })
 })
