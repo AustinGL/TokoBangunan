@@ -1,43 +1,44 @@
-/* Design tokens - transcribed verbatim from design-system/toko-bahan-bangunan/MASTER.md section 1 */
+/* Design tokens - Kaca Putih v2. White-glass redesign of the original
+   design-system/toko-bahan-bangunan/MASTER.md tokens. Cobalt replaces mint
+   as the action colour (mint's own green family stayed the "Aman" status
+   colour, so mint-as-primary was colliding with mint-as-success). Dark mode
+   is retired: color-scheme: light below locks native controls to light
+   rendering even on a phone set to dark mode, so nothing here needs to
+   defend against a browser silently reskinning half the UI. Card/sheet
+   chrome gets a frosted-glass treatment; tables and forms stay solid so
+   dense figures never sit on a variable backdrop, and backdrop-filter never
+   runs on a scrolling list (a real frame-rate cost on low-end Android). */
 
 /* 1.1 Primitives (never referenced from a component) */
 :root {
-  /* Mint (brand) */
-  --mint-50:  #EFFAF5;  --mint-100: #DCF5EA;  --mint-200: #BFE6D4;
-  --mint-400: #45C48C;  --mint-500: #3FB984;  --mint-600: #1E7A55;
-  --mint-700: #186346;  --mint-800: #125038;  --mint-900: #06251A;
+  /* Cobalt (brand + primary action) */
+  --cobalt-50:  #EEF3FF;  --cobalt-100: #D6E0FF;
+  --cobalt-600: #2451D6;  --cobalt-700: #1E44B8;  --cobalt-800: #1A3A9E;
 
-  /* Lavender (accent) */
-  --lav-50:  #F0EEFB;  --lav-200: #D8D2F2;  --lav-300: #A79BEA;
-  --lav-600: #6355C4;  --lav-800: #3B3463;  --lav-900: #221E38;
+  /* Green (status "Aman" only - not a brand colour) */
+  --green-100: #DCF5EA;  --green-700: #0F6B46;
 
   /* Grey */
-  --grey-25:  #FAFBFC;  --grey-50:  #F4F6F8;  --grey-100: #EDEFF3;
+  --grey-25:  #FAFBFC;  --grey-100: #EDEFF3;
   --grey-200: #E4E8ED;  --grey-300: #CBD2DB;  --grey-400: #A2AAB6;
   --grey-500: #858FA0;  --grey-550: #666F7E;  --grey-600: #535B69;
   --grey-700: #4B5565;  --grey-900: #171A22;
 
-  /* Status */
-  --green-700: #0F6B46;  --green-300: #5CCF9B;  --green-950: #12352A;
-  --amber-600: #A66A12;  --amber-700: #8A5714;  --amber-300: #E8B368;
-  --amber-100: #FCEFD6;  --amber-950: #3A2C13;
-  --red-700:   #AE2E2E;  --red-300:   #F08C8C;  --red-100:   #FDE4E4;
-  --red-950:   #3B1D1D;
-
-  /* Dark neutrals */
-  --slate-950: #0F131A;  --slate-900: #13171E;  --slate-850: #171B23;
-  --slate-800: #1E232D;  --slate-750: #242A34;  --slate-700: #2A313C;
-  --slate-600: #3A4250;  --slate-500: #69748A;  --slate-450: #616B7A;
-  --slate-400: #939CAB;  --slate-300: #A8B1BF;  --slate-100: #E9ECF1;
+  /* Status: warning, danger. Danger doubles as the notification dot -
+     verified 3:1 or better against every background it can sit on. */
+  --amber-600: #A66A12;  --amber-700: #8A5714;  --amber-100: #FCEFD6;
+  --red-700:   #AE2E2E;  --red-100:   #FDE4E4;
 }
 
-/* 1.2 Semantic tokens, light theme (default) */
+/* 1.2 Semantic tokens (light is the only theme - see 1.3 below) */
 :root {
+  color-scheme: light;
+
   /* Surfaces */
   --surface:        #FFFFFF;
   --surface-sunken: var(--grey-25);
   --surface-raised: #FFFFFF;
-  --background:     var(--grey-50);
+  --background:     #F4F6FB;  /* cool white, deliberately distinct from --surface */
 
   /* Boundaries. Two kinds, and they are not interchangeable. */
   --border:        var(--grey-200);  /* decorative separator, contrast-exempt */
@@ -51,33 +52,34 @@
   --ink-disabled:   var(--grey-400);  /* disabled only, contrast-exempt */
   --ink-on-primary: #FFFFFF;
 
-  /* Primary action. Darker than the brand mint so its text passes AA. */
-  --primary:        var(--mint-600);
-  --primary-hover:  var(--mint-700);
-  --primary-active: var(--mint-800);
+  /* Primary action: cobalt. Darker shades for hover/active keep white text
+     comfortably above AA at every state. */
+  --primary:        var(--cobalt-600);
+  --primary-hover:  var(--cobalt-700);
+  --primary-active: var(--cobalt-800);
 
-  /* Brand mint. Decoration and identity ONLY: logo, icon chips, tinted fills.
-     Never a text color. Never a data mark. Never behind white text. */
-  --brand-mint: var(--mint-500);
-  --mint-soft:  var(--mint-100);  /* badge / tag background */
-  --mint-tint:  var(--mint-50);   /* subtle fill / active nav */
-  --mint-line:  var(--mint-200);  /* border on tinted tiles */
-
-  /* Secondary accent. At most one focal spot per screen. */
-  --secondary:     var(--lav-600);
-  --lavender-soft: var(--lav-50);
-  --lavender-line: var(--lav-200);
+  /* Tint fills. Names kept from the original mint system (mint-soft/-tint)
+     even though the colour is now cobalt: features/kasir/CartPanel.tsx and
+     ProductCard.tsx already consume these two class names and are out of
+     this plan's scope, so keeping the names means they re-skin to Kaca
+     Putih with zero code changes. The rename to accent-* names lands once
+     a later Kasir-rebuild phase replaces those call sites. */
+  --mint-soft: var(--cobalt-100);  /* badge / tag background */
+  --mint-tint: var(--cobalt-50);   /* subtle fill / active nav */
 
   /* Status */
-  --success: var(--green-700);  --success-bg: var(--mint-100);
+  --success: var(--green-700);  --success-bg: var(--green-100);
   --warning: var(--amber-700);  --warning-bg: var(--amber-100);
   --danger:  var(--red-700);    --danger-bg:  var(--red-100);
   --neutral: var(--grey-700);   --neutral-bg: var(--grey-100);
 
-  /* Dots for alert lists. Non-text, 3:1 or better against the row background. */
+  /* Dots for alert lists and the nav notification dot. Non-text, 3:1 or
+     better against every background they can sit on (measured in
+     tokens.test.ts). */
   --dot-danger:  var(--red-700);
   --dot-warning: var(--amber-600);
   --dot-neutral: var(--grey-700);
+  --dot-notif:   var(--red-700);
 
   /* Data marks */
   --data-fill:  var(--primary);    /* filled cell / bar */
@@ -87,115 +89,38 @@
   --focus-ring:   var(--primary);
   --focus-offset: var(--surface);
 
+  /* Ambient glow layer, painted behind the page content (section 1.9 below).
+     Very low alpha on purpose: tokens.test.ts's glass composite group
+     measures text contrast against the worst case (both glows overlapping
+     at full strength), and the margin there is intentionally thin-but-real,
+     not decorative-at-any-cost. */
+  --glow-cobalt: rgba(36, 81, 214, .10);
+  --glow-sky:    rgba(14, 165, 233, .08);
+
+  /* Glass recipe. Chrome only - sidebar, sheets, popovers, sticky bars,
+     toasts. Never scrolling list rows or table bodies. */
+  --glass-bg:        rgba(255, 255, 255, .72);
+  --glass-bg-strong: rgba(255, 255, 255, .86);
+  --glass-border:    rgba(255, 255, 255, .65);
+  --glass-blur:      blur(20px) saturate(160%);
+
   /* Shadow and scrim */
-  --shadow-card:  0 1px 3px rgba(16, 24, 40, .04);
-  --shadow-panel: 0 8px 24px rgba(16, 24, 40, .08);
+  --shadow-card:  0 1px 2px rgba(23, 26, 34, .04), 0 12px 24px -12px rgba(36, 81, 214, .10);
+  --shadow-panel: 0 8px 24px rgba(23, 26, 34, .08), 0 24px 48px -16px rgba(36, 81, 214, .14);
+  --shadow-glass: inset 0 1px 0 rgba(255, 255, 255, .5), 0 8px 32px rgba(23, 26, 34, .08);
   --scrim:        rgba(16, 24, 40, .48);
 }
 
-/* 1.3 Semantic tokens, dark theme
-   Dark is a first-class theme, not an inversion. Both selectors are required:
-   the media query handles prefers-color-scheme, the attribute handles the
-   explicit toggle. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --surface:        var(--slate-850);
-    --surface-sunken: var(--slate-900);
-    --surface-raised: var(--slate-800);
-    --background:     var(--slate-950);
-
-    --border:        var(--slate-700);
-    --border-strong: var(--slate-600);
-    --border-input:  var(--slate-500);
-
-    --ink:            var(--slate-100);
-    --ink-muted:      var(--slate-300);
-    --ink-faint:      var(--slate-400);
-    --ink-disabled:   var(--slate-450);
-    --ink-on-primary: var(--mint-900);   /* dark text on a light mint fill */
-
-    --primary:        var(--mint-400);
-    --primary-hover:  #5AD09B;
-    --primary-active: #6FDCA9;
-
-    --brand-mint: var(--mint-400);
-    --mint-soft:  #12352A;
-    --mint-tint:  #15251F;
-    --mint-line:  #27543F;
-
-    --secondary:     var(--lav-300);
-    --lavender-soft: var(--lav-900);
-    --lavender-line: var(--lav-800);
-
-    --success: var(--green-300);  --success-bg: var(--green-950);
-    --warning: var(--amber-300);  --warning-bg: var(--amber-950);
-    --danger:  var(--red-300);    --danger-bg:  var(--red-950);
-    --neutral: var(--slate-300);  --neutral-bg: var(--slate-750);
-
-    --dot-danger:  var(--red-300);
-    --dot-warning: var(--amber-300);
-    --dot-neutral: var(--slate-300);
-
-    --data-fill:  var(--mint-400);
-    --data-track: var(--slate-700);
-
-    --focus-ring:   var(--mint-400);
-    --focus-offset: var(--surface);
-
-    --shadow-card:  0 1px 3px rgba(0, 0, 0, .40);
-    --shadow-panel: 0 8px 24px rgba(0, 0, 0, .55);
-    --scrim:        rgba(0, 0, 0, .64);
-  }
-}
-
-:root[data-theme="dark"] {
-  --surface:        var(--slate-850);
-  --surface-sunken: var(--slate-900);
-  --surface-raised: var(--slate-800);
-  --background:     var(--slate-950);
-
-  --border:        var(--slate-700);
-  --border-strong: var(--slate-600);
-  --border-input:  var(--slate-500);
-
-  --ink:            var(--slate-100);
-  --ink-muted:      var(--slate-300);
-  --ink-faint:      var(--slate-400);
-  --ink-disabled:   var(--slate-450);
-  --ink-on-primary: var(--mint-900);   /* dark text on a light mint fill */
-
-  --primary:        var(--mint-400);
-  --primary-hover:  #5AD09B;
-  --primary-active: #6FDCA9;
-
-  --brand-mint: var(--mint-400);
-  --mint-soft:  #12352A;
-  --mint-tint:  #15251F;
-  --mint-line:  #27543F;
-
-  --secondary:     var(--lav-300);
-  --lavender-soft: var(--lav-900);
-  --lavender-line: var(--lav-800);
-
-  --success: var(--green-300);  --success-bg: var(--green-950);
-  --warning: var(--amber-300);  --warning-bg: var(--amber-950);
-  --danger:  var(--red-300);    --danger-bg:  var(--red-950);
-  --neutral: var(--slate-300);  --neutral-bg: var(--slate-750);
-
-  --dot-danger:  var(--red-300);
-  --dot-warning: var(--amber-300);
-  --dot-neutral: var(--slate-300);
-
-  --data-fill:  var(--mint-400);
-  --data-track: var(--slate-700);
-
-  --focus-ring:   var(--mint-400);
-  --focus-offset: var(--surface);
-
-  --shadow-card:  0 1px 3px rgba(0, 0, 0, .40);
-  --shadow-panel: 0 8px 24px rgba(0, 0, 0, .55);
-  --scrim:        rgba(0, 0, 0, .64);
-}
+/* 1.3 Dark mode: retired.
+   The original system shipped light and dark as equal first-class themes:
+   a prefers-color-scheme media query plus a manual data-theme attribute
+   toggle as an explicit escape hatch. Kaca Putih ships white-only:
+   color-scheme: light above locks native controls (date pickers,
+   checkboxes) to light rendering even on a phone set to dark mode, so
+   nothing here needs to defend against a browser silently reskinning half
+   the UI. The token *names* below are unchanged, so a dark theme could
+   return later by adding the two selectors back without touching any
+   component. */
 
 /* 1.4 Spacing, radius, motion, layering */
 :root {
@@ -203,16 +128,19 @@
   --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
   --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
 
-  /* Radius. One system, no exceptions. */
-  --r-card:  16px;
-  --r-field: 14px;
+  /* Radius. One system, no exceptions. Cards and sheets round more than
+     before (20/24, was 16/-) to read as soft glass rather than flat panels;
+     fields and tile-buttons converge on one shared value. */
+  --r-card:  20px;
+  --r-sheet: 24px;
+  --r-field: 12px;
   --r-tile:  12px;
   --r-pill:  9999px;
 
-  /* Motion. Three durations, two easings. Nothing else. */
+  /* Motion. Unchanged: three durations, two easings. */
   --dur-instant: 90ms;    /* press feedback, hover */
-  --dur-quick:   160ms;   /* pill switch, tooltip, qty change */
-  --dur-panel:   240ms;   /* drawer, modal, cart panel */
+  --dur-quick:   160ms;   /* pill switch, tooltip, qty change, popovers */
+  --dur-panel:   240ms;   /* drawer, modal, sheet, cart panel */
   --ease-out:    cubic-bezier(.16, 1, .3, 1);
   --ease-in-out: cubic-bezier(.4, 0, .2, 1);
 
@@ -225,9 +153,9 @@
   --z-modal:    50;
   --z-toast:    60;
 
-  /* Sticky element reservation (MASTER.md section 7). A sticky bar that
-     covers a focused control is a WCAG 2.2 failure, so scrollable regions
-     near one reserve space via scroll-padding and a bottom inset. */
+  /* Sticky element reservation. A sticky bar that covers a focused control
+     is a WCAG 2.2 failure, so scrollable regions near one reserve space via
+     scroll-padding and a bottom inset. */
   --sticky-top:    64px;
   --sticky-bottom: 96px;
 }
@@ -261,23 +189,53 @@
   --tap-min: 44px;   /* every interactive control */
 }
 
-/* 1.6 Global focus ring (MASTER.md section 11: visible focus everywhere)
+/* 1.6 Glass surfaces (Kaca Putih)
+   Chrome only, per the rationale on --glass-bg above. .glass-strong is for
+   content that must read clearly over other content (sheets, popovers);
+   .glass is for ambient chrome (sidebar, sticky bars). Both fall back to a
+   solid --surface on a browser with no backdrop-filter support at all,
+   rather than a transparent panel with illegible text behind it. */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-strong {
+    background: var(--surface);
+  }
+}
+
+/* 1.7 Global focus ring (visible focus everywhere)
    The browser default ring is the least reliable exactly where this app is
-   weakest for it: mint on mint. --focus-ring is measured against --surface in
-   both themes by tokens.test.ts, so applying it here is what turns that
-   measurement into something a user can actually see. :focus-visible, not
-   :focus, so a mouse click on a button does not draw a ring but a keyboard
-   tab or a barcode-scanner-driven focus move does. */
+   weakest for it: cobalt on cobalt. --focus-ring is measured against
+   --surface and against the glass composite by tokens.test.ts, so applying
+   it here is what turns that measurement into something a user can
+   actually see. :focus-visible, not :focus, so a mouse click on a button
+   does not draw a ring but a keyboard tab or a barcode-scanner-driven focus
+   move does. */
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-/* 1.7 Reduced motion (MASTER.md section 11: reduced motion is honored)
-   The duration tokens collapse so anything built on them stops moving, and the
-   blanket rule catches third-party or hand-written CSS that never read a
-   token. 1ms rather than 0s keeps transitionend/animationend handlers firing,
-   so logic waiting on them cannot hang. */
+/* 1.8 Reduced motion (reduced motion is honored)
+   The duration tokens collapse so anything built on them stops moving, and
+   the blanket rule catches third-party or hand-written CSS that never read
+   a token. 1ms rather than 0s keeps transitionend/animationend handlers
+   firing, so logic waiting on them cannot hang. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-instant: 1ms;
@@ -293,22 +251,34 @@
   }
 }
 
-/* 1.8 Page shell (MASTER.md section 7: "Background --background")
-   Without this the document has no background or text colour of its own, so it
-   falls back to the browser default white while the tokens above may be serving
-   dark-theme values from prefers-color-scheme. That produces near-white --ink on
-   a white page: the content is rendered but invisible. The tokens were correct
-   and every component consumed them correctly; nothing applied them to the page
-   itself. A test suite that never paints cannot see this, which is why it
-   survived 180 tests and was found by looking at the screen. */
+/* 1.9 Page shell ("Background --background")
+   Both html and body declare the same background and colour, deliberately
+   redundant: without this the document falls back to the browser default
+   while the tokens above may be serving different values, producing
+   invisible content that every component still consumed correctly (see the
+   2026-09-21 bug this guards against, pinned by tokens.test.ts and
+   e2e/shell.spec.ts). The two radial-gradient layers are the ambient glow
+   the glass chrome refracts; tokens.test.ts's composite group measures text
+   contrast against their worst case (both fully overlapping), not just the
+   flat --background colour. */
 html {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(760px circle at 6% -8%, var(--glow-cobalt), transparent 60%),
+    radial-gradient(760px circle at 96% 108%, var(--glow-sky), transparent 60%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--ink);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(760px circle at 6% -8%, var(--glow-cobalt), transparent 60%),
+    radial-gradient(760px circle at 96% 108%, var(--glow-sky), transparent 60%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--ink);
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, sans-serif;
   margin: 0;
 }
