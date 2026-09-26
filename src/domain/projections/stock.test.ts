@@ -98,3 +98,48 @@ describe('projectStock', () => {
     ).toThrow()
   })
 })
+
+describe('projectStock: StockReceived', () => {
+  const receiveLine = (itemId: string, qty: number) => ({
+    supplierId: 'sup-1',
+    lines: [{ batchId: `batch-${itemId}-${qty}`, itemId, qty, hargaBeli: 60000, hargaJual: 67000 }],
+  })
+
+  it('adds a purchase line to the aggregate quantity, same as an initial StockAdjusted', () => {
+    const state = projectStock([
+      createEvent('StockReceived', receiveLine('semen', 40000), at('2026-09-18T07:00:00.000Z')),
+    ])
+    expect(state['semen'].quantity).toBe(40000)
+  })
+
+  it('accumulates across a StockReceived and a later sale StockAdjusted', () => {
+    const state = projectStock([
+      createEvent('StockReceived', receiveLine('semen', 40000), at('2026-09-18T07:00:00.000Z')),
+      createEvent('StockAdjusted', { itemId: 'semen', quantity: -3000, reason: 'sale' as const }, at('2026-09-18T08:00:00.000Z')),
+    ])
+    expect(state['semen'].quantity).toBe(37000)
+  })
+
+  it('sums to the same running total regardless of fold order', () => {
+    const events = [
+      createEvent('StockReceived', receiveLine('semen', 40000), at('2026-09-18T07:00:00.000Z')),
+      createEvent('StockAdjusted', { itemId: 'semen', quantity: -3000, reason: 'sale' as const }, at('2026-09-18T08:00:00.000Z')),
+    ]
+    const forward = projectStock(events)
+    const backward = projectStock([...events].reverse())
+    expect(forward['semen'].quantity).toBe(backward['semen'].quantity)
+  })
+
+  it('supports multiple lines in one StockReceived, crediting each item', () => {
+    const state = projectStock([
+      createEvent('StockReceived', {
+        lines: [
+          { batchId: 'b1', itemId: 'semen', qty: 40000, hargaJual: 67000 },
+          { batchId: 'b2', itemId: 'pasir', qty: 2000, hargaJual: 180000 },
+        ],
+      }, at('2026-09-18T07:00:00.000Z')),
+    ])
+    expect(state['semen'].quantity).toBe(40000)
+    expect(state['pasir'].quantity).toBe(2000)
+  })
+})

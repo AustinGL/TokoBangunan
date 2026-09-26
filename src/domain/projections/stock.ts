@@ -8,6 +8,24 @@ export type StockLevel = {
 }
 export type StockState = Record<string, StockLevel>
 
+function creditItem(state: StockState, itemId: string, delta: number, event: EventEnvelope): StockState {
+  const existing = state[itemId]
+  const quantity = (existing?.quantity ?? 0) + delta
+  const isNewer =
+    !existing ||
+    existing.lastMovementAt < event.recordedAt ||
+    (existing.lastMovementAt === event.recordedAt && existing.lastMovementEventId < event.id)
+  return {
+    ...state,
+    [itemId]: {
+      itemId,
+      quantity,
+      lastMovementAt: isNewer ? event.recordedAt : existing!.lastMovementAt,
+      lastMovementEventId: isNewer ? event.id : existing!.lastMovementEventId,
+    },
+  }
+}
+
 /**
  * Additive accumulator, unlike reduceItems's last-write-wins overwrite.
  * Addition is commutative, so folding +10, -3, -3 in any order always
@@ -20,24 +38,20 @@ export type StockState = Record<string, StockLevel>
  *
  * Negative totals are legal: a habis/negative stock warns in the UI later,
  * never blocks at the domain layer.
+ *
+ * StockReceived credits every line's item the same way an 'initial'
+ * StockAdjusted always has - a tracked purchase needs no separate,
+ * redundant StockAdjusted event to also update the aggregate.
  */
 export function reduceStock(state: StockState, event: EventEnvelope): StockState {
+  if (event.type === 'StockReceived') {
+    const payload = event.payload as { lines: Array<{ itemId: string; qty: number }> }
+    return payload.lines.reduce((acc, line) => creditItem(acc, line.itemId, line.qty, event), state)
+  }
+
   if (event.type !== 'StockAdjusted') return state
   const payload = event.payload as { itemId: string; quantity: number }
-  const existing = state[payload.itemId]
-  const quantity = (existing?.quantity ?? 0) + payload.quantity
-  const isNewer =
-    !existing ||
-    existing.lastMovementAt < event.recordedAt ||
-    (existing.lastMovementAt === event.recordedAt && existing.lastMovementEventId < event.id)
-  return {
-    ...state,
-    [payload.itemId]: {
-      itemId: payload.itemId,
-      quantity,
-      lastMovementAt: isNewer ? event.recordedAt : existing!.lastMovementAt,
-      lastMovementEventId: isNewer ? event.id : existing!.lastMovementEventId,
-    },
-  }
+  return creditItem(state, payload.itemId, payload.quantity, event)
 }
+
 export const projectStock = (events: EventEnvelope[]): StockState => events.reduce(reduceStock, {})
