@@ -2,7 +2,9 @@ import type { Page } from '@playwright/test'
 
 // Shared real-browser contrast helpers, extracted from shell.spec.ts so
 // core-sale.spec.ts can reuse the exact same measurement logic rather than
-// re-deriving it. Behavior is unchanged from the original inline copy.
+// re-deriving it. relativeLuminance, contrastRatio and parseRgb are
+// unchanged from the original: only effectiveBackground's internal
+// behaviour changes (see its own doc comment).
 
 export function relativeLuminance(rgb: { r: number; g: number; b: number }): number {
   const chan = (v: number) => {
@@ -26,26 +28,63 @@ export function parseRgb(css: string): { r: number; g: number; b: number } {
   return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) }
 }
 
-// Walk up from an element to find the first non-transparent background, the
-// same resolution algorithm a browser uses when compositing text. Falls back
-// to the true default canvas colour (white) if nothing up the chain painted
-// one, never to a raw `rgba(0, 0, 0, 0)` string: a naive alpha-blind regex
-// would parse that as opaque black, which scores a HIGH contrast ratio
-// against white text and would silently pass the exact failure this test
-// exists to catch, white text painted on the real white canvas.
+type Rgba = { r: number; g: number; b: number; a: number }
+
+/**
+ * Like parseRgb, but keeps the alpha channel (defaulting to 1 for a bare
+ * rgb(...) or an rgba(...) with no fourth value). Returns null rather than
+ * throwing for unparseable input: an ancestor chain can legitimately
+ * contain a layer with no paintable colour at all, which
+ * effectiveBackground below needs to skip, not abort on.
+ */
+function parseRgba(css: string): Rgba | null {
+  const m = css.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
+  if (!m) return null
+  return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]), a: m[4] === undefined ? 1 : Number(m[4]) }
+}
+
+/** Standard alpha "over" compositing: paints `fg` (with its own alpha) on top of the fully opaque `bg`. */
+function compositeOver(fg: Rgba, bg: { r: number; g: number; b: number }): { r: number; g: number; b: number } {
+  return {
+    r: Math.round(fg.r * fg.a + bg.r * (1 - fg.a)),
+    g: Math.round(fg.g * fg.a + bg.g * (1 - fg.a)),
+    b: Math.round(fg.b * fg.a + bg.b * (1 - fg.a)),
+  }
+}
+
+/**
+ * Walks from `selector` up through every ancestor (including html and
+ * body), then composites each one's computed background-color in real
+ * paint order: the outermost ancestor first, each descendant's own
+ * background-color layered on top via standard alpha "over" compositing. A
+ * fully opaque layer (alpha === 1) terminates the walk early, since nothing
+ * further up the chain can still show through it.
+ *
+ * This replaces the previous "first non-transparent layer wins" approach,
+ * correct for every original surface (fully opaque --surface,
+ * --background, ...) but silently wrong for Kaca Putih's translucent
+ * .glass chrome (rgba(255, 255, 255, .72)): the old logic returned that
+ * translucent rgba string as if it were the final colour a reader sees,
+ * instead of compositing it over the ambient page gradient actually
+ * showing through it.
+ */
 export async function effectiveBackground(page: Page, selector: string): Promise<string> {
-  const raw = await page.locator(selector).evaluate((el) => {
+  const layers = await page.locator(selector).evaluate((el) => {
+    const chain: string[] = []
     let node: Element | null = el
     while (node) {
-      const bg = getComputedStyle(node).backgroundColor
-      const m = bg.match(/rgba?\(\d+,\s*\d+,\s*\d+(?:,\s*([\d.]+))?\)/)
-      const alpha = m && m[1] !== undefined ? Number(m[1]) : 1
-      if (bg && alpha > 0) return bg
+      chain.push(getComputedStyle(node).backgroundColor)
       node = node.parentElement
     }
-    return 'transparent'
+    return chain
   })
-  const m = raw.match(/rgba?\(\d+,\s*\d+,\s*\d+(?:,\s*([\d.]+))?\)/)
-  const alpha = m && m[1] !== undefined ? Number(m[1]) : 1
-  return alpha > 0 ? raw : 'rgb(255, 255, 255)'
+
+  let result = { r: 255, g: 255, b: 255 } // the true browser default canvas colour
+  for (let i = layers.length - 1; i >= 0; i -= 1) {
+    const rgba = parseRgba(layers[i])
+    if (rgba === null || rgba.a === 0) continue
+    result = compositeOver(rgba, result)
+    if (rgba.a === 1) break
+  }
+  return `rgb(${result.r}, ${result.g}, ${result.b})`
 }

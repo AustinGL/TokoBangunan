@@ -60,28 +60,28 @@ test.describe('page shell actually renders readable text', () => {
 test.describe('desktop navigation', () => {
   test.skip(({ isMobile }) => !!isMobile, 'desktop-only layout check')
 
-  test('all six destinations sit on a single line, no wrap', async ({ page }) => {
+  test('all seven destinations sit in a single vertical column, not wrapped into rows or columns', async ({ page }) => {
     await page.goto('/')
-    const nav = page.getByRole('navigation')
+    const nav = page.getByRole('navigation', { name: 'Navigasi utama' })
     const box = await nav.boundingBox()
-    expect(box, 'nav did not render').not.toBeNull()
+    expect(box, 'sidebar nav did not render').not.toBeNull()
 
-    const linkTops = await nav.getByRole('link').evaluateAll((els) =>
-      els.map((el) => el.getBoundingClientRect().top),
+    const linkLefts = await nav.getByRole('link').evaluateAll((els) =>
+      els.map((el) => el.getBoundingClientRect().left),
     )
-    expect(linkTops.length).toBeGreaterThanOrEqual(6)
-    // Every link's top edge should be within a couple pixels of the first:
-    // wrapping to a second row would push later items down by a full
-    // line-height, which is a much larger delta than font rendering jitter.
-    const first = linkTops[0]
-    for (const top of linkTops) {
-      expect(Math.abs(top - first)).toBeLessThan(4)
+    expect(linkLefts.length).toBeGreaterThanOrEqual(7)
+    // Every link's left edge should be within a couple pixels of the first:
+    // a vertical column keeps every item at the same horizontal position,
+    // unlike the old horizontal bar (which pinned top edges instead).
+    const first = linkLefts[0]
+    for (const left of linkLefts) {
+      expect(Math.abs(left - first)).toBeLessThan(4)
     }
   })
 
   test('every nav target and the primary button render at least 44px tall', async ({ page }) => {
     await page.goto('/')
-    const targets = page.locator('header a, header button')
+    const targets = page.locator('aside a, aside button')
     const count = await targets.count()
     expect(count).toBeGreaterThan(0)
     for (let i = 0; i < count; i++) {
@@ -97,14 +97,14 @@ test.describe('phone navigation', () => {
 
   test('bottom bar carries at most five targets total', async ({ page }) => {
     await page.goto('/')
-    const bar = page.locator('nav').last()
+    const bar = page.getByRole('navigation', { name: 'Navigasi telepon' })
     const targets = bar.locator('a, button, [tabindex]')
     await expect(targets).toHaveCount(5)
   })
 
-  test('the FAB and all four tabs render at least 44px tall', async ({ page }) => {
+  test('the FAB and every bottom-bar tab render at least 44px tall', async ({ page }) => {
     await page.goto('/')
-    const bar = page.locator('nav').last()
+    const bar = page.getByRole('navigation', { name: 'Navigasi telepon' })
     const targets = bar.locator('a, button')
     const count = await targets.count()
     for (let i = 0; i < count; i++) {
