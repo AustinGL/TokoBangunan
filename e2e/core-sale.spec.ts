@@ -8,14 +8,21 @@ import { contrastRatio, parseRgb, effectiveBackground } from './contrast'
 // plus real-browser touch-target and contrast checks for the screens this
 // phase built (Stok, Kasir).
 
-async function createItemViaStok(
+// Kaca Putih's new Stok list (/stok) has no create-item entry point of its
+// own yet - "+ Tambah stok" is disabled until a later phase wires it to a
+// real sheet. Kasir's own inline "barang tidak ditemukan -> Tambah barang
+// baru" flow still uses the same, unchanged ItemForm, so this creates
+// items through there instead. Leaves the page on /kasir with `opts.nama`
+// already searched for and its add-to-cart button visible.
+async function createItemViaKasir(
   page: Page,
   opts: { nama: string; baseUnit?: string; harga?: string; stokMinimum?: string; stokAwal?: string },
 ) {
-  await page.goto('/stok')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stok', { timeout: 10_000 })
+  await page.goto('/kasir')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir', { timeout: 10_000 })
 
-  await page.getByRole('button', { name: '+ Tambah barang' }).click()
+  await page.getByLabel('Cari barang').fill(opts.nama)
+  await page.getByRole('button', { name: 'Tambah barang baru' }).click()
   await page.getByLabel('Nama barang').fill(opts.nama)
   await page.getByLabel('Satuan dasar').fill(opts.baseUnit ?? 'sak')
   await page.getByLabel('Harga eceran').fill(opts.harga ?? '52000')
@@ -25,9 +32,12 @@ async function createItemViaStok(
   }
   await page.getByRole('button', { name: 'Simpan barang' }).click()
 
-  // The inline panel only closes on a successful write (ItemList.tsx's
-  // handleSubmit), so this doubles as proof the write actually landed.
-  await expect(page.getByText(opts.nama)).toBeVisible()
+  // The inline panel only closes on a successful write (Kasir.tsx's
+  // handleInlineCreateSubmit), which also clears the search field - so
+  // re-searching for the item and finding its add-to-cart button is what
+  // proves the write actually landed, not just that the panel closed.
+  await page.getByLabel('Cari barang').fill(opts.nama)
+  await expect(page.getByRole('button', { name: `Tambah ${opts.nama} ke keranjang` })).toBeVisible()
 }
 
 test.describe('core sale flow, offline', () => {
@@ -61,17 +71,14 @@ test.describe('core sale flow, offline', () => {
 
     await context.setOffline(true)
 
-    // 1. Create a real item with real starting stock, offline.
-    await page.getByRole('link', { name: 'Stok' }).first().click()
-    await expect(heading).toHaveText('Stok', { timeout: 10_000 })
-    await createItemViaStok(page, { nama: itemName, harga: '52000', stokMinimum: '5', stokAwal: '20' })
-
-    // 2. Sell it in Kasir, offline. F2 is this codebase's own proven offline
-    // route to Kasir (see offline.spec.ts's second test).
-    await page.keyboard.press('F2')
+    // 1. Create a real item with real starting stock, offline, via Kasir's
+    // own inline create flow (Stok's own "+ Tambah stok" is not wired to a
+    // create sheet yet - see the Kaca Putih Stok phase's later plans).
+    // This also leaves the page on Kasir with the item already searched for.
+    await createItemViaKasir(page, { nama: itemName, harga: '52000', stokMinimum: '5', stokAwal: '20' })
     await expect(heading).toHaveText('Kasir')
 
-    await page.getByLabel('Cari barang').fill(itemName)
+    // 2. Sell it in Kasir, offline.
     await page.getByRole('button', { name: `Tambah ${itemName} ke keranjang` }).click()
 
     await expect(page.getByTestId('kasir-total')).toContainText('Rp 52.000')
@@ -99,11 +106,7 @@ test.describe('Kasir touch targets', () => {
     test.skip(testInfo.project.name.endsWith('-dark'), 'touch-target size does not depend on colour scheme')
 
     const itemName = 'E2E Touch Target'
-    await createItemViaStok(page, { nama: itemName, harga: '15000', stokMinimum: '5', stokAwal: '10' })
-
-    await page.goto('/kasir')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir')
-    await page.getByLabel('Cari barang').fill(itemName)
+    await createItemViaKasir(page, { nama: itemName, harga: '15000', stokMinimum: '5', stokAwal: '10' })
 
     const addButton = page.getByRole('button', { name: `Tambah ${itemName} ke keranjang` })
     const addBox = await addButton.boundingBox()
@@ -138,11 +141,15 @@ test.describe('status color contrast', () => {
   // CTA, by extension the highest-risk status color to leave unverified).
   test('the Stok status pill renders readable text against its actual background', async ({ page }) => {
     const itemName = 'E2E Kontras Stok'
-    await createItemViaStok(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
+    await createItemViaKasir(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
 
-    // Scoped to tbody: StockFilters' own "Habis" status-toggle button also
-    // carries the exact text "Habis" outside the table.
-    const pillSelector = 'tbody >> text="Habis"'
+    await page.goto('/stok')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stok', { timeout: 10_000 })
+
+    // Scoped to the visible-rows list (Stok.tsx renders a <ul>, not a
+    // table): StockFilters' own "Habis" status-toggle button also carries
+    // the exact text "Habis" outside it.
+    const pillSelector = 'ul >> text="Habis"'
     const pill = page.locator(pillSelector)
     await expect(pill).toBeVisible()
 
@@ -155,11 +162,7 @@ test.describe('status color contrast', () => {
 
   test('the Kasir product-card status line renders readable text against its actual background', async ({ page }) => {
     const itemName = 'E2E Kontras Kasir'
-    await createItemViaStok(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
-
-    await page.goto('/kasir')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir')
-    await page.getByLabel('Cari barang').fill(itemName)
+    await createItemViaKasir(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
 
     const lineSelector = 'text="Habis - 0 sak"'
     const line = page.locator(lineSelector)
