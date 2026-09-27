@@ -41,6 +41,22 @@ describe('AppRoutes: the /kasir route and the catch-all', () => {
   })
 })
 
+describe('AppRoutes: the /stok route', () => {
+  it('renders the new Stok list screen for /stok, not the legacy ItemList', () => {
+    render(
+      <MemoryRouter initialEntries={['/stok']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { name: 'Stok' })).toBeInTheDocument()
+    // The legacy ItemList screen's own "+ Tambah barang" inline-form button
+    // has no equivalent in the new Stok screen, which renders a disabled
+    // "+ Tambah stok" instead - this is a straightforward, honest way to
+    // assert this is the new screen, not the old one.
+    expect(screen.queryByRole('button', { name: '+ Tambah barang' })).toBeNull()
+  })
+})
+
 describe('AppRoutes: /lainnya redirects home (the sheet replaces the old route)', () => {
   it('redirects a legacy /lainnya bookmark to Beranda rather than 404ing it', () => {
     render(
