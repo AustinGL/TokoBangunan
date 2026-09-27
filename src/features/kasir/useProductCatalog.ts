@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { fromBase, qty } from '../../domain/quantity'
+import { computeStokStatus, type StokStatus } from '../../domain/stokStatus'
 
 /**
  * itemsProj joined with stokProj, in memory, same pattern as
@@ -8,9 +9,16 @@ import { fromBase, qty } from '../../domain/quantity'
  * for the same reason useStokList.ts is split out from ItemList.tsx:
  * react-refresh/only-export-components forbids a component file from also
  * exporting plain functions/types.
+ *
+ * ProductStatus/computeProductStatus used to duplicate
+ * features/stok/useStokList.ts's own copy byte-for-byte (each with a doc
+ * comment flagging it as a judgment call to revisit); both now delegate to
+ * the shared domain/stokStatus.ts, re-exported under this file's existing
+ * names so call sites keep working unchanged.
  */
 
-export type ProductStatus = 'habis' | 'menipis' | 'aman'
+export type ProductStatus = StokStatus
+export const computeProductStatus = computeStokStatus
 
 export type ProductRow = {
   itemId: string
@@ -23,22 +31,6 @@ export type ProductRow = {
   quantity: number
   stokMinimum: number
   status: ProductStatus
-}
-
-/**
- * Same habis/menipis/aman thresholds as
- * features/stok/useStokList.ts's computeStokStatus, deliberately
- * duplicated rather than imported: that module is Stok-feature-internal
- * (see data/commands.ts's own doc comment, "no feature imports another
- * feature's internals"), even though the function itself is small, pure
- * and generic enough to share. Keep this in lockstep with
- * useStokList.ts's computeStokStatus if either ever changes. Judgment
- * call, noted in the report.
- */
-export function computeProductStatus(quantity: number, stokMinimum: number): ProductStatus {
-  if (quantity <= 0) return 'habis'
-  if (quantity < stokMinimum) return 'menipis'
-  return 'aman'
 }
 
 /**

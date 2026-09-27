@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { fromBase, qty } from '../../domain/quantity'
+import { computeStokStatus, type StokStatus } from '../../domain/stokStatus'
 
 /**
  * itemsProj joined with stokProj, in memory: itemsProj carries kategori and
@@ -8,8 +9,14 @@ import { fromBase, qty } from '../../domain/quantity'
  * join. Toko scale (hundreds to low thousands of SKUs) keeps this
  * comfortably inside budget. See the plan's Decision on stokProj's
  * itemId-only primary key for the reasoning.
+ *
+ * StokStatus/computeStokStatus themselves now live in domain/stokStatus.ts
+ * (shared with useProductCatalog.ts, which used to duplicate this exact
+ * logic); re-exported here so existing call sites of this module keep
+ * working unchanged.
  */
-export type StokStatus = 'habis' | 'menipis' | 'aman'
+export type { StokStatus }
+export { computeStokStatus }
 
 export type StokRow = {
   itemId: string
@@ -22,19 +29,6 @@ export type StokRow = {
   /** Whole units of baseUnit (already converted from stokProj's milli-units). */
   quantity: number
   status: StokStatus
-}
-
-/**
- * Status thresholds compare whole-unit quantity against stokMinimum, which is
- * itself stored in whole units (see ItemForm/recordItem: stokMinimum is typed
- * and stored as-is, never passed through toBase). Comparing stokProj's raw
- * milli-units against a whole-unit stokMinimum would be off by a factor of
- * 1000, so the same fromBase conversion used for display also feeds status.
- */
-export function computeStokStatus(quantity: number, stokMinimum: number): StokStatus {
-  if (quantity <= 0) return 'habis'
-  if (quantity < stokMinimum) return 'menipis'
-  return 'aman'
 }
 
 /**
