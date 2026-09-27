@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
 import {
   recordItem, recordSale, voidSale, recordBarang, updateBarang, recordUkuran, updateUkuran,
-  recordSupplier, updateSupplier, type RecordSaleInput,
+  recordSupplier, updateSupplier, recordStockPurchase, type RecordSaleInput,
 } from './commands'
 import { fixedClock } from '../domain/clock'
 
@@ -552,5 +552,54 @@ describe('updateSupplier', () => {
     const supplier = await db.suppliersProj.get(id)
     expect(supplier?.telepon).toBeUndefined()
     expect(supplier?.alamat).toBe('Jl. Merdeka 1')
+  })
+})
+
+describe('recordStockPurchase', () => {
+  it('rejects an itemId that does not exist', async () => {
+    await expect(
+      recordStockPurchase({ itemId: 'ghost', qty: 40, hargaJual: 67000 }, at('2026-09-18T07:00:00.000Z')),
+    ).rejects.toThrow('tidak ditemukan')
+  })
+
+  it('writes a StockReceived event converting qty to milli-units at the base-unit factor', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+
+    const batchId = await recordStockPurchase(
+      { itemId, qty: 40, hargaBeli: 60000, hargaJual: 67000, supplierId: 'sup-1' },
+      at('2026-09-18T07:01:00.000Z'),
+    )
+
+    const batch = await db.batchesProj.get(batchId)
+    expect(batch).toMatchObject({ itemId, supplierId: 'sup-1', hargaBeli: 60000, hargaJual: 67000, diterima: 40000, sisa: 40000 })
+  })
+
+  it('does not touch ItemUpserted when hargaJual matches the current default', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+
+    await recordStockPurchase({ itemId, qty: 40, hargaJual: 65000 }, at('2026-09-18T07:01:00.000Z'))
+
+    const events = await db.events.toArray()
+    expect(events.filter(e => e.type === 'ItemUpserted')).toHaveLength(1) // only the original recordItem
+  })
+
+  it('re-saves the item with the new hargaJual as its default when it differs', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+
+    await recordStockPurchase({ itemId, qty: 40, hargaJual: 67000 }, at('2026-09-18T07:01:00.000Z'))
+
+    expect((await db.itemsProj.get(itemId))?.hargaEceran).toBe(67000)
+  })
+
+  it('uses tanggalBeli as the event\'s occurredAt when given', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+
+    await recordStockPurchase(
+      { itemId, qty: 40, hargaJual: 65000, tanggalBeli: new Date('2026-09-15T00:00:00.000Z') },
+      at('2026-09-18T07:01:00.000Z'),
+    )
+
+    const received = (await db.events.toArray()).find(e => e.type === 'StockReceived')
+    expect(received?.occurredAt).toBe('2026-09-15T00:00:00.000Z')
   })
 })

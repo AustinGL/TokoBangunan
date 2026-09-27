@@ -359,3 +359,56 @@ export const updateSupplier = async (input: UpdateSupplierInput, ctx: CommandCon
     perluDilengkapi: false,
   }, ctx)])
 }
+
+export type RecordStockPurchaseInput = {
+  itemId: string
+  /** Whole units of the item's baseUnit, e.g. 40 for "40 sak". Not milli-units. */
+  qty: number
+  hargaJual: number
+  hargaBeli?: number
+  supplierId?: string
+  catatan?: string
+  /** Business date of the purchase; defaults to today (createEvent's own default) when omitted. */
+  tanggalBeli?: Date
+}
+
+/**
+ * Records a purchase as one atomic write: a StockReceived event (creating
+ * the batch), plus an ItemUpserted re-save when hargaJual differs from the
+ * ukuran's current default - which then becomes the new default, per spec.
+ */
+export const recordStockPurchase = async (input: RecordStockPurchaseInput, ctx: CommandContext): Promise<string> => {
+  const item = await db.itemsProj.get(input.itemId)
+  if (!item) throw new Error('Ukuran tidak ditemukan.')
+
+  const batchId = newEventId()
+  const events: EventEnvelope[] = [createEvent('StockReceived', {
+    supplierId: input.supplierId,
+    catatan: input.catatan,
+    lines: [{
+      batchId,
+      itemId: input.itemId,
+      qty: toBase(input.qty, { unit: item.baseUnit, factor: 1 }),
+      hargaBeli: input.hargaBeli,
+      hargaJual: input.hargaJual,
+    }],
+  }, { ...ctx, occurredAt: input.tanggalBeli })]
+
+  if (input.hargaJual !== item.hargaEceran) {
+    events.push(createEvent('ItemUpserted', {
+      id: item.id,
+      nama: item.nama,
+      baseUnit: item.baseUnit,
+      units: item.units,
+      hargaEceran: input.hargaJual,
+      stokMinimum: item.stokMinimum,
+      barcode: item.barcode,
+      kategori: item.kategori,
+      barangId: item.barangId,
+      diarsipkan: item.diarsipkan,
+    }, ctx))
+  }
+
+  await appendEvents(events)
+  return batchId
+}
