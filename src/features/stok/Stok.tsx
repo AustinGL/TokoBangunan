@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useKatalog } from '../shared/useKatalog'
 import { StockFilters } from './StockFilters'
+import { TambahStokSheet } from './TambahStokSheet'
 import { toStokRows, filterStokRows, summarizeStokRows, EMPTY_STOK_FILTERS, type StokFilterState } from './stokList'
 import { formatRupiah, type Rupiah } from '../../domain/money'
 
@@ -14,6 +16,20 @@ const formatHargaRange = (min: Rupiah, max: Rupiah): string => (min === max ? fo
 export function Stok() {
   const katalog = useKatalog()
   const [filters, setFilters] = useState<StokFilterState>(EMPTY_STOK_FILTERS)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tambahStokOpen = searchParams.get('tambah') === '1'
+
+  const openTambahStok = () => {
+    const next = new URLSearchParams(searchParams)
+    next.set('tambah', '1')
+    setSearchParams(next)
+  }
+
+  const closeTambahStok = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('tambah')
+    setSearchParams(next)
+  }
 
   // toStokRows/summarizeStokRows run over EVERY row katalog produced, never
   // the filtered subset - the header must stay a stable "whole stock"
@@ -41,9 +57,8 @@ export function Stok() {
         </div>
         <button
           type="button"
-          disabled
-          title="Tambah stok akan tersedia di pembaruan berikutnya."
-          className="min-h-tap rounded-tile bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:opacity-50"
+          onClick={openTambahStok}
+          className="min-h-tap rounded-tile bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
         >
           + Tambah stok
         </button>
@@ -88,6 +103,8 @@ export function Stok() {
           ))}
         </ul>
       )}
+
+      {tambahStokOpen && <TambahStokSheet open onClose={closeTambahStok} />}
     </main>
   )
 }

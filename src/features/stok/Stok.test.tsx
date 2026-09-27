@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { db } from '../../data/db'
+import { ToastProvider } from '../../ui/Toast'
 import { Stok } from './Stok'
 
 beforeEach(async () => {
@@ -33,7 +35,7 @@ describe('Stok', () => {
     await seedStok('u1', 32000) // 32 whole units, aman
     await seedStok('u2', 0) // habis
 
-    render(<Stok />)
+    render(<MemoryRouter><Stok /></MemoryRouter>)
 
     expect(await screen.findByText('1 barang · 0 menipis · 1 habis')).toBeInTheDocument()
     // Scoped to the row list: StockFilters' own status-toggle bar also has a
@@ -54,7 +56,7 @@ describe('Stok', () => {
     await seedStok('u2', 0)
 
     const user = userEvent.setup()
-    render(<Stok />)
+    render(<MemoryRouter><Stok /></MemoryRouter>)
 
     expect(await screen.findByText('2 barang · 0 menipis · 1 habis')).toBeInTheDocument()
     await user.type(screen.getByLabelText(/cari barang/i), 'semen')
@@ -67,15 +69,48 @@ describe('Stok', () => {
     await seedBarang('b1', 'Barang Lama')
     await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Barang Lama', baseUnit: 'pcs', hargaEceran: 1000, stokMinimum: 1, diarsipkan: true })
 
-    render(<Stok />)
+    render(<MemoryRouter><Stok /></MemoryRouter>)
 
     expect(await screen.findByText('Belum ada stok. Tambahkan barang di menu Kamus Barang.')).toBeInTheDocument()
     expect(screen.queryByText('Barang Lama')).toBeNull()
   })
 
-  it('renders a disabled "+ Tambah stok" button, not a link to a screen that does not exist yet', async () => {
-    render(<Stok />)
+})
+
+describe('Stok: Tambah stok', () => {
+  it('enables the + Tambah stok button, and opens the sheet via ?tambah=1', async () => {
+    const user = userEvent.setup()
+    render(<MemoryRouter><ToastProvider><Stok /></ToastProvider></MemoryRouter>)
+
     const button = await screen.findByRole('button', { name: /tambah stok/i })
-    expect(button).toBeDisabled()
+    expect(button).toBeEnabled()
+
+    await user.click(button)
+
+    expect(await screen.findByRole('heading', { name: 'Tambah stok' })).toBeInTheDocument()
+  })
+
+  it('opens the sheet directly when the URL already carries ?tambah=1', async () => {
+    render(
+      <MemoryRouter initialEntries={['/stok?tambah=1']}>
+        <ToastProvider><Stok /></ToastProvider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Tambah stok' })).toBeInTheDocument()
+  })
+
+  it('closes the sheet via its own Tutup button', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/stok?tambah=1']}>
+        <ToastProvider><Stok /></ToastProvider>
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: 'Tambah stok' })
+    await user.click(screen.getByRole('button', { name: 'Tutup' }))
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Tambah stok' })).toBeNull())
   })
 })
