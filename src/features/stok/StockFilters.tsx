@@ -1,5 +1,5 @@
 import { CategoryPills } from '../../ui/CategoryPills'
-import type { StokFilterState, StokStatusFilter } from './useStokList'
+import type { StokFilterState, StokStatusFilter } from './stokList'
 
 /**
  * Component breakdown table's row for Stok: "Search (name/barcode),
@@ -50,7 +50,7 @@ export function StockFilters({ categories, filters, onChange }: Props) {
             type="text"
             value={filters.search}
             onChange={e => onChange({ ...filters, search: e.target.value })}
-            placeholder="Nama barang atau barcode"
+            placeholder="Nama, ukuran, atau barcode"
             className="h-[var(--field-h)] w-full rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] pl-9 pr-3 text-[14px] text-ink placeholder:text-[var(--field-placeholder)]"
           />
         </div>
