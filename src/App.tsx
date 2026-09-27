@@ -5,14 +5,9 @@ import { BottomNav } from './app/shell/BottomNav'
 import { AppRoutes } from './app/routes'
 import { runSync, supabaseTransport, type SyncStatus } from './data/sync'
 import { getUnsyncedEvents } from './data/eventStore'
+import { useSupplierPerluDilengkapiCount } from './features/shared/useSupplierPerluDilengkapiCount'
 
 type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
-
-// Wired end-to-end and tested at 0 here (see Sidebar.test.tsx/
-// BottomNav.test.tsx for the non-zero cases). A later phase (Kamus Barang /
-// Supplier data model) replaces this constant with a real live-query hook
-// once quick-added suppliers exist to count.
-const SUPPLIER_ALERT_COUNT = 0
 
 // App renders BrowserRouter, so App itself is outside router context and
 // cannot call useNavigate(). AppShell is mounted inside BrowserRouter
@@ -21,6 +16,7 @@ const SUPPLIER_ALERT_COUNT = 0
 // address bar but never triggers a re-render of <Routes>.
 function AppShell({ syncStatus, pendingCount }: ShellProps) {
   const navigate = useNavigate()
+  const supplierAlertCount = useSupplierPerluDilengkapiCount()
   // react-router guarantees navigate's identity is stable across renders,
   // so wrapping it in useCallback keyed on it keeps openKasir stable too -
   // the F2 listener effect below depends on it and must not re-register on
@@ -50,12 +46,12 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
         syncStatus={syncStatus}
         pendingCount={pendingCount}
         onNewTransaction={openKasir}
-        supplierAlertCount={SUPPLIER_ALERT_COUNT}
+        supplierAlertCount={supplierAlertCount}
       />
       <div className="pb-24 md:pb-0 md:pl-[248px]">
         <AppRoutes />
       </div>
-      <BottomNav onNewTransaction={openKasir} supplierAlertCount={SUPPLIER_ALERT_COUNT} />
+      <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} />
     </>
   )
 }
