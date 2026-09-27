@@ -6,6 +6,7 @@ import { AppRoutes } from './app/routes'
 import { runSync, supabaseTransport, type SyncStatus } from './data/sync'
 import { getUnsyncedEvents } from './data/eventStore'
 import { useSupplierPerluDilengkapiCount } from './features/shared/useSupplierPerluDilengkapiCount'
+import { ToastProvider } from './ui/Toast'
 
 type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
 
@@ -105,7 +106,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppShell syncStatus={syncStatus} pendingCount={pendingCount} />
+      <ToastProvider>
+        <AppShell syncStatus={syncStatus} pendingCount={pendingCount} />
+      </ToastProvider>
     </BrowserRouter>
   )
 }
