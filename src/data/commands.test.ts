@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
 import {
   recordItem, recordSale, voidSale, recordBarang, updateBarang, recordUkuran, updateUkuran,
-  recordSupplier, updateSupplier, recordStockPurchase, type RecordSaleInput,
+  recordSupplier, updateSupplier, recordStockPurchase, correctBatch, type RecordSaleInput,
 } from './commands'
 import { fixedClock } from '../domain/clock'
 
@@ -601,5 +601,54 @@ describe('recordStockPurchase', () => {
 
     const received = (await db.events.toArray()).find(e => e.type === 'StockReceived')
     expect(received?.occurredAt).toBe('2026-09-15T00:00:00.000Z')
+  })
+})
+
+describe('correctBatch', () => {
+  it('rejects a batchId that does not exist', async () => {
+    await expect(
+      correctBatch({ batchId: 'ghost', hargaJual: 67000, tanggalBeli: '2026-09-15T00:00:00.000Z' }, at('2026-09-18T07:00:00.000Z')),
+    ).rejects.toThrow('tidak ditemukan')
+  })
+
+  it('writes only BatchCorrected for a metadata-only correction (no jumlah given)', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+    const batchId = await recordStockPurchase({ itemId, qty: 40, hargaJual: 67000 }, at('2026-09-18T07:01:00.000Z'))
+
+    await correctBatch({ batchId, hargaBeli: 58000, hargaJual: 65000, tanggalBeli: '2026-09-15T00:00:00.000Z' }, at('2026-09-18T08:00:00.000Z'))
+
+    const batch = await db.batchesProj.get(batchId)
+    expect(batch).toMatchObject({ hargaBeli: 58000, hargaJual: 65000, diterima: 40000, sisa: 40000 })
+    const events = await db.events.toArray()
+    expect(events.filter(e => e.type === 'StockAdjusted')).toHaveLength(0)
+  })
+
+  it('emits a koreksi StockAdjusted whose delta is against diterima, not sisa, when some of the batch has already sold', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+    const batchId = await recordStockPurchase({ itemId, qty: 50, hargaJual: 67000 }, at('2026-09-18T07:01:00.000Z'))
+    await recordSale({
+      lines: [{ itemId, nama: 'Semen Tiga Roda', unit: 'sak', qty: 10000, hargaSatuan: 67000, subtotal: 670000, batchId }],
+      metodeBayar: 'tunai',
+    }, at('2026-09-18T08:00:00.000Z'))
+    // diterima 50000, sisa 40000 (10000 sold) before the correction.
+
+    await correctBatch({ batchId, hargaJual: 67000, tanggalBeli: '2026-09-15T00:00:00.000Z', jumlah: 40 }, at('2026-09-18T09:00:00.000Z'))
+    // The owner mistyped 50, it was really 40. Correction delta must be
+    // 40000 - 50000 = -10000 (against diterima), landing sisa at 30000 -
+    // NOT 40000 - 40000(sisa) = 0, which would double-count the sale.
+
+    const batch = await db.batchesProj.get(batchId)
+    expect(batch?.diterima).toBe(40000)
+    expect(batch?.sisa).toBe(30000)
+  })
+
+  it('writes no koreksi StockAdjusted when jumlah matches the current diterima', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: 'sak', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-18T07:00:00.000Z'))
+    const batchId = await recordStockPurchase({ itemId, qty: 40, hargaJual: 67000 }, at('2026-09-18T07:01:00.000Z'))
+
+    await correctBatch({ batchId, hargaJual: 67000, tanggalBeli: '2026-09-15T00:00:00.000Z', jumlah: 40 }, at('2026-09-18T08:00:00.000Z'))
+
+    const events = await db.events.toArray()
+    expect(events.filter(e => e.type === 'StockAdjusted')).toHaveLength(0)
   })
 })

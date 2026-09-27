@@ -412,3 +412,54 @@ export const recordStockPurchase = async (input: RecordStockPurchaseInput, ctx: 
   await appendEvents(events)
   return batchId
 }
+
+export type CorrectBatchInput = {
+  batchId: string
+  supplierId?: string
+  hargaBeli?: number
+  hargaJual: number
+  tanggalBeli: string
+  /** A corrected "originally received" quantity, whole units of the item's baseUnit. Omit for a metadata-only correction. */
+  jumlah?: number
+}
+
+/**
+ * BatchCorrected overwrites the batch's metadata (last-write-wins, matching
+ * batches.ts's own reducer). diterima/sisa are stored in milli-units (the
+ * same convention StockReceived's own qty uses), so a given jumlah is
+ * converted via toBase before it is compared or written - comparing a
+ * whole-unit input directly against a milli-unit diterima would silently
+ * corrupt both the correction and its koreksi delta. When the converted
+ * jumlah differs from the batch's current diterima, a companion
+ * StockAdjusted('koreksi') carries the delta against diterima - never
+ * against sisa, which already reflects whatever has sold since receipt.
+ */
+export const correctBatch = async (input: CorrectBatchInput, ctx: CommandContext): Promise<void> => {
+  const existing = await db.batchesProj.get(input.batchId)
+  if (!existing) throw new Error('Batch tidak ditemukan.')
+
+  const item = await db.itemsProj.get(existing.itemId)
+  const jumlahMilli = input.jumlah === undefined
+    ? undefined
+    : toBase(input.jumlah, { unit: item?.baseUnit ?? '', factor: 1 })
+
+  const events: EventEnvelope[] = [createEvent('BatchCorrected', {
+    batchId: input.batchId,
+    supplierId: input.supplierId,
+    hargaBeli: input.hargaBeli,
+    hargaJual: input.hargaJual,
+    tanggalBeli: input.tanggalBeli,
+    jumlah: jumlahMilli,
+  }, ctx)]
+
+  if (jumlahMilli !== undefined && jumlahMilli !== existing.diterima) {
+    events.push(createEvent('StockAdjusted', {
+      itemId: existing.itemId,
+      quantity: jumlahMilli - existing.diterima,
+      reason: 'koreksi',
+      batchId: input.batchId,
+    }, ctx))
+  }
+
+  await appendEvents(events)
+}
