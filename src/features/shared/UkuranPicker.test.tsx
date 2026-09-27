@@ -52,18 +52,12 @@ describe('UkuranPicker', () => {
     render(<UkuranPicker barangId="b1" value={null} onChange={onChange} />)
 
     await user.click(screen.getByRole('button', { name: /tambah ukuran baru/i }))
-    // Scoped to the dialog: the picker's own Combobox is also labeled
-    // "Ukuran" and stays mounted underneath the open UkuranSheet, so an
-    // unscoped getByLabelText(/^ukuran$/i) matches both.
     const dialog = within(screen.getByRole('dialog'))
     await user.type(dialog.getByLabelText(/^ukuran$/i), '25 kg')
     await user.type(dialog.getByLabelText(/harga eceran/i), '35000')
     await user.type(dialog.getByLabelText(/stok minimum/i), '5')
     await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
 
-    // recordUkuran's IndexedDB write resolves after user.click()'s own
-    // promise does, so the assertion needs to wait for it rather than check
-    // synchronously - same convention as Supplier.test.tsx's own create flow.
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String)))
     const items = await db.itemsProj.toArray()
     expect(items.map(i => i.baseUnit)).toContain('25 kg')
@@ -88,5 +82,60 @@ describe('UkuranPicker', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(onFormSubmit).not.toHaveBeenCalled()
+  })
+
+  it('offers "Pakai yang ada" / "Tetap buat baru" for a near-duplicate ukuran, instead of creating immediately', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    await db.itemsProj.put({
+      id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+      hargaEceran: 65000, stokMinimum: 10, diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2',
+    })
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<UkuranPicker barangId="b1" value={null} onChange={onChange} />)
+
+    await user.click(await screen.findByRole('button', { name: /tambah ukuran baru/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.type(dialog.getByLabelText(/^ukuran$/i), '50kg') // normalizes the same as "50 kg"
+    await user.type(dialog.getByLabelText(/harga eceran/i), '65000')
+    await user.type(dialog.getByLabelText(/stok minimum/i), '10')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    expect(await screen.findByText(/mirip dengan/i)).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+    const itemsBeforeChoice = await db.itemsProj.toArray()
+    expect(itemsBeforeChoice).toHaveLength(1) // no duplicate written yet
+
+    await user.click(screen.getByRole('button', { name: /pakai yang ada/i }))
+
+    expect(onChange).toHaveBeenCalledWith('u1')
+    expect(await db.itemsProj.toArray()).toHaveLength(1) // still just the original
+  })
+
+  it('creates the typed ukuran anyway when "Tetap buat baru" is chosen after a near-duplicate warning', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    await db.itemsProj.put({
+      id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+      hargaEceran: 65000, stokMinimum: 10, diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2',
+    })
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<UkuranPicker barangId="b1" value={null} onChange={onChange} />)
+
+    await user.click(await screen.findByRole('button', { name: /tambah ukuran baru/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.type(dialog.getByLabelText(/^ukuran$/i), '50kg')
+    await user.type(dialog.getByLabelText(/harga eceran/i), '65000')
+    await user.type(dialog.getByLabelText(/stok minimum/i), '10')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    await screen.findByText(/mirip dengan/i)
+    await user.click(screen.getByRole('button', { name: /tetap buat baru/i }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String)))
+    expect(onChange).not.toHaveBeenCalledWith('u1')
+    const items = await db.itemsProj.toArray()
+    expect(items.map(i => i.baseUnit)).toContain('50kg')
+    expect(items).toHaveLength(2)
   })
 })
