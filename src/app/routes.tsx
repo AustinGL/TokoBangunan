@@ -3,6 +3,7 @@ import { ItemList } from '../features/stok/ItemList'
 import { Kasir } from '../features/kasir/Kasir'
 import { SaleList } from '../features/transaksi/SaleList'
 import { KamusBarang } from '../features/kamus/KamusBarang'
+import { Supplier } from '../features/supplier/Supplier'
 
 const Placeholder = ({ name }: { name: string }) => (
   <main className="p-8">
@@ -25,7 +26,7 @@ export function AppRoutes() {
       <Route path="/transaksi" element={<SaleList />} />
       <Route path="/stok"      element={<ItemList />} />
       <Route path="/piutang"   element={<Placeholder name="Piutang" />} />
-      <Route path="/supplier"  element={<Placeholder name="Supplier" />} />
+      <Route path="/supplier"  element={<Supplier />} />
       <Route path="/laporan"   element={<Placeholder name="Laporan" />} />
       <Route path="/kamus"     element={<KamusBarang />} />
       <Route path="/kasir"     element={<Kasir />} />
