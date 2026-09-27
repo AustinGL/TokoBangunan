@@ -38,7 +38,7 @@ export function useKatalog(): BarangRow[] | undefined {
     const barangById = Object.fromEntries(barangRows.map(b => [b.id, b]))
     const levelByItemId = new Map(levels.map(l => [l.itemId, l]))
 
-    return groupUkuranByBarang(items, barangById).map((group): BarangRow => ({
+    const groups = groupUkuranByBarang(items, barangById).map((group): BarangRow => ({
       barangId: group.barangId,
       nama: group.nama,
       kategori: group.kategori,
@@ -58,5 +58,15 @@ export function useKatalog(): BarangRow[] | undefined {
         }
       }),
     }))
+
+    // groupUkuranByBarang only ever produces a row for a barang that has at
+    // least one ukuran (item) - a barang just created via BarangSheet, with
+    // none yet, would otherwise vanish from the list entirely.
+    const groupedIds = new Set(groups.map(g => g.barangId))
+    const emptyBarangRows: BarangRow[] = barangRows
+      .filter(b => !groupedIds.has(b.id))
+      .map((b): BarangRow => ({ barangId: b.id, nama: b.nama, kategori: b.kategori, diarsipkan: b.diarsipkan, ukuran: [] }))
+
+    return [...groups, ...emptyBarangRows]
   }, [])
 }

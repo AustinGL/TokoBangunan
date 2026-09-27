@@ -53,4 +53,18 @@ describe('useKatalog', () => {
 
     expect(result.current![0].ukuran[0]).toMatchObject({ quantity: 0, status: 'habis' })
   })
+
+  it('includes a barang that has no ukuran yet, with an empty ukuran array', async () => {
+    // The state right after creating a new barang via BarangSheet, before
+    // any ukuran has been added to it - groupUkuranByBarang alone never
+    // produces a row for this, since it only groups existing items.
+    await seedBarang('b1', 'Semen Tiga Roda', 'Semen')
+
+    const { result } = renderHook(() => useKatalog())
+    await waitFor(() => expect(result.current).toBeDefined())
+
+    expect(result.current).toHaveLength(1)
+    expect(result.current![0]).toMatchObject({ barangId: 'b1', nama: 'Semen Tiga Roda', kategori: 'Semen' })
+    expect(result.current![0].ukuran).toEqual([])
+  })
 })

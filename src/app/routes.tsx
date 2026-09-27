@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { ItemList } from '../features/stok/ItemList'
 import { Kasir } from '../features/kasir/Kasir'
 import { SaleList } from '../features/transaksi/SaleList'
+import { KamusBarang } from '../features/kamus/KamusBarang'
 
 const Placeholder = ({ name }: { name: string }) => (
   <main className="p-8">
@@ -26,7 +27,7 @@ export function AppRoutes() {
       <Route path="/piutang"   element={<Placeholder name="Piutang" />} />
       <Route path="/supplier"  element={<Placeholder name="Supplier" />} />
       <Route path="/laporan"   element={<Placeholder name="Laporan" />} />
-      <Route path="/kamus"     element={<Placeholder name="Kamus Barang" />} />
+      <Route path="/kamus"     element={<KamusBarang />} />
       <Route path="/kasir"     element={<Kasir />} />
       {/* Lainnya is a sheet now (BottomNav.tsx / LainnyaSheet.tsx), not a
           route: its old destinations (Transaksi, Supplier, Laporan) are all
