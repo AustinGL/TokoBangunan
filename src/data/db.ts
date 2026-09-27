@@ -9,6 +9,7 @@ import type { Batch } from '../domain/projections/batches'
 import { projectBarang } from '../domain/projections/barang'
 import { projectSuppliers } from '../domain/projections/suppliers'
 import { projectBatches } from '../domain/projections/batches'
+import { projectSales } from '../domain/projections/sales'
 import { compareCausal } from './eventOrder'
 
 export type MetaRow = { key: string; value: unknown }
@@ -101,15 +102,21 @@ class TokoDb extends Dexie {
       await tx.table('batchesProj').bulkPut(Object.values(projectBatches(sorted)))
       await tx.table('meta').put({ key: 'syncCursor', value: 0 })
     })
-    // Additive: itemIds/batchIds are new multi-entry indexes on an existing
-    // store. Dexie re-derives them from whatever is already on each stored
-    // row's itemIds/batchIds properties - rows written before this version
-    // simply lack those properties until next touched (an incremental fold
-    // or a rebuild), the same self-healing precedent version(4)'s reviewer
-    // noted for diarsipkan. No upgrade() callback: nothing needs backfilling
-    // atomically here, unlike version(4)'s brand-new tables.
+    // itemIds/batchIds are new multi-entry indexes on an existing store, but
+    // every sale already on disk was written before either field existed -
+    // unlike version(4)'s diarsipkan (a plain property nothing indexes,
+    // healed lazily by whichever reducer next touches that row), a Dexie
+    // index only ever sees what is on the row at the moment it was written,
+    // so an un-backfilled old sale is invisible to where('itemIds')/
+    // where('batchIds') until this transaction rewrites it. Same rebuild
+    // pattern as version(4)'s new tables.
     this.version(5).stores({
       salesProj: 'id, occurredAt, *itemIds, *batchIds',
+    }).upgrade(async tx => {
+      const events = (await tx.table('events').toArray()) as EventEnvelope[]
+      const sorted = [...events].sort(compareCausal)
+      await tx.table('salesProj').clear()
+      await tx.table('salesProj').bulkPut(Object.values(projectSales(sorted)))
     })
   }
 }

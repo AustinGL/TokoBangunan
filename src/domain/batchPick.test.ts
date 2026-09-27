@@ -31,21 +31,21 @@ describe('pickDefaultBatch', () => {
   it('picks the legacy pool (no batch) when it alone covers the qty', () => {
     const result = pickDefaultBatch('semen', 5000, 10000, [], [])
     expect(result.batchId).toBeUndefined()
-    expect(result.warning).toBeUndefined()
+    expect(result.shortfall).toBeUndefined()
   })
 
   it('picks the oldest batch with enough availability when the legacy pool cannot cover it', () => {
     const batches = [batch('newer', 'semen', 40000, '2026-09-10T00:00:00.000Z'), batch('older', 'semen', 40000, '2026-09-01T00:00:00.000Z')]
     const result = pickDefaultBatch('semen', 5000, 0, batches, [])
     expect(result.batchId).toBe('older')
-    expect(result.warning).toBeUndefined()
+    expect(result.shortfall).toBeUndefined()
   })
 
-  it('falls through to a batch with insufficient availability and warns, rather than blocking', () => {
+  it('falls through to a batch with insufficient availability and reports the shortfall, rather than blocking', () => {
     const batches = [batch('only', 'semen', 3000, '2026-09-01T00:00:00.000Z')]
     const result = pickDefaultBatch('semen', 5000, 0, batches, [])
     expect(result.batchId).toBe('only')
-    expect(result.warning).toBeDefined()
+    expect(result.shortfall).toBe(2000) // asked for 5000, only 3000 available
   })
 
   it('returns no batch when there is no legacy pool and no batch at all', () => {
@@ -56,9 +56,19 @@ describe('pickDefaultBatch', () => {
   it('accounts for what other cart lines already claim from the same batch', () => {
     const batches = [batch('b1', 'semen', 10000, '2026-09-01T00:00:00.000Z')]
     const otherLines = [{ itemId: 'semen', batchId: 'b1', qty: 8000 }]
-    // Only 2000 left in b1; asking for 5000 should warn, not silently pick b1 as if it had 10000.
+    // Only 2000 left in b1; asking for 5000 should report a shortfall, not silently pick b1 as if it had 10000.
     const result = pickDefaultBatch('semen', 5000, 0, batches, otherLines)
-    expect(result.warning).toBeDefined()
+    expect(result.shortfall).toBe(3000)
+  })
+
+  it('subtracts other cart lines already drawing on the legacy pool (no batchId), not just batch claims', () => {
+    const batches = [batch('b1', 'semen', 40000, '2026-09-10T00:00:00.000Z')]
+    // A legacy line already claims 4000 of the 5000 legacy remainder; only
+    // 1000 is really left, so a second 5000 legacy-eligible line must fall
+    // through to the batch, not silently treat the whole 5000 as still free.
+    const otherLines = [{ itemId: 'semen', qty: 4000 }]
+    const result = pickDefaultBatch('semen', 5000, 5000, batches, otherLines)
+    expect(result.batchId).toBe('b1')
   })
 })
 

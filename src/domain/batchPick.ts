@@ -13,13 +13,26 @@ export function availableForLine(b: { batchId: string; sisa: number }, otherLine
   return b.sisa - claimed
 }
 
-export type BatchPick = { batchId?: string; warning?: string }
+/**
+ * batchId undefined with no shortfall: the legacy pool ("Stok lama") covers
+ * qty in full. batchId set with shortfall undefined: that batch alone
+ * covers qty in full. batchId set with shortfall set (milli-units, the
+ * amount qty exceeds what that batch has left): over-selling, which never
+ * blocks (flow spec D7) - the caller formats its own message from this
+ * number plus the batch's own tanggalBeli, since domain/ has no date
+ * formatting or copy of its own.
+ */
+export type BatchPick = { batchId?: string; shortfall?: number }
 
 /**
  * Walks: the legacy remainder first (no batch, "Stok lama"), then the
  * oldest batch (by tanggalBeli) with enough availability, then the newest
- * batch anyway with a warning (over-selling never blocks - flow spec D7),
- * then no batch when there is nothing at all to sell from.
+ * batch anyway with a shortfall, then no batch when there is nothing at all
+ * to sell from. legacyAvailable is the raw legacyRemainder(...) value (not
+ * yet reduced by other cart lines) - this function itself subtracts
+ * whatever other lines on this item already draw from the legacy pool
+ * (lines with no batchId), the same way availableForLine subtracts other
+ * lines' claims on a specific batch.
  */
 export function pickDefaultBatch(
   itemId: string,
@@ -28,14 +41,17 @@ export function pickDefaultBatch(
   batches: BatchLike[],
   otherLines: CartLineLike[],
 ): BatchPick {
-  if (legacyAvailable >= qty) return {}
+  const legacyClaimed = otherLines
+    .filter(l => l.itemId === itemId && l.batchId === undefined)
+    .reduce((sum, l) => sum + l.qty, 0)
+  if (legacyAvailable - legacyClaimed >= qty) return {}
 
   const itemBatches = batches.filter(b => b.itemId === itemId).sort((a, b) => (a.tanggalBeli < b.tanggalBeli ? -1 : 1))
   const withEnough = itemBatches.find(b => availableForLine(b, otherLines) >= qty)
   if (withEnough) return { batchId: withEnough.batchId }
 
   const newest = itemBatches[itemBatches.length - 1]
-  if (newest) return { batchId: newest.batchId, warning: `Ambil ${qty} dari batch ${newest.tanggalBeli}` }
+  if (newest) return { batchId: newest.batchId, shortfall: qty - availableForLine(newest, otherLines) }
 
   return {}
 }

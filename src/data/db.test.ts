@@ -41,6 +41,45 @@ class LegacyDbV3 extends Dexie {
   }
 }
 
+/**
+ * Replicates exactly TokoDb's versions 1-4, so opening it seeds a genuine
+ * v4 IndexedDB database - the same "already on v4, real sales on disk"
+ * state a real device reaches after the prior plan's upgrade, before this
+ * plan's version(5) exists.
+ */
+class LegacyDbV4 extends Dexie {
+  events!: Table<EventEnvelope, string>
+  meta!: Table<{ key: string; value: unknown }, string>
+  itemsProj!: Table<unknown, string>
+  quarantine!: Table<unknown, string>
+  stokProj!: Table<unknown, string>
+  salesProj!: Table<unknown, string>
+  outbox!: Table<{ id: string }, string>
+  barangProj!: Table<unknown, string>
+  suppliersProj!: Table<unknown, string>
+  batchesProj!: Table<unknown, string>
+
+  constructor() {
+    super(DB_NAME)
+    this.version(1).stores({
+      events: 'id, serverSeq, type, occurredAt, recordedAt',
+      meta: 'key',
+      itemsProj: 'id, nama, kategori',
+    })
+    this.version(2).stores({ quarantine: 'key, quarantinedAt' })
+    this.version(3).stores({
+      stokProj: 'itemId',
+      salesProj: 'id, occurredAt',
+      outbox: 'id',
+    })
+    this.version(4).stores({
+      barangProj: 'id, nama',
+      suppliersProj: 'id, nama',
+      batchesProj: 'batchId, itemId, supplierId, tanggalBeli',
+    })
+  }
+}
+
 beforeEach(async () => {
   await db.delete()
 })
@@ -108,5 +147,36 @@ describe('version(4) upgrade', () => {
     await db.open()
 
     expect(await getCursor()).toBe(0)
+  })
+})
+
+describe('version(5) upgrade', () => {
+  it('backfills itemIds/batchIds for a sale stored before this version, so the new multi-entry indexes find it', async () => {
+    const legacy = new LegacyDbV4()
+    await legacy.open()
+
+    const saleEvent = createEvent('SaleRecorded', {
+      lines: [{ itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000, batchId: 'batch-1' }],
+      metodeBayar: 'tunai' as const, subtotal: 63000, diskon: 0, total: 63000,
+    }, at('2026-09-18T07:00:00.000Z'))
+    await legacy.events.bulkAdd([saleEvent])
+    // A genuine pre-v5 row: written by the old reduceSales, which had no
+    // itemIds/batchIds fields at all.
+    await legacy.salesProj.put({
+      id: saleEvent.id, lines: (saleEvent.payload as { lines: unknown }).lines,
+      metodeBayar: 'tunai', subtotal: 63000, diskon: 0, total: 63000,
+      deliveryIntent: 'dibawa', occurredAt: saleEvent.occurredAt, recordedAt: saleEvent.recordedAt,
+      deviceId: 'laptop', status: 'aktif',
+    })
+    legacy.close()
+
+    await db.open()
+
+    const bySale = await db.salesProj.get(saleEvent.id)
+    expect(bySale?.itemIds).toEqual(['semen'])
+    expect(bySale?.batchIds).toEqual(['batch-1'])
+
+    const byItemIndex = await db.salesProj.where('itemIds').equals('semen').toArray()
+    expect(byItemIndex.map(s => s.id)).toEqual([saleEvent.id])
   })
 })
