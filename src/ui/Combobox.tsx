@@ -20,19 +20,24 @@ const CREATE_VALUE = '__create__'
 export function Combobox({ id, label, options, value, onChange, onCreate, placeholder, error, disabled }: Props) {
   const listboxId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [text, setText] = useState(() => options.find(o => o.value === value)?.label ?? '')
+  // `query` is null whenever the user isn't actively editing the field -
+  // the displayed text is then derived fresh from `options`/`value` every
+  // render, rather than cached from a `value`-only sync effect. That cache
+  // was the bug: options (from useKatalog's useLiveQuery) can still be
+  // `undefined`/`[]` on the render `value` first arrives, then populate on
+  // a later render where `value` itself hasn't changed - a value-only sync
+  // never re-ran, so the field stayed permanently blank despite holding a
+  // real selection. Non-null `query` holds the user's in-progress typing,
+  // independent of `value`, exactly as before.
+  const [query, setQuery] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
-  // Tracks the last value we synced text from, so an external change to
-  // `value` (including to null, which clears the field) is applied during
-  // render rather than in an effect - React's own documented pattern for
-  // "adjusting state when a prop changes" - without clobbering the user's
-  // own in-progress typing on every render.
-  const [syncedValue, setSyncedValue] = useState(value)
-  if (value !== syncedValue) {
-    setSyncedValue(value)
-    setText(options.find(o => o.value === value)?.label ?? '')
-  }
+  // -1: nothing highlighted. Only typing or an arrow key moves this to 0+ -
+  // focus alone must not, or a bare Enter right after tabbing in would
+  // silently select the first option.
+  const [activeIndex, setActiveIndex] = useState(-1)
+
+  const selectedLabel = options.find(o => o.value === value)?.label ?? ''
+  const text = query ?? selectedLabel
 
   const normalizedText = text.trim().toLowerCase()
   const filtered = useMemo(
@@ -51,6 +56,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
     } else {
       onChange(row.value)
     }
+    setQuery(null)
     setOpen(false)
   }
 
@@ -64,14 +70,27 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
       setOpen(true)
       setActiveIndex(i => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
-      if (open && rows[activeIndex]) {
+      // preventDefault unconditionally while open, even with no matching
+      // row (an empty "Tidak ada hasil" state, or a shrunk `rows` after a
+      // live update) - the combobox owns Enter for as long as its listbox
+      // is open, per this component's own contract; only commit if there's
+      // actually a row at activeIndex.
+      if (open) {
         e.preventDefault()
-        commit(rows[activeIndex])
+        if (rows[activeIndex]) commit(rows[activeIndex])
       }
     } else if (e.key === 'Escape') {
-      setOpen(false)
-      const selected = options.find(o => o.value === value)
-      setText(selected?.label ?? '')
+      if (open) {
+        // Stop this Escape from also reaching a host modal <dialog> (which
+        // treats an uncancelled Escape keydown as a close request) - the
+        // first Escape closes only the listbox, matching APG and what a
+        // user expects; a second Escape (nothing left open here) then
+        // reaches the dialog normally.
+        e.preventDefault()
+        e.stopPropagation()
+        setOpen(false)
+        setQuery(null)
+      }
     }
   }
 
@@ -93,16 +112,15 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
           disabled={disabled}
           value={text}
           placeholder={placeholder}
-          onFocus={() => { setOpen(true); setActiveIndex(0) }}
-          onChange={e => { setText(e.target.value); setOpen(true); setActiveIndex(0) }}
+          onFocus={() => { setOpen(true); setActiveIndex(-1) }}
+          onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0) }}
           onKeyDown={handleKeyDown}
           onBlur={() => {
             // Deferred so a click on a listbox option (which blurs the
             // input first) still registers before the listbox unmounts.
             setTimeout(() => {
               setOpen(false)
-              const selected = options.find(o => o.value === value)
-              setText(selected?.label ?? '')
+              setQuery(null)
             }, 150)
           }}
           className={`h-[var(--field-h)] w-full rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink disabled:text-ink-disabled ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}

@@ -21,6 +21,12 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues }: Props) {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // A caller that opens this sheet from inside its own <form> (a picker's
+    // "+" quick-add, nested at the DOM level even though that's invalid
+    // HTML) would otherwise have this submit event bubble up and also
+    // trigger the outer form's own onSubmit/validation while its own
+    // fields are still empty.
+    e.stopPropagation()
     if (nama.trim() === '') {
       setError('Nama barang wajib diisi.')
       return

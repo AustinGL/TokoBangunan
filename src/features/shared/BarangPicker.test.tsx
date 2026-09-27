@@ -45,4 +45,22 @@ describe('BarangPicker', () => {
     const newBarang = await db.barangProj.toArray()
     expect(newBarang.map(b => b.nama)).toContain('Pasir Halus')
   })
+
+  it('does not submit a surrounding form when the + quick-add sheet is saved', async () => {
+    const onFormSubmit = vi.fn(e => e.preventDefault())
+    const user = userEvent.setup()
+    render(
+      <form onSubmit={onFormSubmit}>
+        <BarangPicker value={null} onChange={vi.fn()} />
+      </form>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /tambah barang baru/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.type(dialog.getByLabelText(/nama barang/i), 'Pasir Halus')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onFormSubmit).not.toHaveBeenCalled()
+  })
 })

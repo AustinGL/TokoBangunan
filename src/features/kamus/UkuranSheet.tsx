@@ -40,6 +40,12 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // A caller that opens this sheet from inside its own <form> (a picker's
+    // "+" quick-add, nested at the DOM level even though that's invalid
+    // HTML) would otherwise have this submit event bubble up and also
+    // trigger the outer form's own onSubmit/validation while its own
+    // fields are still empty.
+    e.stopPropagation()
 
     const nextError = ukuran.trim() === '' ? 'Ukuran wajib diisi.' : null
     const nextHargaError = isNonNegativeInteger(hargaEceran) ? null : 'Harga eceran harus bilangan bulat, minimal 0.'

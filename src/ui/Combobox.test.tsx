@@ -44,7 +44,65 @@ describe('Combobox: selection', () => {
   })
 })
 
+describe('Combobox: display sync', () => {
+  it('displays the selected option\'s label once options arrive after mount, without needing value itself to change', () => {
+    const { rerender } = render(<Combobox id="test" label="Nama barang" options={[]} value="b1" onChange={vi.fn()} />)
+    expect(screen.getByRole('combobox')).toHaveValue('')
+
+    rerender(<Combobox id="test" label="Nama barang" options={options} value="b1" onChange={vi.fn()} />)
+
+    expect(screen.getByRole('combobox')).toHaveValue('Semen Tiga Roda')
+  })
+})
+
 describe('Combobox: keyboard navigation', () => {
+  it('does not preselect an option on focus, so a bare Enter does not select anything', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={onChange} />)
+
+    await user.click(screen.getByRole('combobox'))
+    await user.keyboard('{Enter}')
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('prevents form submission on Enter even when the open listbox has no matching row', async () => {
+    const onFormSubmit = vi.fn(e => e.preventDefault())
+    const user = userEvent.setup()
+    render(
+      <form onSubmit={onFormSubmit}>
+        <Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />
+      </form>,
+    )
+
+    const input = screen.getByRole('combobox')
+    await user.click(input)
+    await user.type(input, 'xyz-tidak-ada')
+    await user.keyboard('{Enter}')
+
+    expect(onFormSubmit).not.toHaveBeenCalled()
+  })
+
+  it('prevents the Escape keydown from bubbling while the listbox is open, so a host dialog does not also close', async () => {
+    const onKeyDownCapture = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <div onKeyDown={onKeyDownCapture}>
+        <Combobox id="test" label="Nama barang" options={options} value="b1" onChange={vi.fn()} />
+      </div>,
+    )
+
+    await user.click(screen.getByRole('combobox'))
+    await user.type(screen.getByRole('combobox'), 'gudang')
+    onKeyDownCapture.mockClear()
+    await user.keyboard('{Escape}')
+
+    // Typing itself legitimately bubbles keydowns to the parent; only the
+    // Escape keydown specifically must not, while the listbox is open.
+    expect(onKeyDownCapture).not.toHaveBeenCalled()
+  })
+
   it('moves the active option with ArrowDown/ArrowUp and selects it with Enter, without submitting a surrounding form', async () => {
     const onChange = vi.fn()
     const onFormSubmit = vi.fn(e => e.preventDefault())

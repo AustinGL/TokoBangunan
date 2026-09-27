@@ -68,4 +68,25 @@ describe('UkuranPicker', () => {
     const items = await db.itemsProj.toArray()
     expect(items.map(i => i.baseUnit)).toContain('25 kg')
   })
+
+  it('does not submit a surrounding form when the + quick-add sheet is saved', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    const onFormSubmit = vi.fn(e => e.preventDefault())
+    const user = userEvent.setup()
+    render(
+      <form onSubmit={onFormSubmit}>
+        <UkuranPicker barangId="b1" value={null} onChange={vi.fn()} />
+      </form>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /tambah ukuran baru/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.type(dialog.getByLabelText(/^ukuran$/i), '25 kg')
+    await user.type(dialog.getByLabelText(/harga eceran/i), '35000')
+    await user.type(dialog.getByLabelText(/stok minimum/i), '5')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onFormSubmit).not.toHaveBeenCalled()
+  })
 })
