@@ -12,7 +12,7 @@ import { findNearDuplicate } from '../../domain/katalog'
 type Props = {
   barangId: string | null
   value: string | null
-  onChange: (itemId: string) => void
+  onChange: (itemId: string, meta?: { hargaEceran: number }) => void
   error?: string
 }
 
@@ -26,24 +26,24 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
   const barang = rows?.find(r => r.barangId === barangId)
   const options = (barang?.ukuran ?? []).filter(u => !u.diarsipkan).map(u => ({ value: u.id, label: u.ukuran }))
 
+  // Writes the ukuran and reports success to the caller - throws on
+  // failure rather than swallowing it, so each caller below decides how to
+  // surface that failure in its own context (UkuranSheet's own dialog for
+  // the normal create flow; the near-duplicate confirm sheet for "Tetap
+  // buat baru").
   const createUkuran = async (values: UkuranSheetValues) => {
     if (!barangId) return
-    setCreateError(null)
-    try {
-      const id = await recordUkuran(
-        { barangId, ukuran: values.ukuran, hargaEceran: values.hargaEceran, stokMinimum: values.stokMinimum, barcode: values.barcode ?? undefined },
-        { clock: systemClock, deviceId: getDeviceId() },
-      )
-      onChange(id)
-      setCreating(false)
-      setPendingDuplicate(null)
-    } catch {
-      // A rejected recordUkuran (an IndexedDB write failure, quota
-      // exceeded) must surface, not vanish silently - see BarangSheet.tsx's
-      // own precedent for the same convention, required by this plan's
-      // Global Constraints.
-      setCreateError('Ukuran gagal disimpan. Coba lagi.')
-    }
+    const id = await recordUkuran(
+      { barangId, ukuran: values.ukuran, hargaEceran: values.hargaEceran, stokMinimum: values.stokMinimum, barcode: values.barcode ?? undefined },
+      { clock: systemClock, deviceId: getDeviceId() },
+    )
+    // Passes the just-typed price along explicitly: useKatalog's own live
+    // query has not necessarily re-fetched by the time this resolves, so a
+    // caller that looked the new id up in its own (possibly stale) katalog
+    // data would find nothing there yet.
+    onChange(id, { hargaEceran: values.hargaEceran })
+    setCreating(false)
+    setPendingDuplicate(null)
   }
 
   const handleCreate = async (values: UkuranSheetValues) => {
@@ -56,7 +56,24 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
         return
       }
     }
+    // Left to throw on failure: UkuranSheet's own onSubmit try/catch turns
+    // a rejection into a visible error inside its own (still open) dialog,
+    // the same way it already does for every other caller of UkuranSheet -
+    // a sibling error rendered by this component instead would sit behind
+    // that open <dialog>'s own top layer, invisible to the user.
     await createUkuran(values)
+  }
+
+  const handleTetapBuatBaru = async () => {
+    if (!pendingDuplicate) return
+    setCreateError(null)
+    try {
+      await createUkuran(pendingDuplicate.values)
+    } catch {
+      // No form here to catch this itself (unlike handleCreate's own
+      // UkuranSheet) - required by this plan's Global Constraints.
+      setCreateError('Ukuran gagal disimpan. Coba lagi.')
+    }
   }
 
   return (
@@ -78,7 +95,6 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
           <Plus aria-hidden="true" size={18} />
         </button>
       </div>
-      {createError && <p role="alert" className="mt-1 text-[13px] text-danger">{createError}</p>}
       {creating && barangId && (
         <UkuranSheet
           open onClose={() => setCreating(false)} onSubmit={handleCreate}
@@ -102,7 +118,7 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => createUkuran(pendingDuplicate.values)}
+                onClick={handleTetapBuatBaru}
                 className="min-h-tap rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
               >
                 Tetap buat baru

@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
@@ -51,10 +51,9 @@ describe('TambahStokSheet', () => {
     expect(screen.getByLabelText(/harga jual/i)).toHaveValue('65.000')
   })
 
-  it('does not overwrite a harga jual the user already typed when picking the ukuran again', async () => {
+  it('does not overwrite a harga jual the user already typed when re-picking the same ukuran', async () => {
     await seedBarang('b1', 'Semen Tiga Roda')
     await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
-    await seedUkuran({ id: 'u2', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '40 kg', hargaEceran: 58000, stokMinimum: 10 })
     const user = userEvent.setup()
     render(<ToastProvider><TambahStokSheet open onClose={vi.fn()} /></ToastProvider>)
 
@@ -62,9 +61,39 @@ describe('TambahStokSheet', () => {
     await user.clear(screen.getByLabelText(/harga jual/i))
     await user.type(screen.getByLabelText(/harga jual/i), '67000')
 
-    // Picking a DIFFERENT ukuran re-prefills (a fresh default for the new
-    // ukuran); this only proves re-selecting doesn't clobber a fresh type.
+    // Re-selecting the SAME ukuran (e.g. the user double-checks their pick)
+    // must not re-trigger the prefill and clobber the just-typed price -
+    // Combobox.commit calls onChange even for the option already selected.
+    await user.clear(screen.getByRole('combobox', { name: /^ukuran$/i }))
+    await user.click(await screen.findByRole('option', { name: '50 kg' }))
+
     expect(screen.getByLabelText(/harga jual/i)).toHaveValue('67.000')
+  })
+
+  it('prefills harga jual with a quick-added ukuran\'s own price, not a stale price from a previous selection', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+    const user = userEvent.setup()
+    render(<ToastProvider><TambahStokSheet open onClose={vi.fn()} /></ToastProvider>)
+
+    await pickBarangAndUkuran(user)
+    expect(screen.getByLabelText(/harga jual/i)).toHaveValue('65.000')
+
+    await user.click(screen.getByRole('button', { name: /tambah ukuran baru/i }))
+    // Scoped by accessible name (Sheet's title): TambahStokSheet is itself
+    // a dialog, so an unscoped getByRole('dialog') now matches both it and
+    // the nested UkuranSheet.
+    const dialog = within(screen.getByRole('dialog', { name: 'Ukuran baru' }))
+    await user.type(dialog.getByLabelText(/^ukuran$/i), '40 kg')
+    await user.type(dialog.getByLabelText(/harga eceran/i), '58000')
+    await user.type(dialog.getByLabelText(/stok minimum/i), '10')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    // Quick-add resolves after useKatalog's own live query has re-fetched,
+    // so the new ukuran's price must come from the picker's own onChange,
+    // not a stale lookup into whatever katalog data TambahStokSheet still
+    // held at the moment the write settled.
+    await waitFor(() => expect(screen.getByLabelText(/harga jual/i)).toHaveValue('58.000'))
   })
 
   it('resets the ukuran selection and its harga jual prefill when a different barang is picked', async () => {
@@ -196,5 +225,22 @@ describe('TambahStokSheet', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/gagal disimpan/i)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('focuses a summary of all field errors when submitting with more than one validation error, matching ItemForm\'s pattern', async () => {
+    const user = userEvent.setup()
+    render(<ToastProvider><TambahStokSheet open onClose={vi.fn()} /></ToastProvider>)
+
+    // An entirely empty form: barang, ukuran, jumlah and harga jual are all
+    // required and blank - four errors, well past ItemForm's own ">1"
+    // threshold for showing a summary rather than relying on the inline
+    // per-field errors alone.
+    await user.click(screen.getByRole('button', { name: /^simpan stok$/i }))
+
+    const summary = await screen.findByRole('alert')
+    expect(summary).toHaveTextContent(/periksa kembali isian berikut/i)
+    expect(summary).toHaveTextContent(/nama barang/i)
+    expect(summary).toHaveTextContent(/ukuran/i)
+    expect(summary).toHaveFocus()
   })
 })

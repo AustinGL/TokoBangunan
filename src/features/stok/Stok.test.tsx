@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigationType } from 'react-router-dom'
 import { db } from '../../data/db'
 import { ToastProvider } from '../../ui/Toast'
 import { Stok } from './Stok'
@@ -26,6 +26,13 @@ const seedUkuran = (over: {
 
 const seedStok = (itemId: string, quantityMilli: number) =>
   db.stokProj.put({ itemId, quantity: quantityMilli, lastMovementAt: '2026-09-18T07:00:00.000Z', lastMovementEventId: 'e2' })
+
+// Exposes the current history entry's navigation type (PUSH/REPLACE/POP) as
+// text, so a test can assert Stok's own URL updates use the right one -
+// MemoryRouter keeps its history internal, with no other way to inspect it.
+function NavigationTypeProbe() {
+  return <span data-testid="nav-type">{useNavigationType()}</span>
+}
 
 describe('Stok', () => {
   it('shows the header summary counting every non-archived barang, a worst-status pill and ukuran chips per row', async () => {
@@ -112,5 +119,25 @@ describe('Stok: Tambah stok', () => {
     await user.click(screen.getByRole('button', { name: 'Tutup' }))
 
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Tambah stok' })).toBeNull())
+  })
+
+  it('closes without pushing a new history entry, so Back does not silently re-open the sheet', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/stok?tambah=1']}>
+        <ToastProvider><Stok /></ToastProvider>
+        <NavigationTypeProbe />
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: 'Tambah stok' })
+    await user.click(screen.getByRole('button', { name: 'Tutup' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Tambah stok' })).toBeNull())
+
+    // REPLACE (not PUSH): closing must overwrite the "opened" history entry
+    // rather than add a new one on top of it, or pressing the browser's own
+    // Back button after closing would land back on ?tambah=1 and silently
+    // re-open the sheet with an empty form.
+    expect(screen.getByTestId('nav-type')).toHaveTextContent('REPLACE')
   })
 })

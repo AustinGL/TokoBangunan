@@ -28,7 +28,12 @@ export function Stok() {
   const closeTambahStok = () => {
     const next = new URLSearchParams(searchParams)
     next.delete('tambah')
-    setSearchParams(next)
+    // replace, not push: opening the sheet already added its own history
+    // entry, so closing it must overwrite that entry rather than stack a
+    // second one on top - otherwise the browser's own Back button, pressed
+    // once after closing, lands back on ?tambah=1 and silently re-opens
+    // the sheet with an empty form instead of leaving Stok.
+    setSearchParams(next, { replace: true })
   }
 
   // toStokRows/summarizeStokRows run over EVERY row katalog produced, never

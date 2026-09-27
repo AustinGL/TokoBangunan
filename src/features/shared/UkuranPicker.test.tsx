@@ -3,11 +3,22 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
+import { recordUkuran } from '../../data/commands'
 import { UkuranPicker } from './UkuranPicker'
+
+// recordUkuran is wrapped as a spy over its real implementation, so every
+// existing test still writes through to fake-indexeddb as before; only the
+// "write fails" test overrides it for a single call. Same pattern as
+// CartPanel.test.tsx's recordSale mock.
+vi.mock('../../data/commands', async () => {
+  const actual = await vi.importActual<typeof import('../../data/commands')>('../../data/commands')
+  return { ...actual, recordUkuran: vi.fn(actual.recordUkuran) }
+})
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
+  vi.mocked(recordUkuran).mockClear()
 })
 
 describe('UkuranPicker', () => {
@@ -58,7 +69,11 @@ describe('UkuranPicker', () => {
     await user.type(dialog.getByLabelText(/stok minimum/i), '5')
     await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
 
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String)))
+    // The create path passes the just-typed price along explicitly (not
+    // just the new id): useKatalog's own live query has not necessarily
+    // re-fetched by the time this resolves, so a caller relying solely on
+    // its own katalog data would find nothing there yet for the new id.
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String), { hargaEceran: 35000 }))
     const items = await db.itemsProj.toArray()
     expect(items.map(i => i.baseUnit)).toContain('25 kg')
   })
@@ -132,10 +147,34 @@ describe('UkuranPicker', () => {
     await screen.findByText(/mirip dengan/i)
     await user.click(screen.getByRole('button', { name: /tetap buat baru/i }))
 
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String)))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String), { hargaEceran: 65000 }))
     expect(onChange).not.toHaveBeenCalledWith('u1')
     const items = await db.itemsProj.toArray()
     expect(items.map(i => i.baseUnit)).toContain('50kg')
     expect(items).toHaveLength(2)
+  })
+
+  it('surfaces a visible error inside the still-open dialog when a normal (non-duplicate) create fails, without closing it', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    vi.mocked(recordUkuran).mockRejectedValueOnce(new Error('write failed'))
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<UkuranPicker barangId="b1" value={null} onChange={onChange} />)
+
+    await user.click(screen.getByRole('button', { name: /tambah ukuran baru/i }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Ukuran baru' }))
+    await user.type(dialog.getByLabelText(/^ukuran$/i), '25 kg')
+    await user.type(dialog.getByLabelText(/harga eceran/i), '35000')
+    await user.type(dialog.getByLabelText(/stok minimum/i), '5')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    // Failing to catch this inside UkuranPicker (letting it reach
+    // UkuranSheet's own onSubmit try/catch instead) is what puts the error
+    // inside the dialog that is still open - a sibling error paragraph
+    // outside it would sit behind the open <dialog>'s own top layer,
+    // invisible to the user.
+    expect(await dialog.findByRole('alert')).toHaveTextContent(/gagal disimpan/i)
+    expect(dialog.getByLabelText(/^ukuran$/i)).toHaveValue('25 kg') // the dialog stayed open with what was typed
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
