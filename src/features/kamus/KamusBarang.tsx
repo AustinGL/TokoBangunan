@@ -47,7 +47,11 @@ export function KamusBarang() {
   }, [rows, search, kategori, showArsip])
 
   const barangOptions = useMemo(
-    () => (rows ?? []).filter(r => !r.diarsipkan).map(r => ({ barangId: r.barangId, nama: r.nama })),
+    // A virtual barang (a legacy item with no real BarangUpserted record)
+    // is never a valid move target: its barangId cannot be looked up in
+    // barangProj, so writing it to another ukuran's barangId would create
+    // a permanent dangling reference in the append-only log.
+    () => (rows ?? []).filter(r => !r.diarsipkan && !r.virtual).map(r => ({ barangId: r.barangId, nama: r.nama })),
     [rows],
   )
 
@@ -143,22 +147,28 @@ export function KamusBarang() {
 
                 {isOpen && (
                   <div data-testid={`barang-panel-${row.barangId}`} className="flex flex-col gap-3 border-t border-border p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setBarangSheet({ mode: 'edit', row })}
-                        className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
-                      >
-                        Ubah barang
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUkuranSheet({ barangId: row.barangId })}
-                        className="min-h-tap rounded-tile bg-[var(--btn-secondary-bg)] border border-[var(--btn-secondary-bd)] px-3 text-[13px] font-semibold text-[var(--btn-secondary-fg)]"
-                      >
-                        + Tambah ukuran
-                      </button>
-                    </div>
+                    {row.virtual ? (
+                      <p className="text-[13px] text-ink-muted">
+                        Barang lama, belum masuk Kamus Barang. Pindahkan ukurannya ke barang lain untuk mengelolanya di sini.
+                      </p>
+                    ) : (
+                      <div className="flex items-center justify-between gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setBarangSheet({ mode: 'edit', row })}
+                          className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
+                        >
+                          Ubah barang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUkuranSheet({ barangId: row.barangId })}
+                          className="min-h-tap rounded-tile bg-[var(--btn-secondary-bg)] border border-[var(--btn-secondary-bd)] px-3 text-[13px] font-semibold text-[var(--btn-secondary-fg)]"
+                        >
+                          + Tambah ukuran
+                        </button>
+                      </div>
+                    )}
 
                     {visibleUkuran.length === 0 ? (
                       <p className="text-[13px] text-ink-muted">Belum ada ukuran.</p>

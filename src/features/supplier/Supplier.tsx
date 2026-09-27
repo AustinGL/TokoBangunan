@@ -18,14 +18,34 @@ export function Supplier() {
   const [riwayat, setRiwayat] = useState<RiwayatBatch[] | undefined>(undefined)
 
   const perluDilengkapiCount = useMemo(() => (suppliers ?? []).filter(s => s.perluDilengkapi).length, [suppliers])
+  // Derived, not stored directly: once nothing is left to review (the last
+  // flagged supplier just got saved), the filter falls back to the full
+  // list on its own, rather than leaving reviewOnly stuck true against an
+  // empty result with no visible way back.
+  const reviewFilterActive = reviewOnly && perluDilengkapiCount > 0
   const visible = useMemo(() => {
     if (!suppliers) return []
-    return reviewOnly ? suppliers.filter(s => s.perluDilengkapi) : suppliers
-  }, [suppliers, reviewOnly])
+    return reviewFilterActive ? suppliers.filter(s => s.perluDilengkapi) : suppliers
+  }, [suppliers, reviewFilterActive])
 
   const openEdit = async (row: SupplierRow) => {
     const batches = await db.batchesProj.where('supplierId').equals(row.id).toArray()
-    setRiwayat(batches.map(b => ({ batchId: b.batchId, tanggalBeli: b.tanggalBeli, itemId: b.itemId })))
+    // batchesProj carries only itemId, not a display name - join itemsProj
+    // here (SupplierSheet has no Dexie access of its own) so riwayat shows
+    // what was actually bought, not a raw id. Sorted newest-first: a Dexie
+    // secondary-index query makes no ordering guarantee of its own.
+    const itemIds = [...new Set(batches.map(b => b.itemId))]
+    const items = await db.itemsProj.bulkGet(itemIds)
+    const itemById = new Map(itemIds.map((id, i) => [id, items[i]]))
+    const sorted = [...batches].sort((a, b) => (a.tanggalBeli < b.tanggalBeli ? 1 : -1))
+    setRiwayat(sorted.map(b => {
+      const item = itemById.get(b.itemId)
+      return {
+        batchId: b.batchId,
+        tanggalBeli: b.tanggalBeli,
+        nama: item ? `${item.nama} · ${item.baseUnit}` : 'Ukuran tidak ditemukan',
+      }
+    }))
     setSheet({ mode: 'edit', row })
   }
 
@@ -68,10 +88,11 @@ export function Supplier() {
           </p>
           <button
             type="button"
-            onClick={() => setReviewOnly(true)}
+            aria-pressed={reviewFilterActive}
+            onClick={() => setReviewOnly(on => !on)}
             className="min-h-tap rounded-tile bg-surface px-3 text-[13px] font-semibold text-warning"
           >
-            Tinjau
+            {reviewFilterActive ? 'Tampilkan semua' : 'Tinjau'}
           </button>
         </div>
       )}

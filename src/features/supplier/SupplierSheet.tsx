@@ -4,7 +4,8 @@ import { formatTanggal } from '../shared/formatTanggal'
 
 export type SupplierSheetValues = { nama: string; telepon: string | null; alamat: string | null; kontak: string | null; catatan: string | null }
 
-export type RiwayatBatch = { batchId: string; tanggalBeli: string; itemId: string }
+/** nama is the caller's own pre-built display string (e.g. "Semen Tiga Roda · 50 kg"), not a raw itemId - this file has no access to itemsProj/barangProj to build it itself. */
+export type RiwayatBatch = { batchId: string; tanggalBeli: string; nama: string }
 
 /**
  * initialValues intentionally has a different shape than the onSubmit
@@ -30,6 +31,7 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
   const [kontak, setKontak] = useState(initialValues?.kontak ?? '')
   const [catatan, setCatatan] = useState(initialValues?.catatan ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -39,6 +41,7 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
       return
     }
     setError(null)
+    setSubmitError(null)
     setSubmitting(true)
     try {
       await onSubmit({
@@ -48,6 +51,11 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
         kontak: trimOrNull(kontak),
         catatan: trimOrNull(catatan),
       })
+    } catch {
+      // A rejected onSubmit (an IndexedDB write failure, a since-deleted
+      // supplier, and so on) must surface, not vanish - see ItemForm.tsx's
+      // own precedent for the same convention.
+      setSubmitError('Supplier gagal disimpan. Coba lagi.')
     } finally {
       setSubmitting(false)
     }
@@ -56,6 +64,11 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
   return (
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah supplier' : 'Supplier baru'}>
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        {submitError && (
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+            {submitError}
+          </p>
+        )}
         <div className="flex flex-col gap-1">
           <label htmlFor="supplier-nama" className="text-[14px] font-medium text-ink">Nama</label>
           <input
@@ -106,7 +119,7 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
               <ul className="flex flex-col gap-1">
                 {riwayat.map(r => (
                   <li key={r.batchId} className="text-[13px] text-ink-muted">
-                    {formatTanggal(r.tanggalBeli)} · {r.itemId}
+                    {formatTanggal(r.tanggalBeli)} · {r.nama}
                   </li>
                 ))}
               </ul>

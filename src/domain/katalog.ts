@@ -6,6 +6,8 @@ export type BarangGroup = {
   nama: string
   kategori?: string
   diarsipkan: boolean
+  /** True when this group has no real BarangUpserted record - it stands in for a legacy item with no barangId. Callers must not treat barangId as a real barang id when this is true (it cannot be looked up in barangProj, moved to, or written back via updateBarang). */
+  virtual: boolean
   ukuran: Item[]
 }
 
@@ -33,6 +35,7 @@ export function groupUkuranByBarang(items: Item[], barangById: Record<string, Ba
       nama: parent?.nama ?? item.nama,
       kategori: parent?.kategori ?? item.kategori,
       diarsipkan: parent?.diarsipkan ?? item.diarsipkan,
+      virtual: item.barangId === undefined,
       ukuran: [item],
     })
   }

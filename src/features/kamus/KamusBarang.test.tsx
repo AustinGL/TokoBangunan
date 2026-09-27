@@ -56,6 +56,53 @@ describe('KamusBarang: expanding a barang and adding an ukuran', () => {
   })
 })
 
+describe('KamusBarang: legacy (virtual) barang', () => {
+  it('hides Ubah barang and Tambah ukuran for a legacy item with no real barang, showing a hint instead', async () => {
+    await db.itemsProj.put({
+      id: 'legacy-1', nama: 'Paku 5cm', baseUnit: 'kg', units: [{ unit: 'kg', factor: 1 }],
+      hargaEceran: 25000, stokMinimum: 5, diarsipkan: false,
+      updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1',
+    })
+    const user = userEvent.setup()
+    render(<KamusBarang />)
+
+    const barangRow = await screen.findByText('Paku 5cm')
+    await user.click(barangRow)
+
+    const panel = await screen.findByTestId('barang-panel-item-legacy-1')
+    expect(within(panel).queryByRole('button', { name: /ubah barang/i })).toBeNull()
+    expect(within(panel).queryByRole('button', { name: /tambah ukuran/i })).toBeNull()
+    expect(within(panel).getByText(/barang lama/i)).toBeInTheDocument()
+  })
+
+  it('excludes a legacy virtual barang from the "pindahkan ke barang lain" options', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' })
+    await db.itemsProj.bulkPut([
+      {
+        id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+        hargaEceran: 65000, stokMinimum: 10, diarsipkan: false,
+        updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1',
+      },
+      {
+        id: 'legacy-1', nama: 'Paku 5cm', baseUnit: 'kg', units: [{ unit: 'kg', factor: 1 }],
+        hargaEceran: 25000, stokMinimum: 5, diarsipkan: false,
+        updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2',
+      },
+    ])
+    const user = userEvent.setup()
+    render(<KamusBarang />)
+
+    const barangRow = await screen.findByText('Semen Tiga Roda')
+    await user.click(barangRow)
+    const panel = await screen.findByTestId('barang-panel-b1')
+    await user.click(within(panel).getByRole('button', { name: /^ubah$/i }))
+
+    const moveSelect = await screen.findByLabelText(/pindahkan ke barang lain/i)
+    const optionLabels = within(moveSelect).getAllByRole('option').map(o => o.textContent)
+    expect(optionLabels).not.toContain('Paku 5cm')
+  })
+})
+
 describe('KamusBarang: archive filter', () => {
   it('hides an archived barang until "Tampilkan arsip" is switched on, showing a distinct no-match message meanwhile', async () => {
     await db.barangProj.put({ id: 'b1', nama: 'Semen Lama', diarsipkan: true, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' })

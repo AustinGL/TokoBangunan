@@ -33,14 +33,23 @@ describe('groupUkuranByBarang', () => {
     expect(groups[0].ukuran.map(u => u.id).sort()).toEqual(['u1', 'u2'])
   })
 
-  it('gives a legacy item with no barangId its own virtual barang, keyed item-<itemId>', () => {
+  it('gives a legacy item with no barangId its own virtual barang, keyed item-<itemId>, flagged virtual: true', () => {
     const legacy = item({ id: 'legacy-1', nama: 'Paku 5cm', baseUnit: 'kg' })
 
     const groups = groupUkuranByBarang([legacy], {})
 
     expect(groups).toHaveLength(1)
-    expect(groups[0]).toMatchObject({ barangId: 'item-legacy-1', nama: 'Paku 5cm' })
+    expect(groups[0]).toMatchObject({ barangId: 'item-legacy-1', nama: 'Paku 5cm', virtual: true })
     expect(groups[0].ukuran).toEqual([legacy])
+  })
+
+  it('flags a real barang (with a barangProj row) as virtual: false', () => {
+    const semen = item({ id: 'u1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', barangId: 'b1' })
+    const barangById = { b1: barang({ id: 'b1', nama: 'Semen Tiga Roda' }) }
+
+    const groups = groupUkuranByBarang([semen], barangById)
+
+    expect(groups[0].virtual).toBe(false)
   })
 
   it('keeps two different barang as two separate groups', () => {

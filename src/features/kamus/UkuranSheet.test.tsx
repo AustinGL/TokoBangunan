@@ -50,3 +50,32 @@ describe('UkuranSheet: move to another barang', () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ barangId: 'b2' }))
   })
 })
+
+describe('UkuranSheet: submit failure', () => {
+  it('shows a visible error instead of failing silently when onSubmit rejects', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error('Barang tidak ditemukan.'))
+    const user = userEvent.setup()
+    render(<UkuranSheet open onClose={vi.fn()} onSubmit={onSubmit} barangOptions={barangOptions} currentBarangId="b1" />)
+
+    await user.type(screen.getByLabelText(/^ukuran$/i), '50 kg')
+    await user.click(screen.getByRole('button', { name: /simpan/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/gagal disimpan/i)
+  })
+})
+
+describe('UkuranSheet: number validation', () => {
+  it('rejects a negative harga eceran rather than silently storing it', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(<UkuranSheet open onClose={vi.fn()} onSubmit={onSubmit} barangOptions={barangOptions} currentBarangId="b1" />)
+
+    await user.type(screen.getByLabelText(/^ukuran$/i), '50 kg')
+    await user.type(screen.getByLabelText(/harga eceran/i), '-5000')
+    await user.type(screen.getByLabelText(/stok minimum/i), '10')
+    await user.click(screen.getByRole('button', { name: /simpan/i }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText(/harga eceran.*bilangan bulat, minimal 0/i)).toBeInTheDocument()
+  })
+})

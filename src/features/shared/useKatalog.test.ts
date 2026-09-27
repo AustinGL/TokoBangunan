@@ -34,14 +34,25 @@ describe('useKatalog', () => {
     expect(result.current![0].ukuran[0]).toMatchObject({ id: 'u1', ukuran: '50 kg', quantity: 32, status: 'aman' })
   })
 
-  it('gives a legacy item with no barangId its own virtual barang', async () => {
+  it('gives a legacy item with no barangId its own virtual barang, flagged virtual: true', async () => {
     await seedUkuran({ id: 'legacy-1', nama: 'Paku 5cm', baseUnit: 'kg', hargaEceran: 25000, stokMinimum: 5 })
 
     const { result } = renderHook(() => useKatalog())
     await waitFor(() => expect(result.current).toBeDefined())
 
     expect(result.current).toHaveLength(1)
-    expect(result.current![0]).toMatchObject({ barangId: 'item-legacy-1', nama: 'Paku 5cm' })
+    expect(result.current![0]).toMatchObject({ barangId: 'item-legacy-1', nama: 'Paku 5cm', virtual: true })
+  })
+
+  it('flags a real barang (with or without ukuran) as virtual: false', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda', 'Semen')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+    await seedBarang('b2', 'Pasir')
+
+    const { result } = renderHook(() => useKatalog())
+    await waitFor(() => expect(result.current).toBeDefined())
+
+    expect(result.current!.every(r => r.virtual === false)).toBe(true)
   })
 
   it('treats an ukuran with no stokProj row at all as quantity 0', async () => {

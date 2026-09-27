@@ -63,3 +63,16 @@ describe('BarangSheet: edit', () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ diarsipkan: true }))
   })
 })
+
+describe('BarangSheet: submit failure', () => {
+  it('shows a visible error instead of failing silently when onSubmit rejects', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error('IndexedDB quota exceeded'))
+    const user = userEvent.setup()
+    render(<BarangSheet open onClose={vi.fn()} onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText(/nama barang/i), 'Semen Tiga Roda')
+    await user.click(screen.getByRole('button', { name: /simpan/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/gagal disimpan/i)
+  })
+})

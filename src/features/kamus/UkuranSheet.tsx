@@ -1,6 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 
+const isNonNegativeInteger = (value: string): boolean => {
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 0
+}
+
 export type UkuranSheetValues = {
   ukuran: string
   hargaEceran: number
@@ -28,25 +33,38 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
   const [barangId, setBarangId] = useState(currentBarangId)
   const [diarsipkan, setDiarsipkan] = useState(initialValues?.diarsipkan ?? false)
   const [error, setError] = useState<string | null>(null)
+  const [hargaError, setHargaError] = useState<string | null>(null)
+  const [stokError, setStokError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (ukuran.trim() === '') {
-      setError('Ukuran wajib diisi.')
-      return
-    }
-    setError(null)
+
+    const nextError = ukuran.trim() === '' ? 'Ukuran wajib diisi.' : null
+    const nextHargaError = isNonNegativeInteger(hargaEceran) ? null : 'Harga eceran harus bilangan bulat, minimal 0.'
+    const nextStokError = isNonNegativeInteger(stokMinimum) ? null : 'Stok minimum harus bilangan bulat, minimal 0.'
+    setError(nextError)
+    setHargaError(nextHargaError)
+    setStokError(nextStokError)
+    if (nextError || nextHargaError || nextStokError) return
+
+    setSubmitError(null)
     setSubmitting(true)
     try {
       await onSubmit({
         ukuran: ukuran.trim(),
-        hargaEceran: Number(hargaEceran) || 0,
-        stokMinimum: Number(stokMinimum) || 0,
+        hargaEceran: Number(hargaEceran),
+        stokMinimum: Number(stokMinimum),
         barcode: barcode.trim() === '' ? null : barcode.trim(),
         barangId: barangId === currentBarangId ? undefined : barangId,
         diarsipkan,
       })
+    } catch {
+      // A rejected onSubmit (an IndexedDB write failure, a legacy virtual
+      // barang, and so on) must surface, not vanish - see ItemForm.tsx's
+      // own precedent for the same convention.
+      setSubmitError('Ukuran gagal disimpan. Coba lagi.')
     } finally {
       setSubmitting(false)
     }
@@ -55,6 +73,11 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
   return (
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah ukuran' : 'Ukuran baru'} variant="center">
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        {submitError && (
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+            {submitError}
+          </p>
+        )}
         <div className="flex flex-col gap-1">
           <label htmlFor="ukuran-text" className="text-[14px] font-medium text-ink">Ukuran</label>
           <input
@@ -71,8 +94,10 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           <input
             id="ukuran-harga" type="number" inputMode="numeric" min={0} step={1}
             value={hargaEceran} onChange={e => setHargaEceran(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
+            aria-invalid={hargaError ? true : undefined}
+            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${hargaError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
+          {hargaError && <p className="text-[13px] text-danger">{hargaError}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -80,8 +105,10 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           <input
             id="ukuran-min" type="number" inputMode="numeric" min={0} step={1}
             value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
+            aria-invalid={stokError ? true : undefined}
+            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
+          {stokError && <p className="text-[13px] text-danger">{stokError}</p>}
         </div>
 
         <div className="flex flex-col gap-1">

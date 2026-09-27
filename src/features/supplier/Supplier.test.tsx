@@ -58,6 +58,80 @@ describe('Supplier: the reminder banner', () => {
   })
 })
 
+describe('Supplier: riwayat pembelian shows readable purchases', () => {
+  it('shows the ukuran\'s name rather than a raw item id, newest first', async () => {
+    await db.suppliersProj.put({ id: 's1', nama: 'CV Maju', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    await db.itemsProj.put({
+      id: 'semen-50', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+      hargaEceran: 65000, stokMinimum: 10, diarsipkan: false,
+      updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2',
+    })
+    await db.batchesProj.bulkPut([
+      {
+        batchId: 'b-older', itemId: 'semen-50', supplierId: 's1', hargaBeli: 60000, hargaJual: 67000,
+        tanggalBeli: '2026-09-01T00:00:00.000Z', diterima: 40000, sisa: 40000,
+        metaUpdatedAt: '2026-09-01T00:00:00.000Z', metaUpdatedByEventId: 'e3',
+        lastMovementAt: '2026-09-01T00:00:00.000Z', lastMovementEventId: 'e3',
+      },
+      {
+        batchId: 'b-newer', itemId: 'semen-50', supplierId: 's1', hargaBeli: 60000, hargaJual: 67000,
+        tanggalBeli: '2026-09-15T00:00:00.000Z', diterima: 40000, sisa: 40000,
+        metaUpdatedAt: '2026-09-15T00:00:00.000Z', metaUpdatedByEventId: 'e4',
+        lastMovementAt: '2026-09-15T00:00:00.000Z', lastMovementEventId: 'e4',
+      },
+    ])
+    const user = userEvent.setup()
+    render(<Supplier />)
+
+    await user.click(await screen.findByText('CV Maju'))
+
+    const rows = await screen.findAllByText(/semen tiga roda/i)
+    expect(rows).toHaveLength(2)
+    // Newest (15 Sep) listed before the older (1 Sep).
+    expect(rows[0].textContent).toMatch(/15 sep/i)
+    expect(rows[1].textContent).toMatch(/1 sep/i)
+  })
+})
+
+describe('Supplier: Tinjau filter has a way back', () => {
+  it('filters to only flagged suppliers, then can be turned back off without losing CV Maju from view', async () => {
+    await db.suppliersProj.bulkPut([
+      { id: 's1', nama: 'CV Maju', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+      { id: 's2', nama: 'UD Baru', perluDilengkapi: true, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2' },
+    ])
+    const user = userEvent.setup()
+    render(<Supplier />)
+    await screen.findByText('CV Maju')
+
+    await user.click(screen.getByRole('button', { name: /tinjau/i }))
+    expect(screen.queryByText('CV Maju')).toBeNull()
+    expect(screen.getByText('UD Baru')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /tampilkan semua/i }))
+    expect(screen.getByText('CV Maju')).toBeInTheDocument()
+    expect(screen.getByText('UD Baru')).toBeInTheDocument()
+  })
+
+  it('resets the filter automatically once nothing is left to review, rather than leaving the list looking empty', async () => {
+    await db.suppliersProj.bulkPut([
+      { id: 's1', nama: 'CV Maju', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+      { id: 's2', nama: 'UD Baru', perluDilengkapi: true, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2' },
+    ])
+    const user = userEvent.setup()
+    render(<Supplier />)
+    await screen.findByText('CV Maju')
+
+    await user.click(screen.getByRole('button', { name: /tinjau/i }))
+    await user.click(await screen.findByText('UD Baru'))
+    await user.click(await screen.findByRole('button', { name: /simpan/i }))
+
+    // UD Baru is now cleared, so the review filter has nothing left to show
+    // - it must fall back to the full list rather than rendering empty.
+    await waitFor(() => expect(screen.getByText('CV Maju')).toBeInTheDocument())
+    expect(screen.getByText('UD Baru')).toBeInTheDocument()
+  })
+})
+
 describe('Supplier: create and edit clear the flag', () => {
   it('creates a supplier via the sheet', async () => {
     const user = userEvent.setup()

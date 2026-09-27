@@ -21,6 +21,8 @@ export type BarangRow = {
   nama: string
   kategori?: string
   diarsipkan: boolean
+  /** True for a legacy item with no real BarangUpserted record - see katalog.ts's BarangGroup.virtual. Callers must not pass this row's barangId to updateBarang/recordUkuran/the move picker. */
+  virtual: boolean
   ukuran: UkuranRow[]
 }
 
@@ -43,6 +45,7 @@ export function useKatalog(): BarangRow[] | undefined {
       nama: group.nama,
       kategori: group.kategori,
       diarsipkan: group.diarsipkan,
+      virtual: group.virtual,
       ukuran: group.ukuran.map((item): UkuranRow => {
         const milli = levelByItemId.get(item.id)?.quantity ?? 0
         const quantity = fromBase(qty(milli), { unit: item.baseUnit, factor: 1 })
@@ -65,7 +68,7 @@ export function useKatalog(): BarangRow[] | undefined {
     const groupedIds = new Set(groups.map(g => g.barangId))
     const emptyBarangRows: BarangRow[] = barangRows
       .filter(b => !groupedIds.has(b.id))
-      .map((b): BarangRow => ({ barangId: b.id, nama: b.nama, kategori: b.kategori, diarsipkan: b.diarsipkan, ukuran: [] }))
+      .map((b): BarangRow => ({ barangId: b.id, nama: b.nama, kategori: b.kategori, diarsipkan: b.diarsipkan, virtual: false, ukuran: [] }))
 
     return [...groups, ...emptyBarangRows]
   }, [])
