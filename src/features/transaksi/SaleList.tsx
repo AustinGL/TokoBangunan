@@ -5,7 +5,7 @@ import type { Sale } from '../../domain/projections/sales'
 import { formatRupiah, rupiah } from '../../domain/money'
 import { TanggalFilter } from './TanggalFilter'
 import { SaleDetail } from './SaleDetail'
-import { formatTanggal } from './formatTanggal'
+import { formatTanggal } from '../shared/formatTanggal'
 
 /**
  * Component breakdown table's exact row: "Transaksi list |

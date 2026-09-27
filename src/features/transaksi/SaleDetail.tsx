@@ -6,7 +6,7 @@ import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { formatRupiah, rupiah } from '../../domain/money'
 import { fromBase, qty } from '../../domain/quantity'
-import { formatTanggal } from './formatTanggal'
+import { formatTanggal } from '../shared/formatTanggal'
 
 /**
  * Component breakdown table's exact row: "Sale detail |
