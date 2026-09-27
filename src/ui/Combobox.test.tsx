@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 import { Combobox } from './Combobox'
@@ -145,6 +145,37 @@ describe('Combobox: keyboard navigation', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(screen.getByRole('combobox')).toHaveValue('Semen Tiga Roda')
+  })
+
+  it('does not let a stale blur timer (from an earlier blur, before refocusing) clobber freshly-typed text', () => {
+    // fireEvent + fake timers, not userEvent: userEvent's own click/type
+    // simulation depends on React's Scheduler flushing via real setTimeout,
+    // which fake timers deadlock (see Toast.tsx's own ledgered ruling for
+    // the same finding). fireEvent's synchronous dispatch has no such
+    // dependency, so it works under fake timers here.
+    //
+    // try/finally: a failing assertion must not leave fake timers active
+    // for every later test in this file - real ones, using userEvent, would
+    // then hit that exact Scheduler deadlock instead of failing cleanly.
+    vi.useFakeTimers()
+    try {
+      const onChange = vi.fn()
+      render(<Combobox id="test" label="Nama barang" options={options} value="b1" onChange={onChange} />)
+      const input = screen.getByRole('combobox')
+
+      fireEvent.focus(input) // opens; nothing schedules yet
+      fireEvent.blur(input) // schedules the 150ms close/reset timer
+      fireEvent.focus(input) // refocuses well before that timer fires
+      fireEvent.change(input, { target: { value: 'gudang' } }) // types
+
+      // The stale timer from the FIRST blur is still pending and fires now,
+      // even though the field has since been refocused and typed into.
+      act(() => { vi.advanceTimersByTime(150) })
+
+      expect(input).toHaveValue('gudang')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

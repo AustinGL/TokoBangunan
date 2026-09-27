@@ -20,6 +20,11 @@ const CREATE_VALUE = '__create__'
 export function Combobox({ id, label, options, value, onChange, onCreate, placeholder, error, disabled }: Props) {
   const listboxId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
+  // Tracks the blur-driven close/reset timeout below, so a refocus before
+  // it fires can cancel it - otherwise it fires later regardless, clobbering
+  // whatever the user has typed since refocusing (a stale timer from a
+  // blur that already happened, not the current one).
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // `query` is null whenever the user isn't actively editing the field -
   // the displayed text is then derived fresh from `options`/`value` every
   // render, rather than cached from a `value`-only sync effect. That cache
@@ -112,13 +117,21 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
           disabled={disabled}
           value={text}
           placeholder={placeholder}
-          onFocus={() => { setOpen(true); setActiveIndex(-1) }}
+          onFocus={() => {
+            if (blurTimeoutRef.current) {
+              clearTimeout(blurTimeoutRef.current)
+              blurTimeoutRef.current = null
+            }
+            setOpen(true)
+            setActiveIndex(-1)
+          }}
           onChange={e => { setQuery(e.target.value); setOpen(true); setActiveIndex(0) }}
           onKeyDown={handleKeyDown}
           onBlur={() => {
             // Deferred so a click on a listbox option (which blurs the
             // input first) still registers before the listbox unmounts.
-            setTimeout(() => {
+            blurTimeoutRef.current = setTimeout(() => {
+              blurTimeoutRef.current = null
               setOpen(false)
               setQuery(null)
             }, 150)
