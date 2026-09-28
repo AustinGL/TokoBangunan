@@ -55,6 +55,20 @@ describe('KoreksiPembelianSheet', () => {
     expect(screen.getByLabelText(/supplier/i)).toHaveValue('')
   })
 
+  it('prefills tanggal beli using local calendar day, not UTC slice, for early-morning timestamps', () => {
+    // A batch recorded at 2026-09-15T23:30:00.000Z (UTC).
+    // In UTC+7 (WIB/Jakarta), this is 2026-09-16 06:30, so the LOCAL date is 2026-09-16.
+    // The old .slice(0, 10) logic would incorrectly show 2026-09-15 (UTC date).
+    // This test passes only if the runner's local timezone is UTC+7 or has similar behavior.
+    const earlyMorningBatch = { ...batch, tanggalBeli: '2026-09-15T23:30:00.000Z' }
+    render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={earlyMorningBatch} suppliers={suppliers} />)
+
+    // With the fixed toIsoDate() logic, this should reflect the LOCAL date (2026-09-16),
+    // not the UTC date (2026-09-15). The assertion uses the same pattern as the first prefill test.
+    const tanggalInput = screen.getByLabelText(/tanggal beli/i) as HTMLInputElement
+    expect(tanggalInput.value).toBe('2026-09-16')
+  })
+
   it('calls correctBatch with a corrected jumlah, converting the picked date to local-noon ISO', async () => {
     await seedItem('item-1')
     await seedBatch(batch, 'item-1')

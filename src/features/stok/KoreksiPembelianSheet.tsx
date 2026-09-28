@@ -34,6 +34,23 @@ const isNonNegativeInteger = (value: string): boolean => {
 }
 
 /**
+ * Extracts a "yyyy-mm-dd" date input value from a full ISO datetime, using
+ * this runtime's LOCAL calendar day - not a UTC slice, which can land on
+ * the wrong day for a timestamp close to local midnight (e.g. a same-day
+ * purchase recorded at 23:30 UTC is 06:30 the next day in WIB/UTC+7, so its
+ * UTC slice would be the previous calendar day relative to the owner's local
+ * view). Mirrors todayIsoDate's own local-Date-field approach in
+ * domain/tanggal.ts, just reading an arbitrary Date instead of "now".
+ */
+function toIsoDate(isoDatetime: string): string {
+  const d = new Date(isoDatetime)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
  * Single-purpose, single-caller sheet (a Riwayat stok row's own "⋯ Koreksi
  * pembelian" action) - same "owns its own command call" architecture as
  * TambahStokSheet/AturUkuranSheet. Fixes a mistyped purchase: supplier,
@@ -43,12 +60,9 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
   const [supplierId, setSupplierId] = useState(batch.supplierId ?? '')
   const [hargaBeli, setHargaBeli] = useState<number | null>(batch.hargaBeli ?? null)
   const [hargaJual, setHargaJual] = useState<number | null>(batch.hargaJual)
-  // batch.tanggalBeli is a full ISO datetime; every purchase in this app is
-  // recorded in an Indonesian timezone (UTC+7/8/9, always ahead of UTC), so
-  // slicing its date part matches the calendar day the owner actually
-  // picked - the mirror image of dateAtLocalNoon's own doc comment, which
-  // makes the same assumption in the other direction.
-  const [tanggalBeli, setTanggalBeli] = useState(batch.tanggalBeli.slice(0, 10))
+  // Extract the local calendar day (not UTC slice, which can be wrong for
+  // early-morning timestamps). See toIsoDate's doc comment for details.
+  const [tanggalBeli, setTanggalBeli] = useState(toIsoDate(batch.tanggalBeli))
   const [jumlah, setJumlah] = useState(String(batch.diterima))
 
   const [hargaJualError, setHargaJualError] = useState<string | null>(null)
