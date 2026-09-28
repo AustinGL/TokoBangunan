@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Stok } from '../features/stok/Stok'
+import { BarangDetail } from '../features/stok/BarangDetail'
 import { Kasir } from '../features/kasir/Kasir'
 import { SaleList } from '../features/transaksi/SaleList'
 import { KamusBarang } from '../features/kamus/KamusBarang'
@@ -25,6 +26,7 @@ export function AppRoutes() {
       <Route path="/"          element={<Placeholder name="Beranda" />} />
       <Route path="/transaksi" element={<SaleList />} />
       <Route path="/stok"      element={<Stok />} />
+      <Route path="/stok/:barangKey" element={<BarangDetail />} />
       <Route path="/piutang"   element={<Placeholder name="Piutang" />} />
       <Route path="/supplier"  element={<Supplier />} />
       <Route path="/laporan"   element={<Placeholder name="Laporan" />} />

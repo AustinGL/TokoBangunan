@@ -82,6 +82,17 @@ describe('Stok', () => {
     expect(screen.queryByText('Barang Lama')).toBeNull()
   })
 
+  it('links each barang row to its own Barang detail page', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda', 'Semen')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+    await seedStok('u1', 32000)
+
+    render(<MemoryRouter><Stok /></MemoryRouter>)
+
+    const link = await screen.findByRole('link', { name: /semen tiga roda/i })
+    expect(link).toHaveAttribute('href', '/stok/b1')
+  })
+
 })
 
 describe('Stok: Tambah stok', () => {

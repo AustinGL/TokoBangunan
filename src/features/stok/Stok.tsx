@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { useKatalog } from '../shared/useKatalog'
 import { StockFilters } from './StockFilters'
 import { TambahStokSheet } from './TambahStokSheet'
@@ -86,7 +86,11 @@ export function Stok() {
       ) : (
         <ul className="flex flex-col gap-2">
           {visibleRows.map(row => (
-            <li key={row.barangId} className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
+            <li key={row.barangId}>
+              <Link
+                to={`/stok/${row.barangId}`}
+                className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4"
+              >
               <div className="flex items-center justify-between gap-4">
                 <span className="flex items-center gap-2">
                   <span className="text-[14px] font-semibold text-ink">{row.nama}</span>
@@ -104,6 +108,7 @@ export function Stok() {
                 ))}
               </div>
               <span className="text-[13px] text-ink-muted">{formatHargaRange(row.hargaMin, row.hargaMax)}</span>
+              </Link>
             </li>
           ))}
         </ul>
