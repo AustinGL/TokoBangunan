@@ -105,7 +105,7 @@ export function BarangDetail() {
               "tracked for its own follow-up" notes. */}
           <Link
             to="/kamus"
-            className="min-h-tap rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
+            className="inline-flex min-h-tap items-center rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
           >
             Ubah di Kamus
           </Link>
@@ -219,9 +219,9 @@ export function BarangDetail() {
         <TambahStokSheet
           open
           onClose={() => setTambahStokOpen(false)}
-          initialBarangId={barangRow.virtual ? null : barangRow.barangId}
-          initialItemId={barangRow.virtual ? null : (selectedUkuran?.id ?? null)}
-          initialHargaJual={barangRow.virtual ? null : (selectedUkuran?.hargaEceran ?? null)}
+          initialBarangId={barangRow.virtual || barangRow.diarsipkan ? null : barangRow.barangId}
+          initialItemId={barangRow.virtual || barangRow.diarsipkan ? null : (selectedUkuran?.id ?? null)}
+          initialHargaJual={barangRow.virtual || barangRow.diarsipkan ? null : (selectedUkuran?.hargaEceran ?? null)}
         />
       )}
       {aturUkuran && <AturUkuranSheet open onClose={() => setAturUkuran(null)} item={aturUkuran} />}

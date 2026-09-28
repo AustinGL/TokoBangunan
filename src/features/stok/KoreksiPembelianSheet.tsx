@@ -29,6 +29,7 @@ type Props = {
 }
 
 const isNonNegativeInteger = (value: string): boolean => {
+  if (value.trim() === '') return false
   const n = Number(value)
   return Number.isInteger(n) && n >= 0
 }
@@ -85,7 +86,7 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
       // for TambahStokSheet's own tanggal beli field).
       nextTanggalError = 'Tanggal beli tidak boleh di masa depan.'
     }
-    const nextJumlahError = isNonNegativeInteger(jumlah) ? null : 'Jumlah harus bilangan bulat, minimal 0.'
+    const nextJumlahError = isNonNegativeInteger(jumlah) ? null : 'Jumlah wajib diisi, bilangan bulat minimal 0.'
 
     setHargaJualError(nextHargaJualError)
     setTanggalError(nextTanggalError)
@@ -101,7 +102,17 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
           supplierId: supplierId === '' ? undefined : supplierId,
           hargaBeli: hargaBeli ?? undefined,
           hargaJual: hargaJual!,
-          tanggalBeli: dateAtLocalNoon(tanggalBeli).toISOString(),
+          // Only forced to local-noon ISO when the picked date actually
+          // differs from the batch's own current local calendar day - the
+          // same "don't misrepresent an unchanged same-day timestamp"
+          // reasoning TambahStokSheet.tsx's own tanggalBeli comment already
+          // establishes. Leaving the date field untouched must preserve the
+          // batch's real original timestamp exactly, not silently rewrite
+          // it to noon on every correction (batchPick.ts sorts strictly by
+          // tanggalBeli with no tiebreaker, so forcing noon on an unchanged
+          // date would tie multiple same-day batches to one identical
+          // timestamp and break FIFO ordering).
+          tanggalBeli: tanggalBeli === toIsoDate(batch.tanggalBeli) ? batch.tanggalBeli : dateAtLocalNoon(tanggalBeli).toISOString(),
           jumlah: Number(jumlah),
         },
         { clock: systemClock, deviceId: getDeviceId() },

@@ -106,9 +106,19 @@ describe('BarangDetail', () => {
 
     renderAt(`/stok/b1?ukuran=${itemId}`)
 
-    const table = await screen.findByRole('table')
-    expect(within(table).getAllByText('—').length).toBeGreaterThan(0)
-    expect(within(table).getByText('Stok lama')).toBeInTheDocument()
+    await screen.findByRole('table')
+    const dataRows = screen.getAllByRole('row').slice(1)
+    expect(dataRows).toHaveLength(2)
+    // dataRows[0] is the batch row - batch rows always sort before the
+    // legacy row (riwayatStok.ts's own buildRiwayatRows). Its own supplier
+    // cell, specifically, must show "—" - asserting "—" appears anywhere in
+    // the table would still pass even if the batch's own supplier rendering
+    // were broken, since the legacy row's date/supplier/diterima/hargaBeli/
+    // hargaJual cells are already always "—" regardless.
+    const [tglCell, supplierCell] = within(dataRows[0]).getAllByRole('cell')
+    expect(tglCell).not.toHaveTextContent('—')
+    expect(supplierCell).toHaveTextContent('—')
+    expect(within(dataRows[1]).getByText('Stok lama')).toBeInTheDocument()
   })
 
   it('opens Atur ukuran with the card\'s own current values', async () => {

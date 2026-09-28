@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/db'
-import { recordItem, recordStockPurchase, recordSupplier, recordSale } from '../../data/commands'
+import { recordItem, recordStockPurchase, recordSupplier, recordSale, voidSale } from '../../data/commands'
 import { fixedClock } from '../../domain/clock'
 import { useRiwayatStok } from './useRiwayatStok'
 
@@ -81,6 +81,46 @@ describe('useRiwayatStok', () => {
     await waitFor(() => expect(result.current).toBeDefined())
 
     expect(result.current!.find(r => r.kind === 'legacy')).toMatchObject({ transaksiCount: 1 })
+  })
+
+  it('does not double-count a single sale whose lines span two of the requested items', async () => {
+    // Exercises the .distinct() guard on the salesProj.itemIds multi-entry
+    // index query: without it, a sale matching anyOf(itemIds) on more than
+    // one of its own lines' items can come back more than once from Dexie,
+    // and the per-batch tally loop would then double-increment every batch
+    // that sale touches.
+    const item50 = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-01T07:00:00.000Z'))
+    const item40 = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: '40 kg', hargaEceran: 58000, stokMinimum: 10 }, at('2026-09-01T07:00:01.000Z'))
+    const batch50 = await recordStockPurchase({ itemId: item50, qty: 40, hargaJual: 65000 }, at('2026-09-05T07:00:00.000Z'))
+    const batch40 = await recordStockPurchase({ itemId: item40, qty: 20, hargaJual: 58000 }, at('2026-09-06T07:00:00.000Z'))
+    await recordSale({
+      lines: [
+        { itemId: item50, nama: 'Semen Tiga Roda', unit: '50 kg', qty: 1000, hargaSatuan: 65000, subtotal: 65000, batchId: batch50 },
+        { itemId: item40, nama: 'Semen Tiga Roda', unit: '40 kg', qty: 1000, hargaSatuan: 58000, subtotal: 58000, batchId: batch40 },
+      ],
+      metodeBayar: 'tunai',
+    }, at('2026-09-10T07:00:00.000Z'))
+
+    const { result } = renderHook(() => useRiwayatStok([{ id: item50, baseUnit: '50 kg' }, { id: item40, baseUnit: '40 kg' }]))
+    await waitFor(() => expect(result.current).toBeDefined())
+
+    expect(result.current!.find(r => r.kind === 'batch' && r.batchId === batch50)).toMatchObject({ transaksiCount: 1 })
+    expect(result.current!.find(r => r.kind === 'batch' && r.batchId === batch40)).toMatchObject({ transaksiCount: 1 })
+  })
+
+  it('excludes a voided sale from transaksiCount', async () => {
+    const itemId = await recordItem({ nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 }, at('2026-09-01T07:00:00.000Z'))
+    const batchId = await recordStockPurchase({ itemId, qty: 40, hargaJual: 65000 }, at('2026-09-05T07:00:00.000Z'))
+    const saleId = await recordSale({
+      lines: [{ itemId, nama: 'Semen Tiga Roda', unit: '50 kg', qty: 8000, hargaSatuan: 65000, subtotal: 520000, batchId }],
+      metodeBayar: 'tunai',
+    }, at('2026-09-06T07:00:00.000Z'))
+    await voidSale(saleId, 'Salah input', at('2026-09-07T07:00:00.000Z'))
+
+    const { result } = renderHook(() => useRiwayatStok([{ id: itemId, baseUnit: '50 kg' }]))
+    await waitFor(() => expect(result.current).toBeDefined())
+
+    expect(result.current!.find(r => r.kind === 'batch' && r.batchId === batchId)).toMatchObject({ transaksiCount: 0 })
   })
 
   it('returns an empty array, not undefined, when given no items', async () => {

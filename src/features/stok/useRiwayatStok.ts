@@ -3,9 +3,12 @@ import { db } from '../../data/db'
 import { buildRiwayatRows, type RiwayatRow, type BatchWithMeta, type LegacyInput } from './riwayatStok'
 
 /**
- * Riwayat stok for one or more ukuran (itemId) of the same barang - one
- * item when a card is selected, every surviving ukuran when "Semua ukuran"
- * is active (BarangDetail.tsx decides which). Joins batchesProj,
+ * Riwayat stok for one or more ukuran (itemId) of the same barang - the
+ * hook itself is agnostic to how many items it's given; its current (and
+ * only) caller, BarangDetail.tsx, always passes every surviving ukuran
+ * unconditionally and filters the result client-side to the selected one
+ * (or keeps all of them for "Semua ukuran"), rather than re-querying per
+ * selection - see that file's own comment for why. Joins batchesProj,
  * suppliersProj, salesProj and stokProj in memory, the same toko-scale
  * in-memory-join budget useKatalog.ts's own doc comment already
  * establishes for this codebase.

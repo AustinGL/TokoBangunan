@@ -12,6 +12,7 @@ type Props = {
 }
 
 const isNonNegativeInteger = (value: string): boolean => {
+  if (value.trim() === '') return false
   const n = Number(value)
   return Number.isInteger(n) && n >= 0
 }
@@ -36,7 +37,7 @@ export function AturUkuranSheet({ open, onClose, item }: Props) {
     e.preventDefault()
 
     const nextHargaError = hargaJual !== null && hargaJual >= 0 ? null : 'Harga jual wajib diisi, minimal 0.'
-    const nextStokError = isNonNegativeInteger(stokMinimum) ? null : 'Stok minimum harus bilangan bulat, minimal 0.'
+    const nextStokError = isNonNegativeInteger(stokMinimum) ? null : 'Stok minimum wajib diisi, bilangan bulat minimal 0.'
     setHargaError(nextHargaError)
     setStokError(nextStokError)
     if (nextHargaError || nextStokError) return

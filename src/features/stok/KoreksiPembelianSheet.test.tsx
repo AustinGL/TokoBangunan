@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
 import { correctBatch } from '../../data/commands'
+import { dateAtLocalNoon } from '../../domain/tanggal'
 import { KoreksiPembelianSheet } from './KoreksiPembelianSheet'
 
 vi.mock('../../data/commands', async () => {
@@ -19,7 +20,11 @@ beforeEach(async () => {
 
 const batch = {
   batchId: 'batch-1', supplierId: 's1', hargaBeli: 58000, hargaJual: 65000,
-  tanggalBeli: '2026-09-15T05:00:00.000Z', diterima: 50,
+  // Derived via dateAtLocalNoon rather than a hardcoded UTC literal, so this
+  // stays correct regardless of the test runner's own local timezone (a
+  // literal like '2026-09-15T05:00:00.000Z' only round-trips to local date
+  // "2026-09-15" in UTC+7).
+  tanggalBeli: dateAtLocalNoon('2026-09-15').toISOString(), diterima: 50,
 }
 const suppliers = [{ id: 's1', nama: 'CV Maju' }, { id: 's2', nama: 'UD Sentosa' }]
 
@@ -56,20 +61,26 @@ describe('KoreksiPembelianSheet', () => {
   })
 
   it('prefills tanggal beli using local calendar day, not UTC slice, for early-morning timestamps', () => {
-    // A batch recorded at 2026-09-15T23:30:00.000Z (UTC).
-    // In UTC+7 (WIB/Jakarta), this is 2026-09-16 06:30, so the LOCAL date is 2026-09-16.
-    // The old .slice(0, 10) logic would incorrectly show 2026-09-15 (UTC date).
-    // This test passes only if the runner's local timezone is UTC+7 or has similar behavior.
-    const earlyMorningBatch = { ...batch, tanggalBeli: '2026-09-15T23:30:00.000Z' }
+    // A batch recorded at 2026-09-15T23:30:00.000Z (UTC) - late enough in
+    // the UTC day that a positive-offset local timezone (e.g. UTC+7) rolls
+    // it over to the next LOCAL calendar day, which .slice(0, 10) (a UTC
+    // slice) would miss.
+    const earlyMorningInstant = new Date(Date.UTC(2026, 8, 15, 23, 30, 0))
+    const earlyMorningBatch = { ...batch, tanggalBeli: earlyMorningInstant.toISOString() }
     render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={earlyMorningBatch} suppliers={suppliers} />)
 
-    // With the fixed toIsoDate() logic, this should reflect the LOCAL date (2026-09-16),
-    // not the UTC date (2026-09-15). The assertion uses the same pattern as the first prefill test.
+    // Expected value computed from the SAME instant's own local Date fields
+    // (mirrors toIsoDate's own implementation) rather than a hardcoded
+    // string, so this assertion is correct under any local timezone the
+    // test runner happens to use, not just UTC+7.
+    const year = earlyMorningInstant.getFullYear()
+    const month = String(earlyMorningInstant.getMonth() + 1).padStart(2, '0')
+    const day = String(earlyMorningInstant.getDate()).padStart(2, '0')
     const tanggalInput = screen.getByLabelText(/tanggal beli/i) as HTMLInputElement
-    expect(tanggalInput.value).toBe('2026-09-16')
+    expect(tanggalInput.value).toBe(`${year}-${month}-${day}`)
   })
 
-  it('calls correctBatch with a corrected jumlah, converting the picked date to local-noon ISO', async () => {
+  it('calls correctBatch with a corrected jumlah, keeping tanggal beli unchanged when the date field is untouched', async () => {
     await seedItem('item-1')
     await seedBatch(batch, 'item-1')
     const onClose = vi.fn()
@@ -82,8 +93,35 @@ describe('KoreksiPembelianSheet', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(correctBatch).toHaveBeenCalledWith(
-      { batchId: 'batch-1', supplierId: 's1', hargaBeli: 58000, hargaJual: 65000, tanggalBeli: '2026-09-15T05:00:00.000Z', jumlah: 40 },
+      // tanggalBeli must be the batch's own ORIGINAL string, untouched - not
+      // noon-converted - because the date field itself was never edited. A
+      // real same-day purchase timestamp (e.g. recorded at 09:15) must
+      // survive a correction that only touches jumlah, or it would silently
+      // get moved to noon on every unrelated correction.
+      { batchId: 'batch-1', supplierId: 's1', hargaBeli: 58000, hargaJual: 65000, tanggalBeli: batch.tanggalBeli, jumlah: 40 },
       expect.objectContaining({ deviceId: expect.any(String) }),
+    )
+  })
+
+  it('converts tanggal beli to local-noon ISO when the date field is actually changed', async () => {
+    await seedItem('item-1')
+    await seedBatch(batch, 'item-1')
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<KoreksiPembelianSheet open onClose={onClose} batch={batch} suppliers={suppliers} />)
+
+    // fireEvent.change, not user.type - see the "rejects a future tanggal
+    // beli" test below for why.
+    fireEvent.change(screen.getByLabelText(/tanggal beli/i), { target: { value: '2026-09-10' } })
+    await user.click(screen.getByRole('button', { name: /^simpan$/i }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    // Expected value derived via dateAtLocalNoon at test-run time, not a
+    // hardcoded UTC literal, so this holds regardless of the runner's own
+    // local timezone.
+    expect(correctBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ tanggalBeli: dateAtLocalNoon('2026-09-10').toISOString() }),
+      expect.anything(),
     )
   })
 
@@ -112,7 +150,21 @@ describe('KoreksiPembelianSheet', () => {
     await user.type(screen.getByLabelText(/jumlah/i), '-5')
     await user.click(screen.getByRole('button', { name: /^simpan$/i }))
 
-    expect(await screen.findByText(/jumlah harus bilangan bulat/i)).toBeInTheDocument()
+    expect(await screen.findByText(/jumlah wajib diisi/i)).toBeInTheDocument()
+    expect(correctBatch).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty jumlah without calling correctBatch', async () => {
+    const user = userEvent.setup()
+    render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={batch} suppliers={suppliers} />)
+
+    // Number('') is 0, so an emptied field must be rejected explicitly - it
+    // must not silently validate as "0" and call correctBatch, which would
+    // emit a StockAdjusted('koreksi') zeroing the batch's sisa.
+    await user.clear(screen.getByLabelText(/jumlah/i))
+    await user.click(screen.getByRole('button', { name: /^simpan$/i }))
+
+    expect(await screen.findByText(/jumlah wajib diisi/i)).toBeInTheDocument()
     expect(correctBatch).not.toHaveBeenCalled()
   })
 

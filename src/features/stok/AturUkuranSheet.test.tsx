@@ -61,7 +61,21 @@ describe('AturUkuranSheet', () => {
     await user.type(screen.getByLabelText(/stok minimum/i), '-1')
     await user.click(screen.getByRole('button', { name: /^simpan$/i }))
 
-    expect(await screen.findByText(/stok minimum harus bilangan bulat/i)).toBeInTheDocument()
+    expect(await screen.findByText(/stok minimum wajib diisi/i)).toBeInTheDocument()
+    expect(updateUkuran).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty stok minimum without calling updateUkuran', async () => {
+    const user = userEvent.setup()
+    render(<AturUkuranSheet open onClose={vi.fn()} item={item} />)
+
+    // Number('') is 0, so an emptied field must be rejected explicitly - it
+    // must not silently validate as "0" and call updateUkuran with a
+    // stokMinimum the owner never actually entered.
+    await user.clear(screen.getByLabelText(/stok minimum/i))
+    await user.click(screen.getByRole('button', { name: /^simpan$/i }))
+
+    expect(await screen.findByText(/stok minimum wajib diisi/i)).toBeInTheDocument()
     expect(updateUkuran).not.toHaveBeenCalled()
   })
 
