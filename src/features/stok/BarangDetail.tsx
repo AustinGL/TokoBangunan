@@ -81,7 +81,7 @@ export function BarangDetail() {
   if (!barangRow) {
     return (
       <main className="flex flex-col gap-5 p-4 md:p-8">
-        <Link to="/stok" className="text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
+        <Link to="/stok" className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
         <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
           Barang tidak ditemukan.
         </p>
@@ -93,7 +93,7 @@ export function BarangDetail() {
     <main className="flex flex-col gap-5 p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <Link to="/stok" className="text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
+          <Link to="/stok" className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
           <h1 className="text-[17px] font-bold text-ink">
             {barangRow.nama}
             {barangRow.kategori && <span className="ml-2 text-[13px] font-normal text-ink-muted">· {barangRow.kategori}</span>}
@@ -124,7 +124,7 @@ export function BarangDetail() {
           const active = !semuaUkuran && selectedUkuran?.id === u.id
           return (
             <div key={u.id} className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
-              <button type="button" aria-pressed={active} onClick={() => selectUkuran(u.id)} className="flex flex-col gap-1 text-left">
+              <button type="button" aria-pressed={active} onClick={() => selectUkuran(u.id)} className="flex min-h-tap flex-col gap-1 text-left">
                 <span className="text-[13px] font-semibold text-ink-muted">{u.ukuran}</span>
                 <span className="text-[22px] font-bold tabular-nums text-ink">Sisa {u.quantity}</span>
                 <span className={`inline-flex w-fit items-center rounded-[var(--r-pill)] px-[10px] py-[4px] text-[12px] font-semibold ${STATUS_CLASS[u.status]}`}>
@@ -149,7 +149,7 @@ export function BarangDetail() {
             Riwayat stok · {semuaUkuran ? 'Semua ukuran' : selectedUkuran?.ukuran ?? '-'}
           </h2>
           {!semuaUkuran && survivingUkuran.length > 1 && (
-            <button type="button" onClick={selectSemuaUkuran} className="text-[13px] font-semibold text-ink underline">
+            <button type="button" onClick={selectSemuaUkuran} className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink underline">
               Semua ukuran
             </button>
           )}
@@ -191,7 +191,10 @@ export function BarangDetail() {
                   <td className="p-2 text-ink">{row.kind === 'batch' ? formatRupiah(rupiah(row.hargaJual)) : '—'}</td>
                   <td className="p-2 text-ink">{row.sisa}</td>
                   <td className="p-2 text-ink">
-                    <Link to={row.kind === 'batch' ? `/transaksi?batch=${row.batchId}` : `/transaksi?item=${row.itemId}`} className="underline">
+                    <Link
+                      to={row.kind === 'batch' ? `/transaksi?batch=${row.batchId}` : `/transaksi?item=${row.itemId}`}
+                      className="inline-flex min-h-tap items-center underline"
+                    >
                       {row.transaksiCount} ›
                     </Link>
                   </td>
