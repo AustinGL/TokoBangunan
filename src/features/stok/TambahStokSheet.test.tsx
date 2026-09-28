@@ -243,4 +243,26 @@ describe('TambahStokSheet', () => {
     expect(summary).toHaveTextContent(/ukuran/i)
     expect(summary).toHaveFocus()
   })
+
+  it('prefills barang, ukuran and harga jual from initialBarangId/initialItemId/initialHargaJual', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+
+    render(
+      <ToastProvider>
+        <TambahStokSheet open onClose={vi.fn()} initialBarangId="b1" initialItemId="u1" initialHargaJual={67000} />
+      </ToastProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /nama barang/i })).toHaveValue('Semen Tiga Roda'))
+    expect(screen.getByRole('combobox', { name: /^ukuran$/i })).toHaveValue('50 kg')
+    expect(screen.getByLabelText(/harga jual/i)).toHaveValue('67.000')
+  })
+
+  it('opens an empty form when no prefill props are given, same as before', async () => {
+    render(<ToastProvider><TambahStokSheet open onClose={vi.fn()} /></ToastProvider>)
+
+    expect(screen.getByRole('combobox', { name: /nama barang/i })).toHaveValue('')
+    expect(screen.getByLabelText(/harga jual/i)).toHaveValue('')
+  })
 })

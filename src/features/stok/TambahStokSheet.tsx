@@ -15,6 +15,15 @@ import { formatRupiah, rupiah } from '../../domain/money'
 type Props = {
   open: boolean
   onClose: () => void
+  /**
+   * Deep-link prefill from a caller that already knows the barang/ukuran -
+   * Barang detail's own "+ Tambah stok" button (Task 6 of this plan) is the
+   * first real caller. Stok list's own button omits all three, so the sheet
+   * opens exactly as it always has: an empty form.
+   */
+  initialBarangId?: string | null
+  initialItemId?: string | null
+  initialHargaJual?: number | null
 }
 
 type FieldKey = 'barang' | 'ukuran' | 'jumlah' | 'hargaJual' | 'tanggal'
@@ -33,17 +42,19 @@ const isPositiveInteger = (value: string): boolean => {
   return Number.isInteger(n) && n > 0
 }
 
-export function TambahStokSheet({ open, onClose }: Props) {
+export function TambahStokSheet({
+  open, onClose, initialBarangId = null, initialItemId = null, initialHargaJual = null,
+}: Props) {
   const katalog = useKatalog()
   const { showToast } = useToast()
 
-  const [barangId, setBarangId] = useState<string | null>(null)
-  const [itemId, setItemId] = useState<string | null>(null)
+  const [barangId, setBarangId] = useState<string | null>(initialBarangId)
+  const [itemId, setItemId] = useState<string | null>(initialItemId)
   const [supplierId, setSupplierId] = useState<string | null>(null)
   const [tanggalBeli, setTanggalBeli] = useState(() => todayIsoDate(systemClock))
   const [jumlah, setJumlah] = useState('')
   const [hargaBeli, setHargaBeli] = useState<number | null>(null)
-  const [hargaJual, setHargaJual] = useState<number | null>(null)
+  const [hargaJual, setHargaJual] = useState<number | null>(initialHargaJual)
 
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
