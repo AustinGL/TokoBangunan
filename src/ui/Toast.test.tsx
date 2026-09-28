@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 import { ToastProvider } from './Toast'
+import { Sheet } from './Sheet'
 import { useToast } from './useToast'
 
 function Trigger() {
@@ -17,6 +18,40 @@ describe('Toast', () => {
     await user.click(screen.getByRole('button', { name: 'Trigger' }))
 
     expect(await screen.findByText('Supplier ditambahkan.')).toBeInTheDocument()
+  })
+
+  it('portals a toast into the currently open Sheet dialog, not behind it', async () => {
+    // Confirmed directly against a real Chromium browser: a modal <dialog>
+    // (showModal()) always paints above everything else in the top layer,
+    // INCLUDING a popover shown more recently - so a toast rendered as a
+    // sibling popover would still be invisible behind an open Sheet.
+    // Portaling the toast INTO the dialog, as a plain DOM descendant, paints
+    // it above the dialog's own content by ordinary stacking rules instead.
+    const user = userEvent.setup()
+    render(
+      <ToastProvider>
+        <Sheet open onClose={() => {}} title="Test sheet">
+          <Trigger />
+        </Sheet>
+      </ToastProvider>,
+    )
+    const dialog = screen.getByRole('dialog')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Trigger' }))
+    const toast = await screen.findByText('Supplier ditambahkan.')
+
+    expect(dialog.contains(toast)).toBe(true)
+  })
+
+  it('portals a toast to the document body when no Sheet is open', async () => {
+    const user = userEvent.setup()
+    const { baseElement } = render(<ToastProvider><Trigger /></ToastProvider>)
+
+    await user.click(screen.getByRole('button', { name: 'Trigger' }))
+    const toast = await screen.findByText('Supplier ditambahkan.')
+
+    expect(baseElement.contains(toast)).toBe(true)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('throws a clear error when useToast is called outside a ToastProvider', () => {

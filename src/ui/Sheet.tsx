@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { popOpenDialog, pushOpenDialog } from './dialogStack'
 
 type Props = {
   open: boolean
@@ -34,9 +35,19 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
+    if (open && !dialog.open) { dialog.showModal(); pushOpenDialog(dialog) }
+    if (!open && dialog.open) { dialog.close(); popOpenDialog(dialog) }
   }, [open])
+
+  // Separate from the effect above (which only reacts to `open` changing):
+  // a Sheet that unmounts while still open (its own parent stops rendering
+  // it) would otherwise leave a stale entry in the shared dialog stack
+  // forever, since the effect above never gets a chance to run its `!open`
+  // branch in that case.
+  useEffect(() => {
+    const dialog = ref.current
+    return () => { if (dialog) popOpenDialog(dialog) }
+  }, [])
 
   return (
     <dialog
