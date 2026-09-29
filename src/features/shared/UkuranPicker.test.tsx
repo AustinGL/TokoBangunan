@@ -56,6 +56,20 @@ describe('UkuranPicker', () => {
     expect(screen.queryByRole('option', { name: 'm3' })).toBeNull()
   })
 
+  it('shows the stock and retail price of each ukuran as a hint', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    await db.itemsProj.put({
+      id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+      hargaEceran: 65000, stokMinimum: 10, diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e3',
+    })
+    const user = userEvent.setup()
+    render(<UkuranPicker barangId="b1" value={null} onChange={vi.fn()} />)
+
+    await user.click(await screen.findByRole('combobox'))
+
+    expect(screen.getByRole('option', { name: '50 kg' })).toHaveAccessibleDescription('Stok 0 · Rp 65.000')
+  })
+
   it('creates a new ukuran under the given barang via the + button, and selects it', async () => {
     await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
     const onChange = vi.fn()

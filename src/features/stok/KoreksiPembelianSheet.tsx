@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { RupiahInput } from '../../ui/RupiahInput'
+import { Select } from '../../ui/Select'
 import { correctBatch } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
@@ -134,16 +135,10 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
           </p>
         )}
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="koreksi-supplier" className="text-[14px] font-medium text-ink">Supplier</label>
-          <select
-            id="koreksi-supplier" value={supplierId} onChange={e => setSupplierId(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
-          >
-            <option value="">Tidak ada</option>
-            {suppliers.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
-          </select>
-        </div>
+        <Select
+          id="koreksi-supplier" label="Supplier" value={supplierId} onChange={setSupplierId}
+          options={[{ value: '', label: 'Tidak ada' }, ...suppliers.map(s => ({ value: s.id, label: s.nama }))]}
+        />
 
         <div className="flex flex-col gap-1">
           <label htmlFor="koreksi-tanggal" className="text-[14px] font-medium text-ink">
@@ -177,7 +172,7 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
 
         <button
           type="submit" disabled={submitting}
-          className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
+          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
         >
           {submitting ? 'Menyimpan...' : 'Simpan'}
         </button>

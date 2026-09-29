@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { RupiahInput } from '../../ui/RupiahInput'
+import { Select } from '../../ui/Select'
 
 const isNonNegativeInteger = (value: string): boolean => {
   const n = Number(value)
@@ -50,8 +52,14 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
     e.stopPropagation()
 
     const nextError = ukuran.trim() === '' ? 'Ukuran wajib diisi.' : null
-    const nextHargaError = isNonNegativeInteger(hargaEceran) ? null : 'Harga eceran harus bilangan bulat, minimal 0.'
-    const nextStokError = isNonNegativeInteger(stokMinimum) ? null : 'Stok minimum harus bilangan bulat, minimal 0.'
+    // An empty box must not become Rp 0: Number('') is 0, which would pass the
+    // integer check below and quietly put the item on sale for free.
+    const nextHargaError = hargaEceran.trim() === ''
+      ? 'Harga eceran wajib diisi.'
+      : isNonNegativeInteger(hargaEceran) ? null : 'Harga eceran harus bilangan bulat, minimal 0.'
+    const nextStokError = stokMinimum.trim() === ''
+      ? 'Stok minimum wajib diisi.'
+      : isNonNegativeInteger(stokMinimum) ? null : 'Stok minimum harus bilangan bulat, minimal 0.'
     setError(nextError)
     setHargaError(nextHargaError)
     setStokError(nextStokError)
@@ -87,7 +95,7 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           </p>
         )}
         <div className="flex flex-col gap-1">
-          <label htmlFor="ukuran-text" className="text-[14px] font-medium text-ink">Ukuran</label>
+          <label htmlFor="ukuran-text" className="req text-[14px] font-medium text-ink">Ukuran</label>
           <input
             id="ukuran-text" value={ukuran} onChange={e => setUkuran(e.target.value)}
             placeholder="mis. 50 kg"
@@ -97,19 +105,15 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           {error && <p className="text-[13px] text-danger">{error}</p>}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="ukuran-harga" className="text-[14px] font-medium text-ink">Harga eceran</label>
-          <input
-            id="ukuran-harga" type="number" inputMode="numeric" min={0} step={1}
-            value={hargaEceran} onChange={e => setHargaEceran(e.target.value)}
-            aria-invalid={hargaError ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${hargaError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
-          />
-          {hargaError && <p className="text-[13px] text-danger">{hargaError}</p>}
-        </div>
+        <RupiahInput
+          id="ukuran-harga" label="Harga eceran" required
+          value={hargaEceran === '' ? null : Number(hargaEceran)}
+          onChange={value => setHargaEceran(value === null ? '' : String(value))}
+          error={hargaError ?? undefined}
+        />
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="ukuran-min" className="text-[14px] font-medium text-ink">Stok minimum</label>
+          <label htmlFor="ukuran-min" className="req text-[14px] font-medium text-ink">Stok minimum</label>
           <input
             id="ukuran-min" type="number" inputMode="numeric" min={0} step={1}
             value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
@@ -127,26 +131,25 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="ukuran-barang" className="text-[14px] font-medium text-ink">Pindahkan ke barang lain</label>
-          <select
-            id="ukuran-barang" value={barangId} onChange={e => setBarangId(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
-          >
-            {barangOptions.map(option => (
-              <option key={option.barangId} value={option.barangId}>{option.nama}</option>
-            ))}
-          </select>
-        </div>
+        {/* Moving or archiving only means something for an ukuran that already exists. */}
+        {initialValues && (
+          <>
+            <Select
+              id="ukuran-barang" label="Pindahkan ke barang lain" value={barangId} onChange={setBarangId}
+              options={barangOptions.map(option => ({ value: option.barangId, label: option.nama }))}
+            />
 
-        <label className="flex min-h-tap items-center gap-2 text-[14px] text-ink">
-          <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
-          Arsipkan
-        </label>
+            <label className="flex min-h-tap items-center gap-2 text-[14px] text-ink">
+              <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
+              Arsipkan
+            </label>
+
+          </>
+        )}
 
         <button
           type="submit" disabled={submitting}
-          className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
+          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
         >
           {submitting ? 'Menyimpan...' : 'Simpan'}
         </button>

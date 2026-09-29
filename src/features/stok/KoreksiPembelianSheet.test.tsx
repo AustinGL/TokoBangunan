@@ -47,7 +47,7 @@ describe('KoreksiPembelianSheet', () => {
   it('prefills supplier, harga beli, harga jual, tanggal beli and jumlah from the batch', () => {
     render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={batch} suppliers={suppliers} />)
 
-    expect(screen.getByLabelText(/supplier/i)).toHaveValue('s1')
+    expect(screen.getByLabelText(/supplier/i)).toHaveTextContent('CV Maju')
     expect(screen.getByLabelText(/harga beli/i)).toHaveValue('58.000')
     expect(screen.getByLabelText(/harga jual/i)).toHaveValue('65.000')
     expect(screen.getByLabelText(/tanggal beli/i)).toHaveValue('2026-09-15')
@@ -57,7 +57,7 @@ describe('KoreksiPembelianSheet', () => {
   it('defaults the supplier field to "Tidak ada" when the batch has none', () => {
     render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={{ ...batch, supplierId: undefined }} suppliers={suppliers} />)
 
-    expect(screen.getByLabelText(/supplier/i)).toHaveValue('')
+    expect(screen.getByLabelText(/supplier/i)).toHaveTextContent('Tidak ada')
   })
 
   it('prefills tanggal beli using local calendar day, not UTC slice, for early-morning timestamps', () => {

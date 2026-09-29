@@ -25,6 +25,16 @@ describe('BarangPicker', () => {
     expect(screen.queryByRole('option', { name: 'Semen Lama' })).toBeNull()
   })
 
+  it('shows the kategori of a barang as a hint', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', kategori: 'Semen', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    const user = userEvent.setup()
+    render(<BarangPicker value={null} onChange={vi.fn()} />)
+
+    await user.click(await screen.findByRole('combobox'))
+
+    expect(screen.getByRole('option', { name: 'Semen Tiga Roda' })).toHaveAccessibleDescription('Semen')
+  })
+
   it('creates a new barang via the + button, and selects it', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()

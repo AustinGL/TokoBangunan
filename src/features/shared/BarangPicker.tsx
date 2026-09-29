@@ -11,14 +11,16 @@ type Props = {
   value: string | null
   onChange: (barangId: string) => void
   error?: string
+  /** Marks the field required (a visible *). */
+  required?: boolean
   /** Forwarded to BarangSheet's own initialNama on a fresh quick-add. */
   initialNama?: string
 }
 
-export function BarangPicker({ value, onChange, error, initialNama }: Props) {
+export function BarangPicker({ value, onChange, error, required, initialNama }: Props) {
   const rows = useKatalog()
   const [creating, setCreating] = useState(false)
-  const options = (rows ?? []).filter(r => !r.diarsipkan && !r.virtual).map(r => ({ value: r.barangId, label: r.nama }))
+  const options = (rows ?? []).filter(r => !r.diarsipkan && !r.virtual).map(r => ({ value: r.barangId, label: r.nama, hint: r.kategori || undefined }))
 
   const handleCreate = async (values: BarangSheetValues) => {
     const id = await recordBarang(
@@ -33,13 +35,13 @@ export function BarangPicker({ value, onChange, error, initialNama }: Props) {
     <>
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <Combobox id="tambah-stok-barang" label="Nama barang" options={options} value={value} onChange={onChange} error={error} />
+          <Combobox id="tambah-stok-barang" label="Nama barang" options={options} value={value} onChange={onChange} error={error} required={required} />
         </div>
         <button
           type="button"
           onClick={() => setCreating(true)}
           aria-label="Tambah barang baru"
-          className="flex min-h-tap min-w-tap items-center justify-center rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)]"
+          className="flex min-h-tap min-w-tap items-center justify-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)]"
         >
           <Plus aria-hidden="true" size={18} />
         </button>

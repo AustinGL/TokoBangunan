@@ -34,6 +34,22 @@ describe('KamusBarang: creating a barang', () => {
 
     expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
   })
+
+  it('leads straight into the first ukuran of a new barang, instead of leaving a "0 ukuran" row to find', async () => {
+    const user = userEvent.setup()
+    render(<KamusBarang />)
+    await screen.findByText(/belum ada barang/i)
+
+    await user.click(screen.getByRole('button', { name: /barang baru/i }))
+    await user.type(screen.getByLabelText(/nama barang/i), 'Semen Tiga Roda')
+    await user.click(screen.getByRole('button', { name: /simpan/i }))
+
+    // The Ukuran baru sheet opens on its own, with its first field focused.
+    expect(await screen.findByRole('dialog', { name: 'Ukuran baru' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/^ukuran$/i)).toHaveFocus()
+    // And the row behind it is already expanded.
+    expect(screen.getByRole('button', { name: /semen tiga roda/i })).toHaveAttribute('aria-expanded', 'true')
+  })
 })
 
 describe('KamusBarang: expanding a barang and adding an ukuran', () => {
@@ -97,8 +113,9 @@ describe('KamusBarang: legacy (virtual) barang', () => {
     const panel = await screen.findByTestId('barang-panel-b1')
     await user.click(within(panel).getByRole('button', { name: /^ubah$/i }))
 
-    const moveSelect = await screen.findByLabelText(/pindahkan ke barang lain/i)
-    const optionLabels = within(moveSelect).getAllByRole('option').map(o => o.textContent)
+    await user.click(await screen.findByRole('combobox', { name: /pindahkan ke barang lain/i }))
+    const optionLabels = screen.getAllByRole('option').map(o => o.textContent)
+    expect(optionLabels).toContain('Semen Tiga Roda')
     expect(optionLabels).not.toContain('Paku 5cm')
   })
 })

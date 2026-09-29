@@ -8,23 +8,30 @@ import { recordUkuran } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { findNearDuplicate } from '../../domain/katalog'
+import { formatRupiah, rupiah } from '../../domain/money'
 
 type Props = {
   barangId: string | null
   value: string | null
   onChange: (itemId: string, meta?: { hargaEceran: number }) => void
   error?: string
+  /** Marks the field required (a visible *). */
+  required?: boolean
 }
 
 type PendingDuplicate = { values: UkuranSheetValues; existingLabel: string; existingValue: string }
 
-export function UkuranPicker({ barangId, value, onChange, error }: Props) {
+export function UkuranPicker({ barangId, value, onChange, error, required }: Props) {
   const rows = useKatalog()
   const [creating, setCreating] = useState(false)
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
   const barang = rows?.find(r => r.barangId === barangId)
-  const options = (barang?.ukuran ?? []).filter(u => !u.diarsipkan).map(u => ({ value: u.id, label: u.ukuran }))
+  const options = (barang?.ukuran ?? []).filter(u => !u.diarsipkan).map(u => ({
+    value: u.id,
+    label: u.ukuran,
+    hint: `Stok ${u.quantity} · ${formatRupiah(rupiah(u.hargaEceran))}`,
+  }))
 
   // Writes the ukuran and reports success to the caller - throws on
   // failure rather than swallowing it, so each caller below decides how to
@@ -82,7 +89,7 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
         <div className="flex-1">
           <Combobox
             id="tambah-stok-ukuran" label="Ukuran" options={options} value={value} onChange={onChange}
-            error={error} disabled={!barangId}
+            error={error} disabled={!barangId} required={required}
           />
         </div>
         <button
@@ -90,7 +97,7 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
           onClick={() => setCreating(true)}
           disabled={!barangId}
           aria-label="Tambah ukuran baru"
-          className="flex min-h-tap min-w-tap items-center justify-center rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] disabled:opacity-50"
+          className="flex min-h-tap min-w-tap items-center justify-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] disabled:opacity-50"
         >
           <Plus aria-hidden="true" size={18} />
         </button>
@@ -112,14 +119,14 @@ export function UkuranPicker({ barangId, value, onChange, error }: Props) {
               <button
                 type="button"
                 onClick={() => { onChange(pendingDuplicate.existingValue); setPendingDuplicate(null) }}
-                className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
+                className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
               >
                 Pakai yang ada
               </button>
               <button
                 type="button"
                 onClick={handleTetapBuatBaru}
-                className="min-h-tap rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
+                className="min-h-tap rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
               >
                 Tetap buat baru
               </button>

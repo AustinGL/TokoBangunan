@@ -16,7 +16,7 @@ export function SupplierPicker({ value, onChange, error }: Props) {
   const suppliers = useSuppliers()
   const { showToast } = useToast()
   const [quickAddError, setQuickAddError] = useState<string | null>(null)
-  const options = (suppliers ?? []).map(s => ({ value: s.id, label: s.nama }))
+  const options = (suppliers ?? []).map(s => ({ value: s.id, label: s.nama, hint: s.telepon || undefined }))
 
   const handleCreate = async (nama: string) => {
     setQuickAddError(null)

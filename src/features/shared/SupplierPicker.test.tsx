@@ -33,6 +33,16 @@ describe('SupplierPicker', () => {
     expect(screen.getByRole('option', { name: 'CV Maju' })).toBeInTheDocument()
   })
 
+  it('shows the phone number of a supplier as a hint', async () => {
+    await db.suppliersProj.put({ id: 's1', nama: 'CV Maju', telepon: '0812-555-0101', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    const user = userEvent.setup()
+    render(<ToastProvider><SupplierPicker value={null} onChange={vi.fn()} /></ToastProvider>)
+
+    await user.click(await screen.findByRole('combobox'))
+
+    expect(screen.getByRole('option', { name: 'CV Maju' })).toHaveAccessibleDescription('0812-555-0101')
+  })
+
   it('quick-adds a supplier via the in-list create row, selects it, sets perluDilengkapi, and toasts', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
