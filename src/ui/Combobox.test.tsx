@@ -206,3 +206,80 @@ describe('Combobox: create row', () => {
     expect(screen.queryByText(/tambah/i)).toBeNull()
   })
 })
+
+describe('Combobox: panel', () => {
+  it('reports the chosen option as aria-selected and the highlighted one through aria-activedescendant', async () => {
+    const user = userEvent.setup()
+    render(<Combobox id="test" label="Nama barang" options={options} value="b1" onChange={vi.fn()} />)
+
+    const input = screen.getByRole('combobox')
+    await user.click(input)
+    expect(screen.getByRole('option', { name: 'Semen Tiga Roda' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Semen Gudang Garam' })).toHaveAttribute('aria-selected', 'false')
+
+    await user.keyboard('{ArrowDown}')
+    const active = screen.getByRole('option', { name: 'Semen Tiga Roda' })
+    expect(input).toHaveAttribute('aria-activedescendant', active.id)
+  })
+
+  it('shows an option\'s hint as its description without changing its name', async () => {
+    const user = userEvent.setup()
+    render(
+      <Combobox
+        id="test" label="Ukuran" value={null} onChange={vi.fn()}
+        options={[{ value: 'u1', label: '50 kg', hint: 'Stok 40 · Rp 65.000' }]}
+      />,
+    )
+
+    await user.click(screen.getByRole('combobox'))
+
+    expect(screen.getByRole('option', { name: '50 kg' })).toHaveAccessibleDescription('Stok 40 · Rp 65.000')
+  })
+
+  it('emphasises the typed text inside matching labels', async () => {
+    const user = userEvent.setup()
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('combobox'))
+    await user.type(screen.getByRole('combobox'), 'gudang')
+
+    expect(screen.getByText('Gudang', { selector: 'strong' })).toBeInTheDocument()
+  })
+
+  it('toggles the list from the chevron without moving focus off the input', async () => {
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />)
+    const input = screen.getByRole('combobox')
+    const chevron = input.parentElement!.querySelector('button')!
+
+    fireEvent.mouseDown(chevron)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(input).toHaveFocus()
+
+    fireEvent.mouseDown(chevron)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('has no chevron and does not open when disabled', async () => {
+    const user = userEvent.setup()
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} disabled />)
+
+    const input = screen.getByRole('combobox')
+    expect(input.parentElement!.querySelector('button')).toBeNull()
+    await user.click(input)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('opens upward when the field sits at the bottom of the viewport', async () => {
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 700, bottom: 752, left: 0, right: 200, width: 200, height: 52, x: 0, y: 700, toJSON: () => ({}),
+    })
+    try {
+      const user = userEvent.setup()
+      render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />)
+      await user.click(screen.getByRole('combobox'))
+      expect(screen.getByRole('listbox')).toHaveClass('bottom-full')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
