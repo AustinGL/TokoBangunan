@@ -329,7 +329,9 @@ describe('CartPanel: batch chip', () => {
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
     await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
-    await user.type(screen.getByLabelText('Harga Semen Tiga Roda · 50 kg'), '63000')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg')
+    await user.clear(priceInput)
+    await user.type(priceInput, '63000')
     await user.tab()
 
     await user.click(await screen.findByRole('button', { name: /Ubah batch/ }))

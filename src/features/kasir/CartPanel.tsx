@@ -139,8 +139,6 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
         inputMode="numeric"
         autoFocus
         value={draft}
-        onFocus={e => e.target.select()}
-        onMouseDown={e => e.preventDefault()}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
