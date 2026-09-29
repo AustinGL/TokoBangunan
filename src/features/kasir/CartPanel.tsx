@@ -109,7 +109,7 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
         type="button"
         onClick={() => { setDraft(line.hargaSatuan === null ? '' : String(line.hargaSatuan)); setEditing(true) }}
         aria-label={`Ubah harga ${line.nama}`}
-        className="flex items-center gap-1 text-[12px] tabular-nums text-ink-faint"
+        className="flex min-h-tap min-w-tap items-center gap-1 text-[12px] tabular-nums text-ink-faint"
       >
         {line.hargaSatuan === null ? 'Isi harga' : `${formatRupiah(rupiah(line.hargaSatuan))} / ${line.unit}`}
         <Pencil aria-hidden="true" size={12} />

@@ -41,11 +41,13 @@ describe('CartPanel: line rendering and qty stepper', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
 
     expect(screen.getByText('Semen Tiga Roda · 50 kg', { selector: 'p' })).toBeInTheDocument()
-    // With qty 1, the line's price, its subtotal, and the footer's
-    // subtotal/total all render "Rp 65.000" - the same ambiguity the
-    // pre-existing suite already worked around with getAllByText for this
-    // exact single-line-qty-1 scenario, rather than a single getByText.
-    expect(screen.getAllByText(/Rp 65\.000/).length).toBeGreaterThanOrEqual(1)
+    // PriceEdit's closed-state button is the only place "/ 50 kg" is
+    // appended to the price, so this uniquely pins down the unit-price
+    // label - the same "Rp X / unit" pattern the pre-existing suite used
+    // for this exact assertion, rather than the bare amount, which (with
+    // qty 1 and no diskon) also matches the line subtotal and the footer's
+    // subtotal/total.
+    expect(screen.getByText(/Rp 65\.000 \/ 50 kg/)).toBeInTheDocument()
   })
 
   it('the qty input\'s accessible name stays unique per (item, batch) line', async () => {
@@ -134,6 +136,15 @@ describe('CartPanel: payment method, delivery, diskon and customer are real but 
 })
 
 describe('CartPanel: manual price editing', () => {
+  it('gives the price toggle button the 44px touch-target utility classes', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+
+    const toggle = screen.getByRole('button', { name: /Ubah harga Semen Tiga Roda/ })
+    expect(toggle).toHaveClass('min-h-tap', 'min-w-tap')
+  })
+
   it('shows the current price and lets it be edited inline, flagging "diubah" once it diverges', async () => {
     const user = userEvent.setup()
     render(<Harness />)
