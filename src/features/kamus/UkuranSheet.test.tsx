@@ -64,6 +64,20 @@ describe('UkuranSheet: submit failure', () => {
   })
 })
 
+describe('UkuranSheet: prefill from an unknown scan', () => {
+  it('prefills barcode from initialBarcode on a fresh create', () => {
+    render(
+      <UkuranSheet
+        open onClose={vi.fn()} onSubmit={vi.fn()}
+        barangOptions={[{ barangId: 'b1', nama: 'Semen Tiga Roda' }]} currentBarangId="b1"
+        initialBarcode="9990001112223"
+      />,
+    )
+
+    expect(screen.getByLabelText('Barcode')).toHaveValue('9990001112223')
+  })
+})
+
 describe('UkuranSheet: number validation', () => {
   it('rejects a negative harga eceran rather than silently storing it', async () => {
     const onSubmit = vi.fn()

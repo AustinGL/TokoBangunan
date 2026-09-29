@@ -9,10 +9,12 @@ type Props = {
   onSubmit: (values: BarangSheetValues) => void | Promise<void>
   /** Read-model shape (string | undefined), distinct from the onSubmit payload - see this file's own plan task. */
   initialValues?: { nama: string; kategori?: string; diarsipkan: boolean }
+  /** Prefills nama for a fresh create only (e.g. a typed search with no catalog match) - ignored once initialValues (an edit) is set. */
+  initialNama?: string
 }
 
-export function BarangSheet({ open, onClose, onSubmit, initialValues }: Props) {
-  const [nama, setNama] = useState(initialValues?.nama ?? '')
+export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNama }: Props) {
+  const [nama, setNama] = useState(initialValues?.nama ?? initialNama ?? '')
   const [kategori, setKategori] = useState(initialValues?.kategori ?? '')
   const [diarsipkan, setDiarsipkan] = useState(initialValues?.diarsipkan ?? false)
   const [error, setError] = useState<string | null>(null)

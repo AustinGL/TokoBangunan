@@ -3,81 +3,95 @@ import { SearchScanField } from './SearchScanField'
 import { ProductGrid } from './ProductGrid'
 import { CartPanel } from './CartPanel'
 import { useCart } from './useCart'
-import { useProductCatalog, filterProductRows, type ProductRow } from './useProductCatalog'
-import { ItemForm, type ItemFormValues } from '../stok/ItemForm'
-import { recordItem } from '../../data/commands'
+import { useKatalog, type UkuranRow } from '../shared/useKatalog'
+import { filterBarangRows } from './filterBarangRows'
+import { BarangPicker } from '../shared/BarangPicker'
+import { UkuranSheet, type UkuranSheetValues } from '../kamus/UkuranSheet'
+import { db } from '../../data/db'
+import { recordUkuran } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
+import { toBase } from '../../domain/quantity'
+import { legacyRemainder, pickDefaultBatch } from '../../domain/batchPick'
 
 /**
- * Screen-assembly root for /kasir, the same role ItemList.tsx plays for
- * /stok (not individually named in the plan's file-structure listing, but
- * something has to compose Task 6a's pieces into one screen).
+ * Screen-assembly root for /kasir. E1's rework: adding an ukuran now
+ * resolves its default purchase batch (or the legacy pool) with one
+ * snapshot Dexie read at click-time - not a hook, since the ukuran being
+ * added varies per click and React hooks cannot be called conditionally -
+ * the same "read, then decide, then write" shape commands.ts's own
+ * recordStockPurchase/correctBatch already use.
  *
- * MASTER.md section 7, verbatim: "Main split: left flex: 1.9 1 0 (charts and
- * tables), right flex: 1 1 0 (side panels), gap --space-5, align-items:
- * stretch. On the POS screen the right panel is a full-height card." Below
- * 1024px the right panel drops below the main column, the project's usual
- * responsive breakpoint (no prior two-column split exists elsewhere in this
- * codebase to match against; lg: is Tailwind's own 1024px breakpoint, chosen
- * to line up with that number exactly).
- *
- * The field-name bridge Task 6a's reviewer flagged: ProductGrid/ProductCard
- * call onAdd(item: ProductRow) keyed as item.itemId; useCart.addItem expects
- * a CartItemInput keyed as id. handleAddToCart below is that adapter, kept
- * here rather than changing either Task 6a file's own type shape.
+ * Inline creation from an unknown scan or a typed name with no match no
+ * longer uses the flat ItemForm (which always created a brand-new,
+ * barang-less item): it reuses BarangPicker (pick an EXISTING barang, or
+ * quick-create one) followed by UkuranSheet (always creating a fresh
+ * ukuran under whichever barang was picked), so a genuine new size of an
+ * already-known product is never filed as a duplicate barang.
  */
 
 type InlineCreate = { source: 'barcode' | 'nama'; value: string }
 
 export function Kasir() {
   const cart = useCart()
-  const rows = useProductCatalog()
+  const rows = useKatalog()
   const [searchValue, setSearchValue] = useState('')
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null)
-  // Bumped to force SearchScanField to remount (and so autoFocus fires
-  // again) after "Simpan & buat baru": the spec calls that button out as
-  // existing "for batch runs", so the owner should land back in the search
-  // field ready to start the next sale without reaching for the mouse.
+  const [inlineBarangId, setInlineBarangId] = useState<string | null>(null)
   const [searchFieldKey, setSearchFieldKey] = useState(0)
 
   const trimmedSearch = searchValue.trim()
-  // Matching strictness for "does this typed search match a known item" is
-  // this task's judgment call (flagged in the brief): reuses
-  // filterProductRows, the same case-insensitive substring match over
-  // nama/barcode that ProductGrid itself uses to decide its own "Tidak ada
-  // barang yang cocok" empty state, with kategori left null so an active
-  // category pill in ProductGrid (which this component cannot see) never
-  // produces a false "add new" offer for an item that actually exists.
   const searchHasNoMatches =
-    rows !== undefined && trimmedSearch !== '' && filterProductRows(rows, trimmedSearch, null).length === 0
+    rows !== undefined && trimmedSearch !== '' && filterBarangRows(rows, trimmedSearch, null).length === 0
 
-  const handleAddToCart = (item: ProductRow) => {
-    cart.addItem({ id: item.itemId, nama: item.nama, baseUnit: item.baseUnit, hargaEceran: item.hargaEceran })
-    // Clears whatever was typed to find this item, so a scan right after a
-    // click-add starts its keystroke-timing run from an empty field rather
-    // than one still holding earlier typed text (SearchScanField's own fix
-    // handles the timing side of that; this clears the value side).
+  const resolveDefaultBatch = async (ukuran: UkuranRow) => {
+    const [batches, stockRow] = await Promise.all([
+      db.batchesProj.where('itemId').equals(ukuran.id).toArray(),
+      db.stokProj.get(ukuran.id),
+    ])
+    const legacyAvailable = legacyRemainder(stockRow?.quantity ?? 0, batches, ukuran.id)
+    const otherLines = cart.lines
+      .filter(l => l.itemId === ukuran.id)
+      .map(l => ({ itemId: l.itemId, batchId: l.batchId, qty: l.qty }))
+    const addQty = toBase(1, { unit: ukuran.ukuran, factor: 1 })
+    const pick = pickDefaultBatch(ukuran.id, addQty, legacyAvailable, batches, otherLines)
+    const hargaNormal = pick.batchId
+      ? (batches.find(b => b.batchId === pick.batchId)?.hargaJual ?? ukuran.hargaEceran)
+      : ukuran.hargaEceran
+    return { batchId: pick.batchId, hargaNormal }
+  }
+
+  const handleAddToCart = async (ukuran: UkuranRow, barangNama: string) => {
+    const { batchId, hargaNormal } = await resolveDefaultBatch(ukuran)
+    cart.addItem({ id: ukuran.id, nama: `${barangNama} · ${ukuran.ukuran}`, baseUnit: ukuran.ukuran }, batchId, hargaNormal)
     setSearchValue('')
   }
 
   const handleScan = (value: string) => {
-    // Flow spec section 6.1: "Unknown barcode offers 'Tambah barang baru'
-    // inline, without leaving the cart." A scan is decisive (one value, no
-    // further typing to wait out), so a miss opens the inline-creation
-    // panel immediately rather than requiring an extra click.
-    const match = rows?.find(row => row.barcode === value)
+    const match = rows
+      ?.flatMap(r => r.ukuran.map(u => ({ barang: r, ukuran: u })))
+      .find(({ ukuran }) => ukuran.barcode === value)
     if (match) {
-      handleAddToCart(match)
+      void handleAddToCart(match.ukuran, match.barang.nama)
       setInlineCreate(null)
     } else {
       setInlineCreate({ source: 'barcode', value })
+      setInlineBarangId(null)
     }
   }
 
-  const handleInlineCreateSubmit = async (values: ItemFormValues) => {
-    await recordItem(values, { clock: systemClock, deviceId: getDeviceId() })
+  const handleUkuranCreated = async (values: UkuranSheetValues) => {
+    if (!inlineBarangId) return
+    const id = await recordUkuran(
+      { barangId: inlineBarangId, ukuran: values.ukuran, hargaEceran: values.hargaEceran, stokMinimum: values.stokMinimum, barcode: values.barcode ?? undefined },
+      { clock: systemClock, deviceId: getDeviceId() },
+    )
+    const barangNama = rows?.find(r => r.barangId === inlineBarangId)?.nama ?? ''
+    // A never-purchased ukuran has no batch yet: the legacy pool, priced at
+    // the default just typed into UkuranSheet.
+    cart.addItem({ id, nama: `${barangNama} · ${values.ukuran}`, baseUnit: values.ukuran }, undefined, values.hargaEceran)
     setInlineCreate(null)
+    setInlineBarangId(null)
     setSearchValue('')
   }
 
@@ -86,24 +100,13 @@ export function Kasir() {
     setSearchFieldKey(key => key + 1)
   }
 
-  const inlineCreateInitialValues =
-    inlineCreate === null
-      ? undefined
-      : inlineCreate.source === 'barcode'
-        ? { barcode: inlineCreate.value }
-        : { nama: inlineCreate.value }
+  const inlineBarangNama = rows?.find(r => r.barangId === inlineBarangId)?.nama ?? ''
 
   return (
     <main className="flex flex-col gap-5 p-4 md:p-8">
       <h1 className="text-[17px] font-bold text-ink">Kasir</h1>
 
-      <SearchScanField
-        key={searchFieldKey}
-        value={searchValue}
-        onChange={setSearchValue}
-        onScan={handleScan}
-        autoFocus
-      />
+      <SearchScanField key={searchFieldKey} value={searchValue} onChange={setSearchValue} onScan={handleScan} autoFocus />
 
       {inlineCreate && (
         <section className="rounded-card border border-border bg-surface p-6 shadow-card">
@@ -111,17 +114,34 @@ export function Kasir() {
             <h2 className="text-[14px] font-bold text-ink">Tambah barang baru</h2>
             <button
               type="button"
-              onClick={() => setInlineCreate(null)}
+              onClick={() => { setInlineCreate(null); setInlineBarangId(null) }}
               className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
             >
               Tutup
             </button>
           </div>
-          <ItemForm
-            key={`${inlineCreate.source}:${inlineCreate.value}`}
-            initialValues={inlineCreateInitialValues}
-            onSubmit={handleInlineCreateSubmit}
+          {inlineCreate.source === 'barcode' && (
+            <p className="mb-3 text-[13px] text-ink-muted">
+              Kode &quot;{inlineCreate.value}&quot; belum dikenal. Pilih barang yang sudah ada atau buat baru, lalu isi ukurannya.
+            </p>
+          )}
+          <BarangPicker
+            value={inlineBarangId}
+            onChange={setInlineBarangId}
+            initialNama={inlineCreate.source === 'nama' ? inlineCreate.value : undefined}
           />
+          {inlineBarangId && (
+            <div className="mt-4">
+              <UkuranSheet
+                open
+                onClose={() => setInlineBarangId(null)}
+                onSubmit={handleUkuranCreated}
+                barangOptions={[{ barangId: inlineBarangId, nama: inlineBarangNama }]}
+                currentBarangId={inlineBarangId}
+                initialBarcode={inlineCreate.source === 'barcode' ? inlineCreate.value : undefined}
+              />
+            </div>
+          )}
         </section>
       )}
 

@@ -23,13 +23,15 @@ type Props = {
   currentBarangId: string
   /** Read-model shape (barcode: string | undefined), distinct from the onSubmit payload - see this file's own plan task. */
   initialValues?: { ukuran: string; hargaEceran: number; stokMinimum: number; barcode?: string; diarsipkan: boolean }
+  /** Prefills barcode for a fresh create only (e.g. an unknown scan) - ignored once initialValues (an edit) is set. */
+  initialBarcode?: string
 }
 
-export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBarangId, initialValues }: Props) {
+export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBarangId, initialValues, initialBarcode }: Props) {
   const [ukuran, setUkuran] = useState(initialValues?.ukuran ?? '')
   const [hargaEceran, setHargaEceran] = useState(initialValues ? String(initialValues.hargaEceran) : '')
   const [stokMinimum, setStokMinimum] = useState(initialValues ? String(initialValues.stokMinimum) : '')
-  const [barcode, setBarcode] = useState(initialValues?.barcode ?? '')
+  const [barcode, setBarcode] = useState(initialValues?.barcode ?? initialBarcode ?? '')
   const [barangId, setBarangId] = useState(currentBarangId)
   const [diarsipkan, setDiarsipkan] = useState(initialValues?.diarsipkan ?? false)
   const [error, setError] = useState<string | null>(null)

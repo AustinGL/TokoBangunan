@@ -11,9 +11,11 @@ type Props = {
   value: string | null
   onChange: (barangId: string) => void
   error?: string
+  /** Forwarded to BarangSheet's own initialNama on a fresh quick-add. */
+  initialNama?: string
 }
 
-export function BarangPicker({ value, onChange, error }: Props) {
+export function BarangPicker({ value, onChange, error, initialNama }: Props) {
   const rows = useKatalog()
   const [creating, setCreating] = useState(false)
   const options = (rows ?? []).filter(r => !r.diarsipkan && !r.virtual).map(r => ({ value: r.barangId, label: r.nama }))
@@ -42,7 +44,7 @@ export function BarangPicker({ value, onChange, error }: Props) {
           <Plus aria-hidden="true" size={18} />
         </button>
       </div>
-      {creating && <BarangSheet open onClose={() => setCreating(false)} onSubmit={handleCreate} />}
+      {creating && <BarangSheet open onClose={() => setCreating(false)} onSubmit={handleCreate} initialNama={initialNama} />}
     </>
   )
 }

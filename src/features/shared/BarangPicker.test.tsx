@@ -63,4 +63,17 @@ describe('BarangPicker', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(onFormSubmit).not.toHaveBeenCalled()
   })
+
+  it('forwards initialNama to the quick-add BarangSheet', async () => {
+    const user = userEvent.setup()
+    render(<BarangPicker value={null} onChange={vi.fn()} initialNama="Paku Beton" />)
+
+    await user.click(screen.getByRole('button', { name: 'Tambah barang baru' }))
+
+    // Scoped to the dialog: the picker's own Combobox is also labeled "Nama
+    // barang" and stays mounted underneath the open BarangSheet (see this
+    // file's other quick-add tests for the same convention).
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByLabelText('Nama barang')).toHaveValue('Paku Beton')
+  })
 })

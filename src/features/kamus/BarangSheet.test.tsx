@@ -64,6 +64,14 @@ describe('BarangSheet: edit', () => {
   })
 })
 
+describe('BarangSheet: prefill from a typed search', () => {
+  it('prefills nama from initialNama on a fresh create', () => {
+    render(<BarangSheet open onClose={vi.fn()} onSubmit={vi.fn()} initialNama="Paku Beton" />)
+
+    expect(screen.getByLabelText('Nama barang')).toHaveValue('Paku Beton')
+  })
+})
+
 describe('BarangSheet: submit failure', () => {
   it('shows a visible error instead of failing silently when onSubmit rejects', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('IndexedDB quota exceeded'))
