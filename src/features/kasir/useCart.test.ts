@@ -152,6 +152,16 @@ describe('useCart: changing a line\'s batch', () => {
     expect(result.current.lines[0]).toMatchObject({ batchId: 'batch-2', hargaSatuan: 60000, hargaNormal: 67000 })
   })
 
+  it('changeBatch keeps an explicit 0 typed onto a never-priced line rather than re-pricing it to the new batch default', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, undefined, 0))
+    act(() => result.current.setHargaSatuan('semen', undefined, 0))
+
+    act(() => result.current.changeBatch('semen', undefined, 'batch-1', 65000))
+
+    expect(result.current.lines[0]).toMatchObject({ batchId: 'batch-1', hargaSatuan: 0, hargaNormal: 65000, subtotal: 0 })
+  })
+
   it('changeBatch onto a batch that already has its own line for this item merges the quantities', () => {
     const { result } = renderHook(() => useCart())
     act(() => result.current.addItem(semen, 'batch-1', 65000))
@@ -196,6 +206,174 @@ describe('useCart: one-tap split across batches', () => {
 
     expect(result.current.lines).toHaveLength(1)
     expect(result.current.lines[0]).toMatchObject({ batchId: 'batch-2', qtyWhole: 11 })
+  })
+})
+
+describe('useCart: applySplit conserves quantity (nothing a plan leaves uncovered ever vanishes)', () => {
+  const totalQtyWhole = (lines: { itemId: string; qtyWhole: number }[], itemId: string) =>
+    lines.filter(l => l.itemId === itemId).reduce((sum, l) => sum + l.qtyWhole, 0)
+
+  it('single-batch over-sell: a plan covering only what the one batch has left keeps the shortfall on the original batch', () => {
+    // Batch A has sisa 3, the line on A has qty 5, and there is no other
+    // batch: planSplit can only ever return [A:3].
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-a', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-a', 5))
+
+    act(() => result.current.applySplit('semen', 'batch-a', [{ batchId: 'batch-a', qtyWhole: 3, hargaNormal: 65000 }]))
+
+    expect(totalQtyWhole(result.current.lines, 'semen')).toBe(5)
+    expect(result.current.lines).toHaveLength(1)
+    expect(result.current.lines[0]).toMatchObject({ batchId: 'batch-a', qtyWhole: 5, qty: 5000, hargaSatuan: 65000, subtotal: 325000 })
+  })
+
+  it('single-batch over-sell from the legacy pool: the batch takes what it has, the rest stays a (warned) over-sell on Stok lama', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, undefined, 65000))
+    act(() => result.current.setQtyWhole('semen', undefined, 5))
+
+    act(() => result.current.applySplit('semen', undefined, [{ batchId: 'batch-a', qtyWhole: 3, hargaNormal: 67000 }]))
+
+    expect(totalQtyWhole(result.current.lines, 'semen')).toBe(5)
+    expect(result.current.lines.find(l => l.batchId === undefined)).toMatchObject({ qtyWhole: 2, hargaSatuan: 65000, hargaNormal: 65000 })
+    expect(result.current.lines.find(l => l.batchId === 'batch-a')).toMatchObject({ qtyWhole: 3, hargaSatuan: 67000, hargaNormal: 67000 })
+  })
+
+  it('legacy pool plus one batch: a plan that ignores the legacy pool still loses nothing', () => {
+    // Legacy pool has 2 left, batch A has 1 left, the line (on A) has qty
+    // 5: planSplit never considers the legacy pool, so its plan is [A:1].
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-a', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-a', 5))
+
+    act(() => result.current.applySplit('semen', 'batch-a', [{ batchId: 'batch-a', qtyWhole: 1, hargaNormal: 65000 }]))
+
+    expect(totalQtyWhole(result.current.lines, 'semen')).toBe(5)
+    expect(result.current.lines).toHaveLength(1)
+    expect(result.current.lines[0]).toMatchObject({ batchId: 'batch-a', qtyWhole: 5 })
+  })
+
+  it('keeps the source line in its original position when a remainder stays on it', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-a', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-a', 5))
+    act(() => result.current.addItem(pasir, undefined, 180000))
+
+    act(() => result.current.applySplit('semen', 'batch-a', [{ batchId: 'batch-b', qtyWhole: 2, hargaNormal: 67000 }]))
+
+    expect(result.current.lines.map(l => `${l.itemId}:${l.batchId ?? 'legacy'}:${l.qtyWhole}`))
+      .toEqual(['semen:batch-a:3', 'pasir:legacy:1', 'semen:batch-b:2'])
+  })
+
+  it('rejects (leaves the cart untouched) a plan that would allocate MORE than the source line holds', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-a', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-a', 5))
+    const before = result.current.lines
+
+    act(() => result.current.applySplit('semen', 'batch-a', [{ batchId: 'batch-b', qtyWhole: 6, hargaNormal: 67000 }]))
+
+    expect(result.current.lines).toBe(before)
+  })
+})
+
+describe('useCart: applySplit carries a manually-set price onto every resulting line', () => {
+  it('a negotiated manual price survives the split on every line, each keeping its own batch default as hargaNormal', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-1', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 10))
+    act(() => result.current.setHargaSatuan('semen', 'batch-1', 60000))
+
+    act(() => result.current.applySplit('semen', 'batch-1', [
+      { batchId: 'batch-2', qtyWhole: 4, hargaNormal: 67000 },
+      { batchId: 'batch-3', qtyWhole: 3, hargaNormal: 69000 },
+    ]))
+
+    expect(result.current.lines).toHaveLength(3)
+    expect(result.current.lines.find(l => l.batchId === 'batch-1')).toMatchObject({ qtyWhole: 3, hargaSatuan: 60000, hargaNormal: 65000, subtotal: 180000 })
+    expect(result.current.lines.find(l => l.batchId === 'batch-2')).toMatchObject({ qtyWhole: 4, hargaSatuan: 60000, hargaNormal: 67000, subtotal: 240000 })
+    expect(result.current.lines.find(l => l.batchId === 'batch-3')).toMatchObject({ qtyWhole: 3, hargaSatuan: 60000, hargaNormal: 69000, subtotal: 180000 })
+    expect(result.current.subtotal).toBe(600000)
+  })
+
+  it('an explicit bonus price of 0 stays 0 on every split line, never reset to a batch default', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-1', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 5))
+    act(() => result.current.setHargaSatuan('semen', 'batch-1', 0))
+
+    act(() => result.current.applySplit('semen', 'batch-1', [{ batchId: 'batch-2', qtyWhole: 2, hargaNormal: 67000 }]))
+
+    expect(result.current.lines).toHaveLength(2)
+    for (const line of result.current.lines) {
+      expect(line).toMatchObject({ hargaSatuan: 0, subtotal: 0 })
+    }
+    expect(result.current.subtotal).toBe(0)
+  })
+
+  it('an explicit 0 typed onto a never-priced line (hargaNormal 0) is also a deliberate price and survives the split', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, undefined, 0)) // hargaSatuan null ("Isi harga")
+    act(() => result.current.setQtyWhole('semen', undefined, 5))
+    act(() => result.current.setHargaSatuan('semen', undefined, 0)) // owner types 0: a bonus item
+
+    act(() => result.current.applySplit('semen', undefined, [{ batchId: 'batch-1', qtyWhole: 5, hargaNormal: 65000 }]))
+
+    expect(result.current.lines).toHaveLength(1)
+    expect(result.current.lines[0]).toMatchObject({ batchId: 'batch-1', qtyWhole: 5, hargaSatuan: 0, hargaNormal: 65000, subtotal: 0 })
+  })
+
+  it('refuses (cart untouched) a split that would merge manually-priced units into a destination line carrying a different price', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-1', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 5))
+    act(() => result.current.setHargaSatuan('semen', 'batch-1', 60000))
+    act(() => result.current.addItem(semen, 'batch-2', 67000)) // separate line, default price
+    const before = result.current.lines
+
+    act(() => result.current.applySplit('semen', 'batch-1', [{ batchId: 'batch-2', qtyWhole: 2, hargaNormal: 67000 }]))
+
+    expect(result.current.lines).toBe(before)
+  })
+
+  it('refuses a split that would merge paid units into a bonus (price 0) line, which would make them free', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-1', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 5))
+    act(() => result.current.addItem(semen, 'batch-2', 67000))
+    act(() => result.current.setHargaSatuan('semen', 'batch-2', 0)) // one free bonus unit
+    const before = result.current.lines
+
+    act(() => result.current.applySplit('semen', 'batch-1', [{ batchId: 'batch-2', qtyWhole: 2, hargaNormal: 67000 }]))
+
+    expect(result.current.lines).toBe(before)
+    expect(result.current.subtotal).toBe(325000)
+  })
+
+  it('still merges into a destination line that already carries the same manual price (e.g. a repeated split)', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-1', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 5))
+    act(() => result.current.setHargaSatuan('semen', 'batch-1', 60000))
+    act(() => result.current.applySplit('semen', 'batch-1', [{ batchId: 'batch-2', qtyWhole: 2, hargaNormal: 67000 }]))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 6))
+
+    act(() => result.current.applySplit('semen', 'batch-1', [{ batchId: 'batch-2', qtyWhole: 3, hargaNormal: 67000 }]))
+
+    expect(result.current.lines).toHaveLength(2)
+    expect(result.current.lines.find(l => l.batchId === 'batch-1')).toMatchObject({ qtyWhole: 3, hargaSatuan: 60000 })
+    expect(result.current.lines.find(l => l.batchId === 'batch-2')).toMatchObject({ qtyWhole: 5, hargaSatuan: 60000, hargaNormal: 67000 })
+  })
+
+  it('an unedited price still re-prices each split line to its own batch default', () => {
+    const { result } = renderHook(() => useCart())
+    act(() => result.current.addItem(semen, 'batch-1', 65000))
+    act(() => result.current.setQtyWhole('semen', 'batch-1', 5))
+
+    act(() => result.current.applySplit('semen', 'batch-1', [{ batchId: 'batch-2', qtyWhole: 2, hargaNormal: 67000 }]))
+
+    expect(result.current.lines.find(l => l.batchId === 'batch-1')).toMatchObject({ qtyWhole: 3, hargaSatuan: 65000, hargaNormal: 65000 })
+    expect(result.current.lines.find(l => l.batchId === 'batch-2')).toMatchObject({ qtyWhole: 2, hargaSatuan: 67000, hargaNormal: 67000 })
   })
 })
 

@@ -11,9 +11,10 @@ import { systemClock } from '../../domain/clock'
 import { useBatches } from '../shared/useBatches'
 import { useSuppliers } from '../shared/useSuppliers'
 import { formatTanggal } from '../shared/formatTanggal'
-import { legacyRemainder, availableForLine, planSplit, type CartLineLike } from '../../domain/batchPick'
+import { legacyRemainder, availableForLine, planSplit } from '../../domain/batchPick'
 import type { Supplier } from '../../domain/projections/suppliers'
-import type { CartLine, UseCartResult, SplitLineInput } from './useCart'
+import type { Batch } from '../../domain/projections/batches'
+import { movedHargaSatuan, type CartLine, type UseCartResult, type SplitLineInput } from './useCart'
 
 /**
  * MASTER.md section 8's Cart panel spec, narrowed by Decisions 2/3/4/6:
@@ -109,17 +110,24 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
   const diubah = line.hargaSatuan !== null && line.hargaSatuan !== line.hargaNormal
 
   if (!editing) {
+    // No aria-label: it would replace the visible price / "Isi harga" /
+    // "(diubah, ...)" text in the accessible name entirely (WCAG 2.5.3,
+    // label in name). A visually-hidden prefix instead adds the line's
+    // context - unique per (item, batch) line, the same lineKeySuffix shape
+    // QtyStepper's own label uses - ahead of the visible content, so
+    // assistive tech hears both.
     return (
       <button
         type="button"
         onClick={() => { setDraft(line.hargaSatuan === null ? '' : String(line.hargaSatuan)); setEditing(true) }}
-        aria-label={`Ubah harga ${line.nama}`}
         className="flex min-h-tap min-w-tap items-center gap-1 text-[12px] tabular-nums text-ink-faint"
       >
+        {/* The separating spaces sit OUTSIDE the spans on purpose: accessible-name computation trims each element's own text, and a whitespace-only text node renders nothing inside this flex button. */}
+        <span className="sr-only">Ubah harga {line.nama} ({lineKeySuffix(line)}):</span>{' '}
         {line.hargaSatuan === null ? 'Isi harga' : `${formatRupiah(rupiah(line.hargaSatuan))} / ${line.unit}`}
         <Pencil aria-hidden="true" size={12} />
         {diubah && (
-          <span className="text-warning">(diubah, normal {formatRupiah(rupiah(line.hargaNormal))})</span>
+          <>{' '}<span className="text-warning">(diubah, normal {formatRupiah(rupiah(line.hargaNormal))})</span></>
         )}
       </button>
     )
@@ -133,7 +141,7 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
 
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor={inputId} className="sr-only">Harga {line.nama}</label>
+      <label htmlFor={inputId} className="sr-only">Harga {line.nama} ({lineKeySuffix(line)})</label>
       <input
         id={inputId}
         inputMode="numeric"
@@ -152,7 +160,8 @@ function BatchChip({
   line, otherLines, itemHargaEceran, suppliers, onChangeBatch, onSplit,
 }: {
   line: CartLine
-  otherLines: CartLineLike[]
+  /** Every other line in the cart (full CartLines, not just CartLineLike: the split offer needs their prices too). */
+  otherLines: CartLine[]
   itemHargaEceran: number
   suppliers: Supplier[] | undefined
   onChangeBatch: (toBatchId: string | undefined, hargaNormal: number) => void
@@ -184,13 +193,42 @@ function BatchChip({
       : 'Batch tidak ditemukan'
 
   const available = line.batchId === undefined ? legacyAvailable : (currentBatch ? availableForLine(currentBatch, otherLines) : 0)
-  const shortfall = line.qty - available
-  const overSisa = shortfall > 0
+  const overSisa = line.qty > available
+
+  // The split keeps on the line's current source (its batch, or the legacy
+  // pool) whatever that source can still cover, and plans only the rest
+  // across the OTHER batches, oldest first - exactly what the "Ambil N ...
+  // dari batch berikutnya?" copy promises, and never overriding a batch the
+  // owner deliberately switched to. Anything even the other batches cannot
+  // cover stays on the current source as a warned over-sell (applySplit
+  // keeps every unmoved unit there), so the split never loses quantity.
+  //
+  // A batch that already has its own separate line for this item is only a
+  // split target when merging into it keeps the moved units' price (the
+  // manual price carried over, or that batch's own default) - applySplit
+  // refuses any merge that would silently re-price them, so offering one
+  // would be a button that does nothing.
+  const priceSafeTarget = (b: Batch) => {
+    const existing = otherLines.find(l => l.itemId === line.itemId && l.batchId === b.batchId)
+    return existing === undefined || existing.hargaSatuan === movedHargaSatuan(line, b.hargaJual)
+  }
+  const splitPlan = overSisa
+    ? planSplit(
+        line.itemId,
+        line.qty - Math.max(0, available),
+        batches.filter(b => b.batchId !== line.batchId && priceSafeTarget(b)),
+        otherLines,
+      )
+    : []
+  const movableQty = splitPlan.reduce((sum, p) => sum + p.qty, 0)
+  // Only offer a split that would actually move something: with no other
+  // batch left to draw from (a legacy-only item sold past its legacy stock,
+  // a never-purchased ukuran), the plain stock warning below is all there is.
+  const canSplit = movableQty > 0
 
   const handleSplit = () => {
-    const plan = planSplit(line.itemId, line.qty, batches, otherLines)
-    if (plan.length === 0) return
-    const splits: SplitLineInput[] = plan.map(p => ({
+    if (!canSplit) return
+    const splits: SplitLineInput[] = splitPlan.map(p => ({
       batchId: p.batchId,
       qtyWhole: wholeOf(p.qty),
       hargaNormal: batches.find(b => b.batchId === p.batchId)?.hargaJual ?? itemHargaEceran,
@@ -211,7 +249,7 @@ function BatchChip({
         <ChevronDown aria-hidden="true" size={14} />
       </button>
 
-      {overSisa && (
+      {canSplit && (
         // Plain, non-alert markup - same convention stockWarningFor's own
         // "quantity exceeds what's available" warning already uses just
         // below (a <p>, no role="alert"): this is a proactive nudge, not a
@@ -219,7 +257,7 @@ function BatchChip({
         // make ambiguous) CartPanel's own save-error alert whenever both are
         // visible at once.
         <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-warning">
-          <span>Ambil {wholeOf(shortfall)} {line.unit} dari batch berikutnya?</span>
+          <span>Ambil {wholeOf(movableQty)} {line.unit} dari batch berikutnya?</span>
           <button
             type="button" onClick={handleSplit}
             className="min-h-tap rounded-tile border border-warning px-2 text-[12px] font-semibold text-warning"
@@ -269,9 +307,7 @@ function CartLineRow({
   stockRows: { itemId: string; quantity: number }[] | undefined
 }) {
   const warning = stockWarningFor(line, stockRows)
-  const otherLines: CartLineLike[] = allLines
-    .filter(l => l !== line)
-    .map(l => ({ itemId: l.itemId, batchId: l.batchId, qty: l.qty }))
+  const otherLines = allLines.filter(l => l !== line)
 
   return (
     <li className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0">

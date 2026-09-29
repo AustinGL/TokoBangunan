@@ -24,6 +24,8 @@ function Harness({ onSaveAndNew }: { onSaveAndNew?: () => void }) {
       <button onClick={() => cart.addItem(semen, 'batch-1', 65000)}>Add semen</button>
       <button onClick={() => cart.addItem(pasir, undefined, 180000)}>Add pasir</button>
       <button onClick={() => cart.addItem(semen, undefined, 0)}>Add unpriced semen</button>
+      <button onClick={() => cart.addItem(semen, undefined, 65000)}>Add legacy semen</button>
+      <button onClick={() => cart.addItem(semen, 'batch-2', 67000)}>Add semen batch-2</button>
       <CartPanel cart={cart} onSaveAndNew={onSaveAndNew} />
     </div>
   )
@@ -152,7 +154,7 @@ describe('CartPanel: manual price editing', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
 
     await user.click(screen.getByRole('button', { name: /Ubah harga Semen Tiga Roda/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
     await user.clear(priceInput)
     await user.type(priceInput, '60000')
     await user.tab()
@@ -171,12 +173,45 @@ describe('CartPanel: manual price editing', () => {
     expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
-    await user.type(screen.getByLabelText('Harga Semen Tiga Roda · 50 kg'), '0')
+    await user.type(screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (Stok lama)'), '0')
     await user.tab()
 
     // Explicitly typing 0 is a real price (a bonus item) - it unblocks save.
     expect(screen.queryByText(/Isi harga untuk/)).toBeNull()
     expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeEnabled()
+  })
+
+  it('the price-edit control\'s accessible name stays unique per (item, batch) line, and still includes the visible price', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' })) // batch-1
+    await user.click(screen.getByRole('button', { name: 'Add legacy semen' })) // legacy pool, same itemId
+
+    const batchToggle = screen.getByRole('button', { name: /^Ubah harga Semen Tiga Roda · 50 kg \(batch batch-1\)/ })
+    const legacyToggle = screen.getByRole('button', { name: /^Ubah harga Semen Tiga Roda · 50 kg \(Stok lama\)/ })
+    expect(batchToggle).not.toBe(legacyToggle)
+    // Label in name (WCAG 2.5.3): the visible price is part of the name,
+    // not thrown away by an aria-label.
+    expect(batchToggle).toHaveAccessibleName('Ubah harga Semen Tiga Roda · 50 kg (batch batch-1): Rp 65.000 / 50 kg')
+
+    await user.click(legacyToggle)
+    expect(screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (Stok lama)')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')).toBeNull()
+  })
+
+  it('the "(diubah, normal ...)" flag is part of the price-edit control\'s accessible name', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.clear(priceInput)
+    await user.type(priceInput, '60000')
+    await user.tab()
+
+    expect(await screen.findByRole('button', { name: /Ubah harga/ })).toHaveAccessibleName(
+      'Ubah harga Semen Tiga Roda · 50 kg (batch batch-1): Rp 60.000 / 50 kg (diubah, normal Rp 65.000)',
+    )
   })
 })
 
@@ -269,6 +304,24 @@ describe('CartPanel: saving a sale', () => {
     expect(events.filter(e => e.type === 'StockAdjusted')).toHaveLength(2)
   })
 
+  it('two lines for the SAME item on DIFFERENT batches save as two separate RecordSaleLines, never merged into one', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' })) // batch-1
+    await user.click(screen.getByRole('button', { name: 'Add legacy semen' })) // legacy pool, same itemId
+
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    expect(await screen.findByText('Transaksi tersimpan')).toBeInTheDocument()
+    const [input] = vi.mocked(recordSale).mock.calls[0]
+    expect(input.lines).toHaveLength(2)
+    expect(input.lines.filter(l => l.itemId === 'semen')).toHaveLength(2)
+    expect(input.lines.map(l => l.batchId)).toEqual(['batch-1', undefined])
+    const events = await db.events.toArray()
+    expect(events.filter(e => e.type === 'SaleRecorded')).toHaveLength(1)
+    expect(events.filter(e => e.type === 'StockAdjusted')).toHaveLength(2)
+  })
+
   it('surfaces a visible error and does not clear the cart when recordSale rejects', async () => {
     vi.mocked(recordSale).mockRejectedValueOnce(new Error('write failed'))
     const user = userEvent.setup()
@@ -329,7 +382,7 @@ describe('CartPanel: batch chip', () => {
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
     await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
     await user.clear(priceInput)
     await user.type(priceInput, '63000')
     await user.tab()
@@ -367,5 +420,134 @@ describe('CartPanel: batch chip', () => {
     await user.click(screen.getByRole('button', { name: 'Bagi otomatis' }))
 
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toHaveValue(3)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-2)')).toHaveValue(2)
+  })
+
+  it('single-batch over-sell: offers no split (there is nowhere else to draw from), keeps the full qty, and shows only the plain stock warning', async () => {
+    await db.stokProj.put({ itemId: 'semen', quantity: 3000, lastMovementAt: '2026-09-18T07:00:00.000Z', lastMovementEventId: 'e1' })
+    await seedBatch({ batchId: 'batch-1', itemId: 'semen', sisa: 3000 })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await screen.findByRole('button', { name: /Ubah batch/ })
+
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.clear(qtyInput)
+    await user.type(qtyInput, '5')
+
+    expect(await screen.findByText(/Stok Semen Tiga Roda · 50 kg tinggal 3 50 kg\. Lanjutkan\?/)).toBeInTheDocument()
+    expect(screen.queryByText(/dari batch berikutnya/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bagi otomatis' })).toBeNull()
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toHaveValue(5)
+    expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeEnabled()
+  })
+
+  it('a legacy-only item sold past its legacy stock offers no split, only the plain stock warning', async () => {
+    await db.stokProj.put({ itemId: 'semen', quantity: 2000, lastMovementAt: '2026-09-18T07:00:00.000Z', lastMovementEventId: 'e1' })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add legacy semen' }))
+    await screen.findByRole('button', { name: /Ubah batch/ })
+
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (Stok lama)')
+    await user.clear(qtyInput)
+    await user.type(qtyInput, '5')
+
+    expect(await screen.findByText(/Stok Semen Tiga Roda · 50 kg tinggal 2 50 kg\. Lanjutkan\?/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Bagi otomatis' })).toBeNull()
+    expect(screen.queryByText(/dari batch berikutnya/)).toBeNull()
+  })
+
+  it('legacy pool plus one batch: the split moves only what the batch has, keeps the rest on Stok lama, and conserves the total qty', async () => {
+    // Legacy pool 2 (stok 3 - batch sisa 1), batch-a sisa 1, the line (on
+    // the legacy pool) has qty 5: the batch can cover only 1 of the 3
+    // units the legacy pool is short.
+    await db.stokProj.put({ itemId: 'semen', quantity: 3000, lastMovementAt: '2026-09-18T07:00:00.000Z', lastMovementEventId: 'e1' })
+    await seedBatch({ batchId: 'batch-a', itemId: 'semen', sisa: 1000, hargaJual: 67000 })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add legacy semen' }))
+    await screen.findByRole('button', { name: /Ubah batch/ })
+
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (Stok lama)')
+    await user.clear(qtyInput)
+    await user.type(qtyInput, '5')
+
+    expect(await screen.findByText(/Ambil 1 50 kg dari batch berikutnya\?/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Bagi otomatis' }))
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
+    const legacyQty = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (Stok lama)')
+    const batchQty = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-a)')
+    expect(legacyQty).toHaveValue(4)
+    expect(batchQty).toHaveValue(1)
+    // Nothing else left to draw from: the offer is gone, the over-sell
+    // stays warned (never blocked).
+    expect(screen.queryByRole('button', { name: 'Bagi otomatis' })).toBeNull()
+    expect(screen.getByText(/Stok Semen Tiga Roda · 50 kg tinggal 3 50 kg\. Lanjutkan\?/)).toBeInTheDocument()
+  })
+
+  it('offers no split into a batch whose own separate line would re-price the moved units', async () => {
+    await seedBatch({ batchId: 'batch-1', itemId: 'semen', tanggalBeli: '2026-09-02', sisa: 3000 })
+    await seedBatch({ batchId: 'batch-2', itemId: 'semen', tanggalBeli: '2026-09-15', sisa: 40000, hargaJual: 67000 })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Add semen batch-2' })) // its own line, at 67.000
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
+
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.clear(qtyInput)
+    await user.type(qtyInput, '5')
+    // Unedited batch-1 price: moved units would re-price to batch-2's own
+    // 67.000, exactly what batch-2's line already carries - a safe merge.
+    expect(await screen.findByText(/Ambil 2 50 kg dari batch berikutnya\?/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Ubah harga .*\(batch batch-1\)/ }))
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.clear(priceInput)
+    await user.type(priceInput, '60000')
+    await user.tab()
+
+    // Now the moved units would carry 60.000 into a 67.000 line: no offer.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Bagi otomatis' })).toBeNull())
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toHaveValue(5)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-2)')).toHaveValue(1)
+  })
+
+  it('a split carries a manually-negotiated price onto every resulting line, and saving records one RecordSaleLine per batch', async () => {
+    await seedBatch({ batchId: 'batch-1', itemId: 'semen', tanggalBeli: '2026-09-02', sisa: 3000 })
+    await seedBatch({ batchId: 'batch-2', itemId: 'semen', tanggalBeli: '2026-09-15', sisa: 40000, hargaJual: 67000 })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.clear(priceInput)
+    await user.type(priceInput, '60000')
+    await user.tab()
+
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.clear(qtyInput)
+    await user.type(qtyInput, '5')
+    await user.click(await screen.findByRole('button', { name: 'Bagi otomatis' }))
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
+    expect(screen.getByRole('button', { name: /Ubah harga .*\(batch batch-1\)/ })).toHaveTextContent(/Rp 60\.000 \/ 50 kg/)
+    expect(screen.getByRole('button', { name: /Ubah harga .*\(batch batch-2\)/ })).toHaveTextContent(/Rp 60\.000 \/ 50 kg/)
+
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    expect(await screen.findByText('Transaksi tersimpan')).toBeInTheDocument()
+    expect(recordSale).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lines: [
+          { itemId: 'semen', nama: 'Semen Tiga Roda · 50 kg', unit: '50 kg', qty: 3000, hargaSatuan: 60000, subtotal: 180000, batchId: 'batch-1', hargaNormal: 65000 },
+          { itemId: 'semen', nama: 'Semen Tiga Roda · 50 kg', unit: '50 kg', qty: 2000, hargaSatuan: 60000, subtotal: 120000, batchId: 'batch-2', hargaNormal: 67000 },
+        ],
+      }),
+      expect.anything(),
+    )
   })
 })

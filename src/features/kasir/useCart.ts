@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { toBase, type UnitDef } from '../../domain/quantity'
+import { fromBase, qty, toBase, type UnitDef } from '../../domain/quantity'
 import { add, multiplyByQty, rupiah } from '../../domain/money'
 
 /**
@@ -56,6 +56,30 @@ function buildLine(
 
 const asItemInput = (line: CartLine): CartItemInput => ({ id: line.itemId, nama: line.nama, baseUnit: line.unit })
 
+/**
+ * True when a line's current price was deliberately set by the owner rather
+ * than inherited from a default: it diverges from hargaNormal, OR it is any
+ * non-null price on a line whose default is 0 (such a line always starts at
+ * null, "Isi harga", so a non-null price there - including an explicit 0
+ * for a bonus item - can only have been typed in). A manual price must
+ * survive anything that moves the line's quantity between batches
+ * (changeBatch, applySplit), never silently reverting to a batch default.
+ */
+const isManualPrice = (line: CartLine): boolean =>
+  line.hargaSatuan !== null && (line.hargaSatuan !== line.hargaNormal || line.hargaNormal === 0)
+
+/**
+ * The price units moved off `source` onto a batch whose own default is
+ * `hargaNormal` must carry: the source's manual price if it has one (see
+ * isManualPrice), otherwise that batch's default (null - "Isi harga" - for
+ * a default of 0). Exported so CartPanel's split offer can tell, before
+ * offering, whether merging into a destination batch's already-present line
+ * would be price-safe (applySplit refuses a merge that is not).
+ */
+export function movedHargaSatuan(source: CartLine, hargaNormal: number): number | null {
+  return isManualPrice(source) ? source.hargaSatuan : (hargaNormal === 0 ? null : hargaNormal)
+}
+
 export type UseCartResult = {
   lines: CartLine[]
   subtotal: number
@@ -67,7 +91,9 @@ export type UseCartResult = {
   setHargaSatuan: (itemId: string, batchId: string | undefined, hargaSatuan: number | null) => void
   /** Moves a line to a different batch, keeping its qty. An unedited price re-prices to the new batch's own default (hargaNormal); a manually-edited price survives unchanged. Merges into an already-present line for the destination batch, if any. */
   changeBatch: (itemId: string, fromBatchId: string | undefined, toBatchId: string | undefined, hargaNormal: number) => void
-  /** Replaces one line with several, one per batch in the plan (each new/target line's own hargaNormal already resolved by the caller, matching batchPick.planSplit's output). */
+  /**
+   * Moves quantity out of one line into other batches, one entry per batch in the plan (each entry's own hargaNormal already resolved by the caller, matching batchPick.planSplit's output). Whatever the entries do not move to a different batch stays on the source line (an over-sell the plan could not cover is kept there, never dropped), so total quantity is always conserved; a plan allocating more than the line holds is refused. A manually-set source price is carried onto every resulting line, same as changeBatch; merging into an already-present destination line is only allowed when that line already carries the same price the moved units would (otherwise the whole split is refused, never silently re-priced).
+   */
   applySplit: (itemId: string, fromBatchId: string | undefined, splits: SplitLineInput[]) => void
   removeItem: (itemId: string, batchId: string | undefined) => void
   clear: () => void
@@ -110,8 +136,7 @@ export function useCart(): UseCartResult {
     setLines(prev => {
       const existing = prev.find(l => sameLine(l, itemId, fromBatchId))
       if (!existing) return prev
-      const wasManual = existing.hargaSatuan !== null && existing.hargaSatuan !== existing.hargaNormal
-      const nextHargaSatuan = wasManual ? existing.hargaSatuan : (hargaNormal === 0 ? null : hargaNormal)
+      const nextHargaSatuan = movedHargaSatuan(existing, hargaNormal)
       const withoutOld = prev.filter(l => !sameLine(l, itemId, fromBatchId))
       const target = withoutOld.find(l => sameLine(l, itemId, toBatchId))
       if (target) {
@@ -125,17 +150,50 @@ export function useCart(): UseCartResult {
 
   const applySplit = useCallback((itemId: string, fromBatchId: string | undefined, splits: SplitLineInput[]) => {
     setLines(prev => {
-      const existing = prev.find(l => sameLine(l, itemId, fromBatchId))
-      if (!existing) return prev
-      const item = asItemInput(existing)
-      let next = prev.filter(l => !sameLine(l, itemId, fromBatchId))
-      for (const split of splits) {
+      const sourceIndex = prev.findIndex(l => sameLine(l, itemId, fromBatchId))
+      if (sourceIndex === -1) return prev
+      const source = prev[sourceIndex]
+      const unit = baseUnitDef(source.unit)
+      const item = asItemInput(source)
+      const milliOf = (entries: SplitLineInput[]) => entries.reduce((sum, s) => sum + toBase(s.qtyWhole, unit), 0)
+
+      const entries = splits.filter(s => s.qtyWhole > 0)
+      // A plan can never hand out more than the source line holds - that
+      // would invent quantity out of nothing. Refuse it outright.
+      if (milliOf(entries) > source.qty) return prev
+
+      // Whatever the plan does not move to a DIFFERENT batch stays on the
+      // source line: both an explicit entry for the source batch itself and
+      // any shortfall the plan could not cover (batchPick.planSplit only
+      // fills up to what the known batches actually have left). That
+      // shortfall is an intentional, warned over-sell on the original batch
+      // or legacy pool (flow spec D7: warn, never block) - never deleted.
+      // Total quantity across the resulting lines always equals the source
+      // line's own quantity.
+      const moved = entries.filter(s => s.batchId !== fromBatchId)
+      const keptMilli = source.qty - milliOf(moved)
+      let next = keptMilli > 0
+        ? prev.map((l, i) => i === sourceIndex
+            ? buildLine(item, fromBatchId, fromBase(qty(keptMilli), unit), source.hargaNormal, source.hargaSatuan)
+            : l)
+        : prev.filter((_, i) => i !== sourceIndex)
+
+      // Same rule as changeBatch: a manually-set price (a negotiated price,
+      // or an explicit 0 for a bonus item) is carried onto every line the
+      // split creates; an unedited one re-prices to each batch's own default.
+      for (const split of moved) {
         const target = next.find(l => sameLine(l, itemId, split.batchId))
+        const hargaSatuan = movedHargaSatuan(source, split.hargaNormal)
+        // Merging into a destination batch's already-present line would
+        // silently re-price the moved units to that line's own price (e.g.
+        // paid units swallowed by a bonus line at 0). Refuse the whole split
+        // rather than change a price nobody asked to change.
+        if (target && target.hargaSatuan !== hargaSatuan) return prev
         next = target
           ? next.map(l => sameLine(l, itemId, split.batchId)
               ? buildLine(item, split.batchId, l.qtyWhole + split.qtyWhole, l.hargaNormal, l.hargaSatuan)
               : l)
-          : [...next, buildLine(item, split.batchId, split.qtyWhole, split.hargaNormal, split.hargaNormal === 0 ? null : split.hargaNormal)]
+          : [...next, buildLine(item, split.batchId, split.qtyWhole, split.hargaNormal, hargaSatuan)]
       }
       return next
     })
