@@ -1,33 +1,33 @@
 import { useMemo, useState } from 'react'
 import { CategoryPills } from '../../ui/CategoryPills'
 import { ProductCard } from './ProductCard'
-import { useProductCatalog, filterProductRows, type ProductRow } from './useProductCatalog'
-
-/**
- * Component breakdown table groups "category pills, product grid" together
- * under Kasir's scope, so CategoryPills is mounted here rather than one
- * level up in a Task 6b screen shell -- a judgment call (the brief allows
- * either), chosen so ProductGrid stays a self-contained, testable unit on
- * its own, the same way this file's live-query/filter split (in
- * useProductCatalog.ts) mirrors useStokList.ts's.
- */
+import { useKatalog, type UkuranRow } from '../shared/useKatalog'
+import { filterBarangRows } from './filterBarangRows'
 
 type Props = {
-  /** Filters the grid against nama and barcode, matching Stok's own search behavior. */
+  /** Filters the grid against barang nama and each ukuran's own ukuran text/barcode. */
   searchQuery: string
-  /** Called with the clicked ProductCard's item. Cart state stays owned by the parent. */
-  onAdd: (item: ProductRow) => void
+  /** Called with the tapped ukuran row and its barang's nama. Cart state stays owned by the caller. */
+  onAdd: (ukuran: UkuranRow, barangNama: string) => void
 }
 
 export function ProductGrid({ searchQuery, onAdd }: Props) {
-  const rows = useProductCatalog()
+  const rows = useKatalog()
   const [kategori, setKategori] = useState<string | null>(null)
 
+  // A barang with zero purchasable (non-archived) ukuran has nothing to add
+  // to a cart - a card with a header and no rows makes no sense in a POS
+  // grid, unlike Kamus's own list, which deliberately still shows it (for
+  // editing, not selling).
+  const purchasable = useMemo(
+    () => (rows ?? []).filter(r => !r.diarsipkan && r.ukuran.some(u => !u.diarsipkan)),
+    [rows],
+  )
+
   const categories = useMemo(() => {
-    if (!rows) return []
-    const distinct = new Set(rows.map(row => row.kategori).filter((k): k is string => Boolean(k)))
+    const distinct = new Set(purchasable.map(r => r.kategori).filter((k): k is string => Boolean(k)))
     return Array.from(distinct).sort()
-  }, [rows])
+  }, [purchasable])
 
   const categoryOptions = useMemo(
     () => [{ value: 'semua', label: 'Semua' }, ...categories.map(k => ({ value: k, label: k }))],
@@ -35,8 +35,8 @@ export function ProductGrid({ searchQuery, onAdd }: Props) {
   )
 
   const visibleRows = useMemo(
-    () => (rows ? filterProductRows(rows, searchQuery, kategori) : []),
-    [rows, searchQuery, kategori],
+    () => filterBarangRows(purchasable, searchQuery, kategori),
+    [purchasable, searchQuery, kategori],
   )
 
   return (
@@ -55,7 +55,7 @@ export function ProductGrid({ searchQuery, onAdd }: Props) {
         <div aria-busy="true" role="status" className="rounded-card border border-border bg-surface p-6">
           <span className="sr-only">Memuat katalog barang...</span>
         </div>
-      ) : rows.length === 0 ? (
+      ) : purchasable.length === 0 ? (
         <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
           Belum ada barang.
         </p>
@@ -66,7 +66,7 @@ export function ProductGrid({ searchQuery, onAdd }: Props) {
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visibleRows.map(row => (
-            <ProductCard key={row.itemId} item={row} onAdd={onAdd} />
+            <ProductCard key={row.barangId} barang={row} onAdd={ukuran => onAdd(ukuran, row.nama)} />
           ))}
         </div>
       )}
