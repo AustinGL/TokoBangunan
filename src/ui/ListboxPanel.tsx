@@ -1,18 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Check, Plus, SearchX } from 'lucide-react'
+import { optionId, type ListboxRow } from './listbox'
 import type { PanelPlacement } from './panelPlacement'
-
-export type ListboxRow = {
-  value: string
-  label: string
-  /** Second, muted line (e.g. stock and price). Read as the option's description. */
-  hint?: string
-  disabled?: boolean
-  /** 'create' is the "Tambah ..." action row, not a choosable option. */
-  kind?: 'option' | 'create'
-}
-
-export const optionId = (listboxId: string, index: number): string => `${listboxId}-${index}`
 
 type Props = {
   id: string

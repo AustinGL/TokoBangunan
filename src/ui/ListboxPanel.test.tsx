@@ -1,7 +1,8 @@
 import type { ComponentProps } from 'react'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
-import { ListboxPanel, optionId, type ListboxRow } from './ListboxPanel'
+import { ListboxPanel } from './ListboxPanel'
+import { optionId, type ListboxRow } from './listbox'
 import { DEFAULT_PLACEMENT } from './panelPlacement'
 
 const rows: ListboxRow[] = [

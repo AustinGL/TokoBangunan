@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { ListboxPanel, optionId, type ListboxRow } from './ListboxPanel'
+import { ListboxPanel } from './ListboxPanel'
+import { optionId, type ListboxRow } from './listbox'
 import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
 
 export type ComboboxOption = { value: string; label: string; hint?: string }
