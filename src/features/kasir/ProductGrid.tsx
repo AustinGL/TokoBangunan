@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { CategoryPills } from '../../ui/CategoryPills'
 import { ProductCard } from './ProductCard'
 import { useKatalog, type UkuranRow } from '../shared/useKatalog'
-import { filterBarangRows } from './filterBarangRows'
+import { filterBarangRows, purchasableBarangRows } from './filterBarangRows'
 
 type Props = {
   /** Filters the grid against barang nama and each ukuran's own ukuran text/barcode. */
@@ -15,14 +15,9 @@ export function ProductGrid({ searchQuery, onAdd }: Props) {
   const rows = useKatalog()
   const [kategori, setKategori] = useState<string | null>(null)
 
-  // A barang with zero purchasable (non-archived) ukuran has nothing to add
-  // to a cart - a card with a header and no rows makes no sense in a POS
-  // grid, unlike Kamus's own list, which deliberately still shows it (for
-  // editing, not selling).
-  const purchasable = useMemo(
-    () => (rows ?? []).filter(r => !r.diarsipkan && r.ukuran.some(u => !u.diarsipkan)),
-    [rows],
-  )
+  // Same sellable-row set Kasir's own "no match" check uses (see
+  // purchasableBarangRows' doc comment).
+  const purchasable = useMemo(() => purchasableBarangRows(rows ?? []), [rows])
 
   const categories = useMemo(() => {
     const distinct = new Set(purchasable.map(r => r.kategori).filter((k): k is string => Boolean(k)))

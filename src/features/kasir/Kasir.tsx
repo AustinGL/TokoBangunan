@@ -4,7 +4,7 @@ import { ProductGrid } from './ProductGrid'
 import { CartPanel } from './CartPanel'
 import { useCart } from './useCart'
 import { useKatalog, type UkuranRow } from '../shared/useKatalog'
-import { filterBarangRows } from './filterBarangRows'
+import { filterBarangRows, purchasableBarangRows } from './filterBarangRows'
 import { BarangPicker } from '../shared/BarangPicker'
 import { UkuranSheet, type UkuranSheetValues } from '../kamus/UkuranSheet'
 import { db } from '../../data/db'
@@ -41,8 +41,14 @@ export function Kasir() {
   const [searchFieldKey, setSearchFieldKey] = useState(0)
 
   const trimmedSearch = searchValue.trim()
+  // Checked against the SAME sellable rows ProductGrid renders, not every
+  // katalog row: a barang with no sellable ukuran (e.g. one quick-created
+  // and then abandoned before any ukuran was added) can never appear in the
+  // grid, so it must not count as a match either - otherwise its name would
+  // suppress "Tambah barang baru" forever, with nothing shown to add.
   const searchHasNoMatches =
-    rows !== undefined && trimmedSearch !== '' && filterBarangRows(rows, trimmedSearch, null).length === 0
+    rows !== undefined && trimmedSearch !== '' &&
+    filterBarangRows(purchasableBarangRows(rows), trimmedSearch, null).length === 0
 
   const resolveDefaultBatch = async (ukuran: UkuranRow) => {
     const [batches, stockRow] = await Promise.all([

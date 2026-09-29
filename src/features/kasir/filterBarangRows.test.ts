@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterBarangRows } from './filterBarangRows'
+import { filterBarangRows, purchasableBarangRows } from './filterBarangRows'
 import type { BarangRow } from '../shared/useKatalog'
 
 const semen: BarangRow = {
@@ -38,5 +38,24 @@ describe('filterBarangRows', () => {
 
   it('returns everything for an empty query and null kategori', () => {
     expect(filterBarangRows(rows, '', null)).toHaveLength(2)
+  })
+})
+
+describe('purchasableBarangRows', () => {
+  const noUkuran: BarangRow = { barangId: 'b3', nama: 'Paku Beton', diarsipkan: false, virtual: false, ukuran: [] }
+  const allUkuranArchived: BarangRow = {
+    barangId: 'b4', nama: 'Cat Tembok', diarsipkan: false, virtual: false,
+    ukuran: [{ id: 'i4', ukuran: '5 kg', hargaEceran: 90000, stokMinimum: 2, diarsipkan: true, quantity: 0, status: 'habis' }],
+  }
+  const archivedBarang: BarangRow = { ...pasir, barangId: 'b5', nama: 'Pasir Kasar', diarsipkan: true }
+
+  it('keeps only non-archived barang with at least one non-archived ukuran', () => {
+    expect(purchasableBarangRows([semen, pasir, noUkuran, allUkuranArchived, archivedBarang]).map(r => r.barangId)).toEqual(['b1', 'b2'])
+  })
+
+  it('a barang with no sellable ukuran never counts as a search match once filtered through it', () => {
+    // filterBarangRows alone would still match "Paku Beton" by nama.
+    expect(filterBarangRows([noUkuran], 'paku', null)).toHaveLength(1)
+    expect(filterBarangRows(purchasableBarangRows([noUkuran]), 'paku', null)).toEqual([])
   })
 })
