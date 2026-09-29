@@ -1,6 +1,6 @@
 // src/features/kasir/CartPanel.tsx
 import { useEffect, useRef, useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, ChevronDown } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { fromBase, qty } from '../../domain/quantity'
@@ -8,7 +8,12 @@ import { formatRupiah, rupiah, subtract, type Rupiah } from '../../domain/money'
 import { recordSale, type RecordSaleInput } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
-import type { CartLine, UseCartResult } from './useCart'
+import { useBatches } from '../shared/useBatches'
+import { useSuppliers } from '../shared/useSuppliers'
+import { formatTanggal } from '../shared/formatTanggal'
+import { legacyRemainder, availableForLine, planSplit, type CartLineLike } from '../../domain/batchPick'
+import type { Supplier } from '../../domain/projections/suppliers'
+import type { CartLine, UseCartResult, SplitLineInput } from './useCart'
 
 /**
  * MASTER.md section 8's Cart panel spec, narrowed by Decisions 2/3/4/6:
@@ -134,6 +139,8 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
         inputMode="numeric"
         autoFocus
         value={draft}
+        onFocus={e => e.target.select()}
+        onMouseDown={e => e.preventDefault()}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
@@ -143,15 +150,131 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
   )
 }
 
-function CartLineRow({
-  line, onQtyChange, onHargaChange, stockRows,
+function BatchChip({
+  line, otherLines, itemHargaEceran, suppliers, onChangeBatch, onSplit,
 }: {
   line: CartLine
+  otherLines: CartLineLike[]
+  itemHargaEceran: number
+  suppliers: Supplier[] | undefined
+  onChangeBatch: (toBatchId: string | undefined, hargaNormal: number) => void
+  onSplit: (splits: SplitLineInput[]) => void
+}) {
+  const batches = useBatches(line.itemId)
+  // A row-not-found result (db.stokProj.get resolves to undefined when the
+  // item has no stok row yet) and "the query hasn't completed its first run
+  // yet" are both `undefined` by default, so a plain `undefined` check can't
+  // tell them apart. The explicit `null` default below disambiguates: only
+  // `null` means "still loading."
+  const stockRow = useLiveQuery(() => db.stokProj.get(line.itemId), [line.itemId], null)
+  const [expanded, setExpanded] = useState(false)
+
+  if (batches === undefined || stockRow === null) return null
+
+  const wholeOf = (milli: number) => fromBase(qty(milli), { unit: line.unit, factor: 1 })
+  const supplierNama = (id?: string) => suppliers?.find(s => s.id === id)?.nama ?? 'Tanpa supplier'
+
+  const legacyAvailableRaw = legacyRemainder(stockRow?.quantity ?? 0, batches, line.itemId)
+  const legacyClaimed = otherLines.filter(l => l.itemId === line.itemId && l.batchId === undefined).reduce((sum, l) => sum + l.qty, 0)
+  const legacyAvailable = legacyAvailableRaw - legacyClaimed
+
+  const currentBatch = batches.find(b => b.batchId === line.batchId)
+  const label = line.batchId === undefined
+    ? `Stok lama · sisa ${Math.max(0, wholeOf(legacyAvailable))}`
+    : currentBatch
+      ? `${formatTanggal(currentBatch.tanggalBeli)} · ${supplierNama(currentBatch.supplierId)} · sisa ${wholeOf(currentBatch.sisa)}`
+      : 'Batch tidak ditemukan'
+
+  const available = line.batchId === undefined ? legacyAvailable : (currentBatch ? availableForLine(currentBatch, otherLines) : 0)
+  const shortfall = line.qty - available
+  const overSisa = shortfall > 0
+
+  const handleSplit = () => {
+    const plan = planSplit(line.itemId, line.qty, batches, otherLines)
+    if (plan.length === 0) return
+    const splits: SplitLineInput[] = plan.map(p => ({
+      batchId: p.batchId,
+      qtyWhole: wholeOf(p.qty),
+      hargaNormal: batches.find(b => b.batchId === p.batchId)?.hargaJual ?? itemHargaEceran,
+    }))
+    onSplit(splits)
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+        aria-label={`Ubah batch untuk ${line.nama}, saat ini ${label}`}
+        className="flex min-h-tap items-center gap-1 text-[12px] text-ink-faint"
+      >
+        {label}
+        <ChevronDown aria-hidden="true" size={14} />
+      </button>
+
+      {overSisa && (
+        // Plain, non-alert markup - same convention stockWarningFor's own
+        // "quantity exceeds what's available" warning already uses just
+        // below (a <p>, no role="alert"): this is a proactive nudge, not a
+        // blocking error, and a role="alert" here would collide with (and
+        // make ambiguous) CartPanel's own save-error alert whenever both are
+        // visible at once.
+        <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-warning">
+          <span>Ambil {wholeOf(shortfall)} {line.unit} dari batch berikutnya?</span>
+          <button
+            type="button" onClick={handleSplit}
+            className="min-h-tap rounded-tile border border-warning px-2 text-[12px] font-semibold text-warning"
+          >
+            Bagi otomatis
+          </button>
+        </div>
+      )}
+
+      {expanded && (
+        <div role="radiogroup" aria-label={`Pilih batch untuk ${line.nama}`} className="flex flex-col gap-1 rounded-tile border border-border-input p-2">
+          {legacyAvailableRaw > 0 && (
+            <label className="flex min-h-tap items-center gap-2 text-[13px] text-ink">
+              <input
+                type="radio" name={`batch-${line.itemId}-${line.batchId ?? 'legacy'}`} checked={line.batchId === undefined}
+                onChange={() => { onChangeBatch(undefined, itemHargaEceran); setExpanded(false) }}
+              />
+              Stok lama · sisa {wholeOf(legacyAvailable)}
+            </label>
+          )}
+          {batches.map(b => (
+            <label key={b.batchId} className="flex min-h-tap items-center gap-2 text-[13px] text-ink">
+              <input
+                type="radio" name={`batch-${line.itemId}-${line.batchId ?? 'legacy'}`} checked={line.batchId === b.batchId}
+                onChange={() => { onChangeBatch(b.batchId, b.hargaJual); setExpanded(false) }}
+              />
+              {formatTanggal(b.tanggalBeli)} · {supplierNama(b.supplierId)} · sisa {wholeOf(b.sisa)}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CartLineRow({
+  line, allLines, itemHargaEceran, suppliers, onQtyChange, onHargaChange, onChangeBatch, onSplit, stockRows,
+}: {
+  line: CartLine
+  allLines: CartLine[]
+  itemHargaEceran: number
+  suppliers: Supplier[] | undefined
   onQtyChange: (qtyWhole: number) => void
   onHargaChange: (value: number | null) => void
+  onChangeBatch: (toBatchId: string | undefined, hargaNormal: number) => void
+  onSplit: (splits: SplitLineInput[]) => void
   stockRows: { itemId: string; quantity: number }[] | undefined
 }) {
   const warning = stockWarningFor(line, stockRows)
+  const otherLines: CartLineLike[] = allLines
+    .filter(l => l !== line)
+    .map(l => ({ itemId: l.itemId, batchId: l.batchId, qty: l.qty }))
+
   return (
     <li className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0">
       <div className="flex items-start justify-between gap-2">
@@ -163,6 +286,10 @@ function CartLineRow({
           {line.subtotal === null ? '—' : formatRupiah(rupiah(line.subtotal))}
         </p>
       </div>
+      <BatchChip
+        line={line} otherLines={otherLines} itemHargaEceran={itemHargaEceran} suppliers={suppliers}
+        onChangeBatch={onChangeBatch} onSplit={onSplit}
+      />
       <QtyStepper line={line} onChange={onQtyChange} />
       {warning && <p className="text-[13px] font-medium text-warning">{warning}</p>}
     </li>
@@ -233,6 +360,9 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const stockRows = useLiveQuery(() => db.stokProj.toArray(), [])
+  const itemsProjRows = useLiveQuery(() => db.itemsProj.toArray(), [])
+  const itemDefaults = new Map((itemsProjRows ?? []).map(i => [i.id, i.hargaEceran]))
+  const suppliers = useSuppliers()
 
   useEffect(() => { if (saveError) errorRef.current?.focus() }, [saveError])
   useEffect(() => () => { if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current) }, [])
@@ -319,8 +449,13 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
             <CartLineRow
               key={`${line.itemId}:${line.batchId ?? 'legacy'}`}
               line={line}
+              allLines={lines}
+              itemHargaEceran={itemDefaults.get(line.itemId) ?? line.hargaNormal}
+              suppliers={suppliers}
               onQtyChange={qtyWhole => cart.setQtyWhole(line.itemId, line.batchId, qtyWhole)}
               onHargaChange={value => cart.setHargaSatuan(line.itemId, line.batchId, value)}
+              onChangeBatch={(toBatchId, hargaNormal) => cart.changeBatch(line.itemId, line.batchId, toBatchId, hargaNormal)}
+              onSplit={splits => cart.applySplit(line.itemId, line.batchId, splits)}
               stockRows={stockRows}
             />
           ))

@@ -7,6 +7,7 @@ import { db } from '../../data/db'
 import { recordSale } from '../../data/commands'
 import { useCart, type CartItemInput } from './useCart'
 import { CartPanel } from './CartPanel'
+import type { Batch } from '../../domain/projections/batches'
 
 vi.mock('../../data/commands', async () => {
   const actual = await vi.importActual<typeof import('../../data/commands')>('../../data/commands')
@@ -290,5 +291,79 @@ describe('CartPanel: saving a sale', () => {
 
     await screen.findByText('Transaksi tersimpan')
     expect(onSaveAndNew).toHaveBeenCalledTimes(1)
+  })
+})
+
+const seedBatch = (overrides: Partial<Batch> & { batchId: string; itemId: string }) =>
+  db.batchesProj.put({
+    supplierId: 'sup-1', hargaBeli: 58000, hargaJual: 65000, diterima: 40000, sisa: 40000,
+    tanggalBeli: '2026-09-02', metaUpdatedAt: '2026-09-02T07:00:00.000Z', metaUpdatedByEventId: 'e1',
+    lastMovementAt: '2026-09-02T07:00:00.000Z', lastMovementEventId: 'e1',
+    ...overrides,
+  })
+
+describe('CartPanel: batch chip', () => {
+  it('shows "Stok lama" for a line added with no batch', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add unpriced semen' }))
+
+    expect(await screen.findByText(/^Stok lama/)).toBeInTheDocument()
+  })
+
+  it('shows the batch\'s own tanggal, supplier and sisa for a line added with a real batch', async () => {
+    await db.suppliersProj.put({ id: 'sup-1', nama: 'UD Sentosa', perluDilengkapi: false, updatedAt: '2026-09-02T07:00:00.000Z', updatedByEventId: 'e1' })
+    await seedBatch({ batchId: 'batch-1', itemId: 'semen' })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+
+    expect(await screen.findByText(/UD Sentosa/)).toBeInTheDocument()
+    expect(screen.getByText(/sisa 40/)).toBeInTheDocument()
+  })
+
+  it('expanding the batch chip and choosing another batch calls changeBatch and keeps the manual price', async () => {
+    await seedBatch({ batchId: 'batch-1', itemId: 'semen', tanggalBeli: '2026-09-02' })
+    await seedBatch({ batchId: 'batch-2', itemId: 'semen', tanggalBeli: '2026-09-15', hargaJual: 67000 })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
+    await user.type(screen.getByLabelText('Harga Semen Tiga Roda · 50 kg'), '63000')
+    await user.tab()
+
+    await user.click(await screen.findByRole('button', { name: /Ubah batch/ }))
+    // Scoped to the batch radiogroup: the page also has the (always-present,
+    // really disabled) payment-method and delivery native radios (Decision
+    // 2/4), so an unscoped findAllByRole('radio') would pick those up too.
+    const batchRadiogroup = await screen.findByRole('radiogroup', { name: /Pilih batch/ })
+    const radios = within(batchRadiogroup).getAllByRole('radio')
+    await user.click(radios[radios.length - 1]) // the newest batch, batch-2
+
+    expect(await screen.findByText(/diubah, normal Rp 67\.000/)).toBeInTheDocument()
+    // Same "Rp X / unit" compound-text pattern the Task 4 fix round settled
+    // on for PriceEdit's closed-state button (see the line-rendering test
+    // above): the button's price and unit share a single text node, so a
+    // selector-scoped exact-string match ('Rp 63.000', { selector: 'button
+    // *' }) can never find it - PriceEdit is unchanged by this task and its
+    // established assertion pattern applies here too.
+    expect(screen.getByText(/Rp 63\.000 \/ 50 kg/)).toBeInTheDocument()
+  })
+
+  it('warns and offers a one-tap split once a line\'s qty exceeds its current batch\'s own sisa', async () => {
+    await seedBatch({ batchId: 'batch-1', itemId: 'semen', tanggalBeli: '2026-09-02', sisa: 3000 })
+    await seedBatch({ batchId: 'batch-2', itemId: 'semen', tanggalBeli: '2026-09-15', sisa: 40000, hargaJual: 67000 })
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' })) // picks batch-1 by construction of the harness (fixed batchId)
+
+    const qtyInput = screen.getByLabelText(/^Jumlah Semen Tiga Roda · 50 kg/)
+    await user.clear(qtyInput)
+    await user.type(qtyInput, '5')
+
+    expect(await screen.findByText(/Ambil 2 50 kg dari batch berikutnya\?/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Bagi otomatis' }))
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
   })
 })
