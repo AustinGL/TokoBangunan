@@ -1,4 +1,6 @@
+// src/features/kasir/CartPanel.tsx
 import { useEffect, useRef, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { fromBase, qty } from '../../domain/quantity'
@@ -9,65 +11,37 @@ import { systemClock } from '../../domain/clock'
 import type { CartLine, UseCartResult } from './useCart'
 
 /**
- * MASTER.md section 8's Cart panel spec, narrowed for Phase 2 by Decisions
- * 2/3/4/6 (see task-6b-brief.md for the verbatim quotes this file
- * implements): multi-satuan conversion lines, price-tier reasoning and
- * manual-override flags do not exist yet (sale lines only use baseUnit this
- * phase), so a cart line here only ever shows name, unit price, qty
- * stepper and subtotal. Payment methods other than Tunai, the Kirim
- * delivery option, the customer picker and Diskon entry all render but are
- * permanently inert (real `disabled`, never CSS-only), and "Simpan
- * sementara" is omitted entirely (Decision 3).
+ * MASTER.md section 8's Cart panel spec, narrowed by Decisions 2/3/4/6:
+ * payment methods other than Tunai, the Kirim delivery option, the
+ * customer picker and Diskon entry all render but are permanently inert
+ * (real disabled, never CSS-only), and "Simpan sementara" is omitted
+ * entirely. Task 10's own E1 scope adds batch-awareness and a manual-price
+ * edit to what was, until now, a name/qty/subtotal-only line.
  */
 
 type Props = {
   cart: UseCartResult
-  /**
-   * Called after a successful "Simpan & buat baru" save (not after a plain
-   * "Simpan transaksi"), so the screen-assembly root can refocus search for
-   * the next sale. The spec's own words for that button are "for batch
-   * runs"; "Simpan transaksi" has no such follow-up need.
-   */
   onSaveAndNew?: () => void
 }
 
 const TOAST_DURATION_MS = 3000
 
+function lineKeySuffix(line: CartLine): string {
+  return line.batchId === undefined ? 'Stok lama' : `batch ${line.batchId}`
+}
+
 function stockWarningFor(line: CartLine, stockRows: { itemId: string; quantity: number }[] | undefined): string | undefined {
-  // stockRows === undefined means the live query has not resolved yet: no
-  // warning is shown until there is real data to compare against, rather
-  // than a false positive against zero. Once resolved, a missing row means
-  // the item has never had a stock movement, which is genuinely 0 stock
-  // (same convention useProductCatalog.ts already uses for the same gap).
   if (stockRows === undefined) return undefined
   const row = stockRows.find(r => r.itemId === line.itemId)
   const milliQty = row?.quantity ?? 0
   const stockWhole = fromBase(qty(milliQty), { unit: line.unit, factor: 1 })
   if (line.qtyWhole <= stockWhole) return undefined
-  // D7 / flow section 10's worked example: "Stok semen tinggal 3 sak.
-  // Lanjutkan?" This is the same phrasing adapted per item/quantity, still
-  // just a warning: it never blocks "Simpan transaksi".
   return `Stok ${line.nama} tinggal ${stockWhole} ${line.unit}. Lanjutkan?`
 }
 
 function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: number) => void }) {
-  const inputId = `kasir-qty-${line.itemId}`
-  // The input's own text, decoupled from line.qtyWhole while the owner is
-  // mid-edit. Without this, clearing the field to type "40" would fire a
-  // change event with value === '', which read as qtyWhole 0 would call
-  // useCart's setQtyWhole(id, 0) and remove the line before the next digit
-  // ever lands (useCart's own documented "qtyWhole <= 0 removes the line"
-  // convention, correct for a deliberate clear, wrong for a mid-keystroke
-  // empty string). Judgment call, noted in the report.
+  const inputId = `kasir-qty-${line.itemId}-${line.batchId ?? 'legacy'}`
   const [draft, setDraft] = useState(String(line.qtyWhole))
-  // "Adjusting state when a prop changes", done during render rather than
-  // in an effect (React's own recommended pattern for this): tracks the
-  // last qtyWhole this component has rendered for, and resyncs draft only
-  // when the committed quantity actually moved out from under it (the +/-
-  // buttons, or another line reusing this component). A committed change
-  // that matches what the user just typed leaves draft untouched, and a
-  // momentarily empty draft (mid-clear, qtyWhole not yet committed) is never
-  // stomped either, since qtyWhole has not changed in that case.
   const [lastQtyWhole, setLastQtyWhole] = useState(line.qtyWhole)
   if (line.qtyWhole !== lastQtyWhole) {
     setLastQtyWhole(line.qtyWhole)
@@ -82,8 +56,6 @@ function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: n
   }
 
   const handleBlur = () => {
-    // Leaving the field empty is treated as a deliberate clear, same as
-    // typing 0: it removes the line, per useCart's existing convention.
     if (draft === '') onChange(0)
   }
 
@@ -98,13 +70,8 @@ function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: n
         -
       </button>
       <div className="flex flex-col items-center gap-0.5">
-        {/* Visible label text ("Jumlah"), MASTER.md section 8: "an input
-            type=number with a visible label, so 40 sak can be typed rather
-            than tapped forty times." The item name is included as
-            screen-reader-only text so each line's accessible name stays
-            unique without visually repeating it on every row. */}
         <label htmlFor={inputId} className="text-[12px] font-medium text-ink-faint">
-          Jumlah<span className="sr-only"> {line.nama}</span>
+          Jumlah<span className="sr-only"> {line.nama} ({lineKeySuffix(line)})</span>
         </label>
         <input
           id={inputId}
@@ -130,11 +97,58 @@ function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: n
   )
 }
 
+function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: number | null) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(line.hargaSatuan === null ? '' : String(line.hargaSatuan))
+  const inputId = `kasir-harga-${line.itemId}-${line.batchId ?? 'legacy'}`
+  const diubah = line.hargaSatuan !== null && line.hargaSatuan !== line.hargaNormal
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => { setDraft(line.hargaSatuan === null ? '' : String(line.hargaSatuan)); setEditing(true) }}
+        aria-label={`Ubah harga ${line.nama}`}
+        className="flex items-center gap-1 text-[12px] tabular-nums text-ink-faint"
+      >
+        {line.hargaSatuan === null ? 'Isi harga' : `${formatRupiah(rupiah(line.hargaSatuan))} / ${line.unit}`}
+        <Pencil aria-hidden="true" size={12} />
+        {diubah && (
+          <span className="text-warning">(diubah, normal {formatRupiah(rupiah(line.hargaNormal))})</span>
+        )}
+      </button>
+    )
+  }
+
+  const commit = () => {
+    const digits = draft.replace(/\D/g, '')
+    onChange(digits === '' ? null : Number(digits))
+    setEditing(false)
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor={inputId} className="sr-only">Harga {line.nama}</label>
+      <input
+        id={inputId}
+        inputMode="numeric"
+        autoFocus
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
+        className="h-[var(--field-h)] w-28 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-[13px] text-ink"
+      />
+    </div>
+  )
+}
+
 function CartLineRow({
-  line, onQtyChange, stockRows,
+  line, onQtyChange, onHargaChange, stockRows,
 }: {
   line: CartLine
-  onQtyChange: (itemId: string, qtyWhole: number) => void
+  onQtyChange: (qtyWhole: number) => void
+  onHargaChange: (value: number | null) => void
   stockRows: { itemId: string; quantity: number }[] | undefined
 }) {
   const warning = stockWarningFor(line, stockRows)
@@ -143,16 +157,14 @@ function CartLineRow({
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[14px] font-semibold text-ink">{line.nama}</p>
-          <p className="text-[12px] tabular-nums text-ink-faint">
-            {formatRupiah(rupiah(line.hargaSatuan))} / {line.unit}
-          </p>
+          <PriceEdit line={line} onChange={onHargaChange} />
         </div>
-        <p className="text-[15px] font-bold tabular-nums text-ink">{formatRupiah(rupiah(line.subtotal))}</p>
+        <p className="text-[15px] font-bold tabular-nums text-ink">
+          {line.subtotal === null ? '—' : formatRupiah(rupiah(line.subtotal))}
+        </p>
       </div>
-      <QtyStepper line={line} onChange={qtyWhole => onQtyChange(line.itemId, qtyWhole)} />
-      {warning && (
-        <p className="text-[13px] font-medium text-warning">{warning}</p>
-      )}
+      <QtyStepper line={line} onChange={onQtyChange} />
+      {warning && <p className="text-[13px] font-medium text-warning">{warning}</p>}
     </li>
   )
 }
@@ -173,20 +185,10 @@ function PaymentMethodPills() {
           <label
             key={option.value}
             className={`min-h-tap inline-flex items-center rounded-[var(--r-pill)] border px-4 text-[13px] font-medium ${
-              checked
-                ? 'border-transparent bg-mint-soft text-primary'
-                : 'border-border-input bg-surface text-ink-disabled'
+              checked ? 'border-transparent bg-mint-soft text-primary' : 'border-border-input bg-surface text-ink-disabled'
             } ${option.disabled ? 'cursor-not-allowed opacity-70' : ''}`}
           >
-            <input
-              type="radio"
-              name="kasir-metode-bayar"
-              value={option.value}
-              checked={checked}
-              disabled={option.disabled}
-              onChange={() => {}}
-              className="sr-only"
-            />
+            <input type="radio" name="kasir-metode-bayar" value={option.value} checked={checked} disabled={option.disabled} onChange={() => {}} className="sr-only" />
             {option.label}
           </label>
         )
@@ -209,20 +211,10 @@ function DeliveryToggle() {
           <label
             key={option.value}
             className={`min-h-tap inline-flex items-center rounded-[var(--r-pill)] border px-4 text-[13px] font-medium ${
-              checked
-                ? 'border-transparent bg-mint-soft text-primary'
-                : 'border-border-input bg-surface text-ink-disabled'
+              checked ? 'border-transparent bg-mint-soft text-primary' : 'border-border-input bg-surface text-ink-disabled'
             } ${option.disabled ? 'cursor-not-allowed opacity-70' : ''}`}
           >
-            <input
-              type="radio"
-              name="kasir-pengiriman"
-              value={option.value}
-              checked={checked}
-              disabled={option.disabled}
-              onChange={() => {}}
-              className="sr-only"
-            />
+            <input type="radio" name="kasir-pengiriman" value={option.value} checked={checked} disabled={option.disabled} onChange={() => {}} className="sr-only" />
             {option.label}
           </label>
         )
@@ -240,47 +232,25 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
   const errorRef = useRef<HTMLDivElement>(null)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Live stock, queried here rather than in useCart (Task 6a's useCart is
-  // deliberately stock-unaware) or in Kasir.tsx (the brief asks for this
-  // comparison inside CartPanel itself). Queried with stable (empty) deps
-  // over the whole table, the same shape useProductCatalog.ts already uses,
-  // rather than a query keyed on the cart's item ids: keying the query on
-  // the cart contents would make it re-subscribe every time a line is added
-  // or removed, and dexie-react-hooks keeps serving the previous (now
-  // mismatched) result while the new subscription's first emission is still
-  // in flight, which briefly compares a freshly-added line against stock
-  // data for a completely different query. A stable subscription over the
-  // full table sidesteps that gap entirely, and only ever grows to the
-  // size of the stok table, which is already read whole elsewhere
-  // (useProductCatalog, useStokList).
   const stockRows = useLiveQuery(() => db.stokProj.toArray(), [])
 
-  useEffect(() => {
-    if (saveError) errorRef.current?.focus()
-  }, [saveError])
-
-  useEffect(() => () => {
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-  }, [])
+  useEffect(() => { if (saveError) errorRef.current?.focus() }, [saveError])
+  useEffect(() => () => { if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current) }, [])
 
   const diskon: Rupiah = rupiah(0)
   const total = subtract(rupiah(subtotal), diskon)
 
   const uangDiterimaTrimmed = uangDiterima.trim()
   const uangDiterimaValue =
-    uangDiterimaTrimmed === '' || !Number.isInteger(Number(uangDiterimaTrimmed))
-      ? undefined
-      : Number(uangDiterimaTrimmed)
+    uangDiterimaTrimmed === '' || !Number.isInteger(Number(uangDiterimaTrimmed)) ? undefined : Number(uangDiterimaTrimmed)
   const kembalian = uangDiterimaValue === undefined ? undefined : subtract(rupiah(uangDiterimaValue), total)
+
+  const unpricedNames = lines.filter(l => l.hargaSatuan === null).map(l => l.nama)
 
   const showToast = () => {
     setToastVisible(true)
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     toastTimeoutRef.current = setTimeout(() => setToastVisible(false), TOAST_DURATION_MS)
-  }
-
-  const handleQtyChange = (itemId: string, qtyWhole: number) => {
-    cart.setQtyWhole(itemId, qtyWhole)
   }
 
   const handleSave = async (andNew: boolean) => {
@@ -293,8 +263,12 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
           nama: line.nama,
           unit: line.unit,
           qty: line.qty,
-          hargaSatuan: line.hargaSatuan,
-          subtotal: line.subtotal,
+          // Guarded by saveDisabled below: handleSave is unreachable while
+          // any line's hargaSatuan/subtotal is still null.
+          hargaSatuan: line.hargaSatuan as number,
+          subtotal: line.subtotal as number,
+          batchId: line.batchId,
+          hargaNormal: line.hargaNormal,
         })),
         metodeBayar: 'tunai',
         uangDiterima: uangDiterimaValue,
@@ -306,16 +280,13 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
       showToast()
       if (andNew) onSaveAndNew?.()
     } catch {
-      // Same visible, focusable error pattern ItemForm.tsx already
-      // established for a rejected IndexedDB write: never a silent failure,
-      // and the cart is left intact so nothing entered is lost.
       setSaveError('Transaksi gagal disimpan. Coba lagi.')
     } finally {
       setSaving(false)
     }
   }
 
-  const saveDisabled = lines.length === 0 || saving
+  const saveDisabled = lines.length === 0 || saving || unpricedNames.length > 0
 
   return (
     <div className="flex h-full flex-col rounded-card border border-border bg-surface shadow-card">
@@ -333,12 +304,7 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
       )}
 
       {saveError && (
-        <div
-          ref={errorRef}
-          role="alert"
-          tabIndex={-1}
-          className="mx-4 mt-3 rounded-field border border-danger bg-danger-bg p-3 text-[13px] font-semibold text-danger focus-visible:outline-none"
-        >
+        <div ref={errorRef} role="alert" tabIndex={-1} className="mx-4 mt-3 rounded-field border border-danger bg-danger-bg p-3 text-[13px] font-semibold text-danger focus-visible:outline-none">
           {saveError}
         </div>
       )}
@@ -350,10 +316,22 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
           </li>
         ) : (
           lines.map(line => (
-            <CartLineRow key={line.itemId} line={line} onQtyChange={handleQtyChange} stockRows={stockRows} />
+            <CartLineRow
+              key={`${line.itemId}:${line.batchId ?? 'legacy'}`}
+              line={line}
+              onQtyChange={qtyWhole => cart.setQtyWhole(line.itemId, line.batchId, qtyWhole)}
+              onHargaChange={value => cart.setHargaSatuan(line.itemId, line.batchId, value)}
+              stockRows={stockRows}
+            />
           ))
         )}
       </ul>
+
+      {unpricedNames.length > 0 && (
+        <p role="alert" className="mx-4 mt-2 text-[13px] font-medium text-danger">
+          Isi harga untuk {unpricedNames.join(', ')}.
+        </p>
+      )}
 
       <div className="sticky bottom-0 z-sticky flex flex-col gap-3 rounded-b-card border-t border-border bg-surface-sunken p-4">
         <div className="flex items-center justify-between text-[14px] text-ink-muted">
@@ -364,12 +342,7 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
           <span>Diskon</span>
           <span className="tabular-nums">{formatRupiah(diskon)}</span>
         </div>
-        <div
-          data-testid="kasir-total"
-          aria-live="polite"
-          role="status"
-          className="flex items-center justify-between border-t border-dashed border-border-strong pt-3"
-        >
+        <div data-testid="kasir-total" aria-live="polite" role="status" className="flex items-center justify-between border-t border-dashed border-border-strong pt-3">
           <span className="text-[14px] font-semibold text-ink">Total</span>
           <span className="text-[26px] font-extrabold tabular-nums text-ink">{formatRupiah(total)}</span>
         </div>
@@ -377,17 +350,10 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
         <PaymentMethodPills />
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="kasir-uang-diterima" className="text-[13px] font-medium text-ink">
-            Uang diterima
-          </label>
+          <label htmlFor="kasir-uang-diterima" className="text-[13px] font-medium text-ink">Uang diterima</label>
           <input
-            id="kasir-uang-diterima"
-            type="number"
-            min={0}
-            step={1}
-            inputMode="numeric"
-            value={uangDiterima}
-            onChange={e => setUangDiterima(e.target.value)}
+            id="kasir-uang-diterima" type="number" min={0} step={1} inputMode="numeric"
+            value={uangDiterima} onChange={e => setUangDiterima(e.target.value)}
             className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
           />
           {kembalian !== undefined && (
@@ -406,17 +372,13 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
-            type="button"
-            onClick={() => handleSave(true)}
-            disabled={saveDisabled}
+            type="button" onClick={() => handleSave(true)} disabled={saveDisabled}
             className="min-h-tap flex-1 rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)] disabled:cursor-not-allowed disabled:text-ink-disabled"
           >
             Simpan &amp; buat baru
           </button>
           <button
-            type="button"
-            onClick={() => handleSave(false)}
-            disabled={saveDisabled}
+            type="button" onClick={() => handleSave(false)} disabled={saveDisabled}
             className="min-h-tap flex-1 rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:cursor-not-allowed disabled:text-ink-disabled"
           >
             Simpan transaksi
