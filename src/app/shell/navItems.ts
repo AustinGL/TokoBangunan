@@ -1,7 +1,7 @@
-import type { ComponentType } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { Home, Receipt, Package, Wallet, BarChart3, BookOpen, Truck } from 'lucide-react'
 
-export type IconType = ComponentType<{ size?: number; 'aria-hidden'?: boolean | 'true' | 'false' }>
+export type IconType = LucideIcon
 
 export type NavItem = { label: string; path: string; icon: IconType }
 
