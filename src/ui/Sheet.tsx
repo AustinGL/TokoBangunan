@@ -18,7 +18,7 @@ type Props = {
 }
 
 const VARIANT_POSITION: Record<NonNullable<Props['variant']>, string> = {
-  side: 'inset-x-0 bottom-0 w-full max-h-[85vh] rounded-t-sheet md:inset-y-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-[420px] md:max-h-none md:rounded-t-none md:rounded-l-sheet',
+  side: 'inset-x-0 top-auto bottom-0 w-full max-h-[85vh] rounded-t-sheet md:inset-y-0 md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-[420px] md:max-h-none md:rounded-t-none md:rounded-l-sheet',
   center: 'inset-0 m-auto h-fit max-h-[85vh] w-[min(92vw,480px)] rounded-sheet',
 }
 
@@ -123,7 +123,7 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
           <h2 id={titleId} className="text-[15px] font-bold text-ink">{title}</h2>
           <IconButton icon={X} label="Tutup" variant="ghost" onClick={onClose} />
         </div>
-        <div data-sheet-body className="flex flex-1 flex-col overflow-y-auto p-4 scroll-pb-24">{children}</div>
+        <div data-sheet-body className="flex flex-1 flex-col overflow-y-auto p-4 scroll-pb-[calc(6rem+env(safe-area-inset-bottom))]">{children}</div>
       </div>
     </dialog>,
     document.body,
