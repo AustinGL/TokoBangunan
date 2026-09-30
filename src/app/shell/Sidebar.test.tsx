@@ -78,3 +78,35 @@ describe('Sidebar', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Tersinkron')
   })
 })
+
+describe('Sidebar: account entry', () => {
+  it('turns the sync indicator into a link to the account screen', () => {
+    renderSidebar()
+
+    const link = screen.getByRole('link', { name: /tersinkron/i })
+    expect(link).toHaveAttribute('href', '/masuk')
+    expect(within(link).getByRole('status')).toHaveTextContent('Tersinkron')
+  })
+
+  it('says where the link goes when the owner is not signed in', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar syncStatus="belum-masuk" pendingCount={3} onNewTransaction={vi.fn()} supplierAlertCount={0} />
+      </MemoryRouter>,
+    )
+
+    const link = screen.getByRole('link', { name: /belum masuk · 3 belum tercadangkan.*buka akun/i })
+    expect(link).toHaveAttribute('href', '/masuk')
+  })
+
+  it('leaves the indicator plain when the shop is local-only, since there is nothing to sign in to', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar syncStatus="lokal" pendingCount={0} onNewTransaction={vi.fn()} supplierAlertCount={0} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('Hanya di perangkat ini')
+    expect(screen.queryByRole('link', { name: /hanya di perangkat ini/i })).toBeNull()
+  })
+})

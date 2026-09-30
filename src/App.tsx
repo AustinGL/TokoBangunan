@@ -64,7 +64,7 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
         <AppRoutes />
       </div>
       <RouteAnnouncer />
-      <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} />
+      <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} syncStatus={syncStatus} pendingCount={pendingCount} />
     </>
   )
 }

@@ -1,19 +1,24 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { MoreHorizontal, Plus } from 'lucide-react'
 import { PHONE_ITEMS } from './navItems'
 import { NotifDot } from '../../ui/NotifDot'
 import { LainnyaSheet } from './LainnyaSheet'
+import type { SyncStatus } from '../../data/sync'
 
 type Props = {
   onNewTransaction: () => void
   /** Count of supplier records missing their optional details. 0 hides the dot on the Lainnya tab. */
   supplierAlertCount: number
+  syncStatus: SyncStatus
+  pendingCount: number
 }
 
-export function BottomNav({ onNewTransaction, supplierAlertCount }: Props) {
+export function BottomNav({ onNewTransaction, supplierAlertCount, syncStatus, pendingCount }: Props) {
   const [lainnyaOpen, setLainnyaOpen] = useState(false)
   const [first, second, third] = PHONE_ITEMS
+  // On Kasir itself the centre action would open the screen you are already on.
+  const onKasir = useLocation().pathname === '/kasir'
 
   const tab = (item: typeof first) => {
     const Icon = item.icon
@@ -38,7 +43,7 @@ export function BottomNav({ onNewTransaction, supplierAlertCount }: Props) {
     <>
       <nav
         aria-label="Navigasi telepon"
-        className="glass fixed inset-x-0 bottom-0 z-nav flex items-center pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-nav flex items-center border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {tab(first)}
         {tab(second)}
@@ -47,14 +52,19 @@ export function BottomNav({ onNewTransaction, supplierAlertCount }: Props) {
             edge-to-edge: they are full-height flex-1 targets far wider than
             44px, and a gap between them would only open dead strips along
             the bottom edge of a phone. */}
-        <button
-          type="button"
-          onClick={onNewTransaction}
-          aria-label="Transaksi baru"
-          className="mx-2 -mt-6 h-14 w-14 shrink-0 rounded-full bg-primary text-ink-on-primary shadow-panel"
-        >
-          <Plus aria-hidden="true" size={24} className="mx-auto" />
-        </button>
+        {onKasir ? (
+          // Keeps the four tabs where they are, with no button to press.
+          <span aria-hidden="true" className="mx-2 h-14 w-14 shrink-0" />
+        ) : (
+          <button
+            type="button"
+            onClick={onNewTransaction}
+            aria-label="Transaksi baru"
+            className="mx-2 -mt-6 h-14 w-14 shrink-0 rounded-full bg-primary text-ink-on-primary shadow-panel"
+          >
+            <Plus aria-hidden="true" size={24} className="mx-auto" />
+          </button>
+        )}
         {tab(third)}
         <button
           type="button"
@@ -78,6 +88,8 @@ export function BottomNav({ onNewTransaction, supplierAlertCount }: Props) {
         open={lainnyaOpen}
         onClose={() => setLainnyaOpen(false)}
         supplierAlertCount={supplierAlertCount}
+        syncStatus={syncStatus}
+        pendingCount={pendingCount}
       />
     </>
   )

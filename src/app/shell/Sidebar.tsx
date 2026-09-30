@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { Store } from 'lucide-react'
 import { NAV_ITEMS, DATA_MASTER_ITEMS, type NavItem } from './navItems'
 import { NotifDot } from '../../ui/NotifDot'
@@ -21,8 +21,8 @@ function SidebarLink({ item, badgeCount = 0 }: { item: NavItem; badgeCount?: num
       end={item.path === '/'}
       aria-label={badgeCount > 0 ? `${item.label}, ${badgeCount} perlu dilengkapi` : undefined}
       className={({ isActive }) =>
-        `flex min-h-tap items-center gap-3 rounded-tile px-3 text-[14px] ${
-          isActive ? 'bg-mint-tint font-semibold text-primary' : 'font-medium text-ink-muted'
+        `flex min-h-tap items-center gap-3 rounded-pill px-4 text-[14px] ${
+          isActive ? 'bg-accent-50 font-semibold text-primary' : 'font-medium text-ink-muted'
         }`
       }
     >
@@ -38,14 +38,14 @@ function SidebarLink({ item, badgeCount = 0 }: { item: NavItem; badgeCount?: num
  * breakpoint so exactly one of the two is ever visible at a time).
  * Replaces the old horizontal TopNav: seven destinations (five primary plus
  * two grouped under "Data master") no longer fit on one line, so this is a
- * vertical glass sidebar instead.
+ * vertical sidebar instead.
  *
  * F2 is registered by App.tsx (AppShell), not here, so the shortcut keeps
  * working regardless of which nav the current viewport actually shows.
  */
 export function Sidebar({ syncStatus, pendingCount, onNewTransaction, supplierAlertCount }: Props) {
   return (
-    <aside className="glass fixed inset-y-0 left-0 z-nav hidden w-[248px] flex-col gap-6 overflow-y-auto p-5 md:flex">
+    <aside className="fixed inset-y-0 left-0 z-nav hidden border-r border-border bg-surface w-[248px] flex-col gap-6 overflow-y-auto p-5 md:flex">
       <header className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-tile bg-primary text-ink-on-primary" aria-hidden="true">
@@ -62,7 +62,7 @@ export function Sidebar({ syncStatus, pendingCount, onNewTransaction, supplierAl
         <button
           type="button"
           onClick={onNewTransaction}
-          className="min-h-tap rounded-tile bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
+          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
         >
           + Transaksi baru
         </button>
@@ -85,7 +85,18 @@ export function Sidebar({ syncStatus, pendingCount, onNewTransaction, supplierAl
         ))}
       </nav>
 
-      <SyncIndicator status={syncStatus} pendingCount={pendingCount} />
+      {syncStatus === 'lokal' ? (
+        // No server configured: there is nothing to sign in to.
+        <SyncIndicator status={syncStatus} pendingCount={pendingCount} />
+      ) : (
+        <Link
+          to="/masuk"
+          className="-mx-2 flex min-h-tap items-center rounded-tile px-2 hover:bg-[var(--table-row-hover)]"
+        >
+          <SyncIndicator status={syncStatus} pendingCount={pendingCount} />
+          <span className="sr-only"> Buka akun</span>
+        </Link>
+      )}
     </aside>
   )
 }

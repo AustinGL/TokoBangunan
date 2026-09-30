@@ -2,11 +2,15 @@ import { Link } from 'react-router-dom'
 import { LAINNYA_ITEMS } from './navItems'
 import { NotifDot } from '../../ui/NotifDot'
 import { Sheet } from '../../ui/Sheet'
+import { SyncIndicator } from '../../ui/SyncIndicator'
+import type { SyncStatus } from '../../data/sync'
 
 type Props = {
   open: boolean
   onClose: () => void
   supplierAlertCount: number
+  syncStatus: SyncStatus
+  pendingCount: number
 }
 
 /**
@@ -18,7 +22,7 @@ type Props = {
  * any screen without a navigation round-trip, and it never needs its own
  * back-button handling.
  */
-export function LainnyaSheet({ open, onClose, supplierAlertCount }: Props) {
+export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pendingCount }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title="Lainnya" variant="side">
       <nav aria-label="Lainnya" className="flex flex-col gap-1">
@@ -40,6 +44,21 @@ export function LainnyaSheet({ open, onClose, supplierAlertCount }: Props) {
           )
         })}
       </nav>
+
+      {/* A phone has no sidebar, so this is the only place its owner can see the
+          backup status and reach the sign-in screen. Nothing to sign in to when
+          the shop is local-only. Only while open: a closed sheet still keeps its
+          children in the DOM, which would double the sidebar's live status. */}
+      {open && syncStatus !== 'lokal' && (
+        <Link
+          to="/masuk"
+          onClick={onClose}
+          className="mt-4 flex min-h-tap flex-col gap-1 rounded-tile border border-border px-3 py-2"
+        >
+          <span className="text-[14px] font-medium text-ink">Akun dan cadangan</span>
+          <SyncIndicator status={syncStatus} pendingCount={pendingCount} />
+        </Link>
+      )}
     </Sheet>
   )
 }

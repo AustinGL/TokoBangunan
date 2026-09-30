@@ -7,7 +7,7 @@ import { BottomNav } from './BottomNav'
 const renderNav = (path = '/', supplierAlertCount = 0) =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <BottomNav onNewTransaction={vi.fn()} supplierAlertCount={supplierAlertCount} />
+      <BottomNav onNewTransaction={vi.fn()} supplierAlertCount={supplierAlertCount} syncStatus="tersinkron" pendingCount={0} />
     </MemoryRouter>,
   )
 
@@ -72,5 +72,16 @@ describe('BottomNav', () => {
   it('carries a distinct aria-label on its own nav landmark, so it can be told apart from Sidebar’s', () => {
     renderNav()
     expect(screen.getByRole('navigation', { name: 'Navigasi telepon' })).toBeInTheDocument()
+  })
+})
+
+describe('BottomNav: account entry', () => {
+  it('reaches the account screen from the Lainnya sheet', async () => {
+    const user = userEvent.setup()
+    renderNav()
+
+    await user.click(screen.getByRole('button', { name: 'Lainnya' }))
+
+    expect(screen.getByRole('link', { name: /akun dan cadangan/i })).toHaveAttribute('href', '/masuk')
   })
 })
