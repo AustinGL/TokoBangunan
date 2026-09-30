@@ -8,6 +8,7 @@ import { projectSales, reduceSales } from '../domain/projections/sales'
 import { projectBarang, reduceBarang } from '../domain/projections/barang'
 import { projectSuppliers, reduceSuppliers } from '../domain/projections/suppliers'
 import { projectBatches, reduceBatches, type BatchesState } from '../domain/projections/batches'
+import { projectKategori, reduceKategori } from '../domain/projections/kategori'
 
 const CURSOR_KEY = 'syncCursor'
 
@@ -89,6 +90,14 @@ const foldIncremental = async (event: EventEnvelope): Promise<void> => {
       if (next) await db.suppliersProj.put(next)
       return
     }
+    case 'KategoriUpserted': {
+      const payload = event.payload as { id: string }
+      const existing = await db.kategoriProj.get(payload.id)
+      const state = existing ? { [payload.id]: existing } : {}
+      const next = reduceKategori(state, event)[payload.id]
+      if (next) await db.kategoriProj.put(next)
+      return
+    }
     case 'StockReceived': {
       const payload = event.payload as { lines: Array<{ batchId: string; itemId: string; qty: number }> }
 
@@ -129,7 +138,7 @@ export const appendEvents = async (events: EventEnvelope[]): Promise<void> => {
   if (events.length === 0) return
   await db.transaction(
     'rw',
-    [db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj],
+    [db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj, db.kategoriProj],
     async () => {
       await db.events.bulkAdd(events)
       await db.outbox.bulkPut(events.map(e => ({ id: e.id })))
@@ -305,6 +314,12 @@ const rebuildBatchesProj = async (events: EventEnvelope[]): Promise<void> => {
   await db.batchesProj.bulkPut(Object.values(batches))
 }
 
+const rebuildKategoriProj = async (events: EventEnvelope[]): Promise<void> => {
+  const kategori = projectKategori(events)
+  await db.kategoriProj.clear()
+  await db.kategoriProj.bulkPut(Object.values(kategori))
+}
+
 /**
  * Projections are a cache. Discarding and rebuilding must always produce
  * identical state, which the test suite asserts.
@@ -325,7 +340,7 @@ export const rebuildProjections = async (): Promise<void> => {
   // never lost in between.
   await db.transaction(
     'rw',
-    [db.events, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj],
+    [db.events, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj, db.kategoriProj],
     async () => {
       const events = await getAllEvents()
       await rebuildItemsProj(events)
@@ -334,6 +349,7 @@ export const rebuildProjections = async (): Promise<void> => {
       await rebuildBarangProj(events)
       await rebuildSuppliersProj(events)
       await rebuildBatchesProj(events)
+      await rebuildKategoriProj(events)
     },
   )
 }

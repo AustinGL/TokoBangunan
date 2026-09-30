@@ -201,12 +201,10 @@ describe('KamusBarang: toolbar and summary', () => {
     expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
 
     // Clear the kategori of the only barang that had one: the dropdown has nothing left to offer.
-    await user.click(screen.getByRole('button', { name: /cat tembok putih/i }))
-    const panel = await screen.findByTestId('barang-panel-b2')
-    await user.click(within(panel).getByRole('button', { name: /ubah barang/i }))
-    const dialog = within(await screen.findByRole('dialog'))
-    await user.clear(dialog.getByLabelText(/kategori/i))
-    await user.click(dialog.getByRole('button', { name: /simpan/i }))
+    // Done straight on the projection for now: BarangSheet's kategori text is no
+    // longer persisted (Task 15 stopgap), so clearing it through the sheet does
+    // nothing. Restored in Task 18: clear it through the sheet's kategori picker again.
+    await db.barangProj.update('b2', { kategori: undefined })
 
     expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
     expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()

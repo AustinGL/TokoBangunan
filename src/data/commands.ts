@@ -5,6 +5,8 @@ import { newEventId } from '../domain/ids'
 import { toBase } from '../domain/quantity'
 import { add, rupiah, subtract, type Rupiah } from '../domain/money'
 import type { Clock } from '../domain/clock'
+import { kategoriIdForName, normalizeKategoriName } from '../domain/kategori'
+import { loadKategoriEntries } from './kategoriQueries'
 
 /**
  * Orchestration layer: assembles the event(s) a user action produces and
@@ -186,42 +188,106 @@ export async function voidSale(saleId: string, alasan: string, ctx: CommandConte
   await appendEvents([voidEvent, ...stockEvents])
 }
 
-export type RecordBarangInput = { nama: string; kategori?: string }
+const cleanKategoriName = (nama: string): string => nama.trim().replace(/\s+/g, ' ')
+
+/**
+ * Creates a kategori, or returns the existing one for the same name in any
+ * spelling (un-archiving / materializing it when needed). The id is derived
+ * from the name when free, so two offline devices that create the same name
+ * converge on one row; when a renamed row already occupies that id a random
+ * one is used instead.
+ */
+export const recordKategori = async (input: { nama: string }, ctx: CommandContext): Promise<string> => {
+  const nama = cleanKategoriName(input.nama)
+  if (nama === '') throw new Error('Nama kategori wajib diisi.')
+  const key = normalizeKategoriName(nama)
+  const entries = await loadKategoriEntries()
+  const same = entries.find(e => normalizeKategoriName(e.nama) === key)
+  if (same) {
+    if (!same.materialized || same.diarsipkan) {
+      await appendEvents([createEvent('KategoriUpserted', { id: same.id, nama: same.nama, diarsipkan: false }, ctx)])
+    }
+    return same.id
+  }
+  const derived = kategoriIdForName(nama)
+  const id = entries.some(e => e.id === derived) ? newEventId() : derived
+  await appendEvents([createEvent('KategoriUpserted', { id, nama, diarsipkan: false }, ctx)])
+  return id
+}
+
+/** Full replace (last-write-wins), so the caller passes both fields. */
+export const updateKategori = async (
+  input: { id: string; nama: string; diarsipkan: boolean }, ctx: CommandContext,
+): Promise<void> => {
+  const nama = cleanKategoriName(input.nama)
+  if (nama === '') throw new Error('Nama kategori wajib diisi.')
+  const key = normalizeKategoriName(nama)
+  const entries = await loadKategoriEntries()
+  if (!entries.some(e => e.id === input.id)) throw new Error('Kategori tidak ditemukan.')
+  if (entries.some(e => e.id !== input.id && normalizeKategoriName(e.nama) === key)) {
+    throw new Error('Nama kategori sudah dipakai.')
+  }
+  await appendEvents([createEvent('KategoriUpserted', { id: input.id, nama, diarsipkan: input.diarsipkan }, ctx)])
+}
+
+/**
+ * The KategoriUpserted a barang write must carry when its kategoriId is a
+ * legacy-only entry (derived from old text, no master row yet): appended in
+ * the SAME batch, so a barang never points at a row that does not exist.
+ */
+const kategoriEventsFor = async (kategoriId: string, ctx: CommandContext): Promise<EventEnvelope[]> => {
+  if (await db.kategoriProj.get(kategoriId)) return []
+  const entry = (await loadKategoriEntries()).find(e => e.id === kategoriId)
+  if (!entry) throw new Error('Kategori tidak ditemukan.')
+  return [createEvent('KategoriUpserted', { id: entry.id, nama: entry.nama, diarsipkan: entry.diarsipkan }, ctx)]
+}
+
+export type RecordBarangInput = { nama: string; kategoriId?: string }
 
 /** Creates a new Kamus Barang parent. Generates its own id (newEventId), same as recordItem. */
 export const recordBarang = async (input: RecordBarangInput, ctx: CommandContext): Promise<string> => {
   const id = newEventId()
-  await appendEvents([createEvent('BarangUpserted', {
-    id, nama: input.nama, kategori: input.kategori, diarsipkan: false,
-  }, ctx)])
+  const kategoriEvents = input.kategoriId ? await kategoriEventsFor(input.kategoriId, ctx) : []
+  await appendEvents([
+    ...kategoriEvents,
+    createEvent('BarangUpserted', { id, nama: input.nama, kategoriId: input.kategoriId, diarsipkan: false }, ctx),
+  ])
   return id
 }
 
 export type UpdateBarangInput = {
   id: string
   nama?: string
-  /** Omitted (or undefined): keep. null: clear. A string: set. */
-  kategori?: string | null
+  /** Omitted (or undefined): keep. null: clear. A string: set (replaces any legacy kategori text). */
+  kategoriId?: string | null
   diarsipkan?: boolean
 }
 
 /**
- * BarangUpserted is a full-replace, last-write-wins event, so an update
- * must read the current row first to carry forward whatever field the
- * caller didn't set - same precedent as voidSale's read-before-write.
- * kategori distinguishes "omitted" (keep) from "explicitly null" (clear):
- * `??` alone cannot, since it treats null and undefined identically.
+ * BarangUpserted is a full-replace, last-write-wins event, so an update must
+ * read the current row first to carry forward whatever field the caller
+ * didn't set. When the kategori is untouched, BOTH the id and any legacy text
+ * carry forward; when it is set or cleared, the legacy text is dropped
+ * (kategoriId is the single source of truth from then on).
  */
 export const updateBarang = async (input: UpdateBarangInput, ctx: CommandContext): Promise<void> => {
   const existing = await db.barangProj.get(input.id)
   if (!existing) throw new Error('Barang tidak ditemukan.')
 
-  await appendEvents([createEvent('BarangUpserted', {
-    id: existing.id,
-    nama: input.nama ?? existing.nama,
-    kategori: input.kategori === null ? undefined : (input.kategori ?? existing.kategori),
-    diarsipkan: input.diarsipkan ?? existing.diarsipkan,
-  }, ctx)])
+  const touchesKategori = input.kategoriId !== undefined
+  const kategoriId = touchesKategori ? (input.kategoriId ?? undefined) : existing.kategoriId
+  const kategoriEvents = touchesKategori && kategoriId ? await kategoriEventsFor(kategoriId, ctx) : []
+
+  await appendEvents([
+    ...kategoriEvents,
+    createEvent('BarangUpserted', {
+      id: existing.id,
+      nama: input.nama ?? existing.nama,
+      kategoriId,
+      kategori: touchesKategori ? undefined : existing.kategori,
+      diarsipkan: input.diarsipkan ?? existing.diarsipkan,
+    }, ctx),
+  ])
 }
 
 export type RecordUkuranInput = {
@@ -251,6 +317,7 @@ export const recordUkuran = async (input: RecordUkuranInput, ctx: CommandContext
     hargaEceran: input.hargaEceran,
     stokMinimum: input.stokMinimum,
     barcode: input.barcode,
+    // kategori here is a legacy snapshot only read for items with no barang; the barang owns the real value.
     kategori: barangRow.kategori,
     barangId: input.barangId,
     diarsipkan: false,
@@ -297,6 +364,7 @@ export const updateUkuran = async (input: UpdateUkuranInput, ctx: CommandContext
     hargaEceran: input.hargaEceran ?? existing.hargaEceran,
     stokMinimum: input.stokMinimum ?? existing.stokMinimum,
     barcode: input.barcode === null ? undefined : (input.barcode ?? existing.barcode),
+    // kategori here is a legacy snapshot only read for items with no barang; the barang owns the real value.
     kategori: barangRow ? barangRow.kategori : existing.kategori,
     barangId,
     diarsipkan: input.diarsipkan ?? existing.diarsipkan,

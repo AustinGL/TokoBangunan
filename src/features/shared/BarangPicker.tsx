@@ -24,8 +24,9 @@ export function BarangPicker({ value, onChange, error, required, initialNama }: 
   const options = (rows ?? []).filter(r => !r.diarsipkan && !r.virtual).map(r => ({ value: r.barangId, label: r.nama, hint: r.kategori || undefined }))
 
   const handleCreate = async (values: BarangSheetValues) => {
+    // Stopgap until Task 18: kategori text from BarangSheet is not persisted (recordBarang takes kategoriId).
     const id = await recordBarang(
-      { nama: values.nama, kategori: values.kategori ?? undefined },
+      { nama: values.nama },
       { clock: systemClock, deviceId: getDeviceId() },
     )
     onChange(id)

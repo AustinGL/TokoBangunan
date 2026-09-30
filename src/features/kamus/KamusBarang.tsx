@@ -69,11 +69,13 @@ export function KamusBarang() {
 
   const handleBarangSubmit = async (values: BarangSheetValues) => {
     if (barangSheet?.mode === 'edit') {
-      // updateBarang's own null-means-clear convention: pass through.
-      await updateBarang({ id: barangSheet.row.barangId, ...values }, ctx())
+      // Stopgap until Task 18: BarangSheet still submits kategori text, which
+      // updateBarang no longer accepts (it takes kategoriId), so it is not
+      // persisted for now. Task 18 replaces this with the kategori picker.
+      await updateBarang({ id: barangSheet.row.barangId, nama: values.nama, diarsipkan: values.diarsipkan }, ctx())
     } else {
-      // recordBarang has no existing row to preserve; null and undefined mean the same thing here.
-      const id = await recordBarang({ nama: values.nama, kategori: values.kategori ?? undefined }, ctx())
+      // Stopgap until Task 18: kategori text from BarangSheet is not persisted (recordBarang takes kategoriId).
+      const id = await recordBarang({ nama: values.nama }, ctx())
       // A barang with no ukuran cannot be sold or stocked, so the next thing
       // the owner needs is its first ukuran: open the row and that sheet
       // straight away instead of leaving them a "0 ukuran" line to find.

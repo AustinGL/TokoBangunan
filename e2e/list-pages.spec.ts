@@ -38,7 +38,9 @@ test.describe('list pages', () => {
     }
   })
 
-  test('the Kategori dropdown on Stok opens, filters the list and resets', async ({ page }, testInfo) => {
+  // Skipped until Task 18 (restored in Task 18): the Kamus Barang sheet's free-text
+  // kategori is no longer persisted (Task 15 stopgap), so no kategori option exists to filter by.
+  test.skip('the Kategori dropdown on Stok opens, filters the list and resets', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name.endsWith('-dark'), 'behaviour does not depend on colour scheme')
     await createBarangViaKamus(page, { nama: 'E2E Semen', kategori: 'Semen', ukuran: '50 kg' })
     await createBarangViaKamus(page, { nama: 'E2E Cat', kategori: 'Cat', ukuran: '5 kg' })

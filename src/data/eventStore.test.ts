@@ -509,3 +509,17 @@ describe('appendEvents incremental fold: sale itemIds/batchIds', () => {
     expect(incremental?.batchIds).toEqual(['b1'])
   })
 })
+
+describe('appendEvents incremental fold: KategoriUpserted', () => {
+  it('folds into kategoriProj and rebuildProjections restores the same row', async () => {
+    const e = createEvent('KategoriUpserted', { id: 'kat_semen', nama: 'Semen', diarsipkan: false }, at('2026-09-30T07:00:00.000Z'))
+    await appendEvents([e])
+    const incremental = await db.kategoriProj.get('kat_semen')
+    expect(incremental).toMatchObject({ id: 'kat_semen', nama: 'Semen', diarsipkan: false })
+
+    await db.kategoriProj.clear()
+    await rebuildProjections()
+
+    expect(await db.kategoriProj.get('kat_semen')).toEqual(incremental)
+  })
+})

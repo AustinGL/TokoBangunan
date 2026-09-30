@@ -6,6 +6,7 @@ import type { Sale } from '../domain/projections/sales'
 import type { Barang } from '../domain/projections/barang'
 import type { Supplier } from '../domain/projections/suppliers'
 import type { Batch } from '../domain/projections/batches'
+import type { Kategori } from '../domain/projections/kategori'
 import { projectBarang } from '../domain/projections/barang'
 import { projectSuppliers } from '../domain/projections/suppliers'
 import { projectBatches } from '../domain/projections/batches'
@@ -50,6 +51,7 @@ class TokoDb extends Dexie {
   barangProj!: Table<Barang, string>
   suppliersProj!: Table<Supplier, string>
   batchesProj!: Table<Batch, string>
+  kategoriProj!: Table<Kategori, string>
 
   constructor() {
     super('toko-bahan-bangunan')
@@ -117,6 +119,13 @@ class TokoDb extends Dexie {
       const sorted = [...events].sort(compareCausal)
       await tx.table('salesProj').clear()
       await tx.table('salesProj').bulkPut(Object.values(projectSales(sorted)))
+    })
+    // kategoriProj is a new table with no events behind it yet (KategoriUpserted
+    // is new in this version), so there is nothing to backfill. An event that
+    // arrives before this schema is quarantined and re-parsed by
+    // retryQuarantined, the same path every earlier new event type used.
+    this.version(6).stores({
+      kategoriProj: 'id, nama',
     })
   }
 }

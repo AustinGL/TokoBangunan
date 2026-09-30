@@ -4,7 +4,9 @@ import { db } from './db'
 import {
   recordItem, recordSale, voidSale, recordBarang, updateBarang, recordUkuran, updateUkuran,
   recordSupplier, updateSupplier, recordStockPurchase, correctBatch, type RecordSaleInput,
+  recordKategori, updateKategori,
 } from './commands'
+import { kategoriIdForName } from '../domain/kategori'
 import { fixedClock } from '../domain/clock'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
@@ -363,14 +365,14 @@ describe('voidSale: batchId reversal', () => {
 
 describe('recordBarang', () => {
   it('writes a BarangUpserted event, defaulting diarsipkan to false', async () => {
-    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+    const id = await recordBarang({ nama: 'Semen Tiga Roda' }, at('2026-09-18T07:00:00.000Z'))
 
     const events = await db.events.toArray()
     expect(events).toHaveLength(1)
     expect(events[0].type).toBe('BarangUpserted')
 
     const barang = await db.barangProj.get(id)
-    expect(barang).toMatchObject({ nama: 'Semen Tiga Roda', kategori: 'Semen', diarsipkan: false })
+    expect(barang).toMatchObject({ nama: 'Semen Tiga Roda', diarsipkan: false })
   })
 })
 
@@ -380,12 +382,13 @@ describe('updateBarang', () => {
   })
 
   it('preserves fields not given in the input', async () => {
-    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+    const kategoriId = await recordKategori({ nama: 'Semen' }, at('2026-09-18T06:00:00.000Z'))
+    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategoriId }, at('2026-09-18T07:00:00.000Z'))
 
     await updateBarang({ id, nama: 'Semen Tiga Roda 50kg' }, at('2026-09-18T08:00:00.000Z'))
 
     const barang = await db.barangProj.get(id)
-    expect(barang).toMatchObject({ nama: 'Semen Tiga Roda 50kg', kategori: 'Semen' })
+    expect(barang).toMatchObject({ nama: 'Semen Tiga Roda 50kg', kategoriId })
   })
 
   it('archives a barang by setting diarsipkan', async () => {
@@ -397,11 +400,12 @@ describe('updateBarang', () => {
   })
 
   it('clears kategori when explicitly given null', async () => {
-    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+    const kategoriId = await recordKategori({ nama: 'Semen' }, at('2026-09-18T06:00:00.000Z'))
+    const id = await recordBarang({ nama: 'Semen Tiga Roda', kategoriId }, at('2026-09-18T07:00:00.000Z'))
 
-    await updateBarang({ id, kategori: null }, at('2026-09-18T08:00:00.000Z'))
+    await updateBarang({ id, kategoriId: null }, at('2026-09-18T08:00:00.000Z'))
 
-    expect((await db.barangProj.get(id))?.kategori).toBeUndefined()
+    expect((await db.barangProj.get(id))?.kategoriId).toBeUndefined()
   })
 })
 
@@ -413,7 +417,9 @@ describe('recordUkuran', () => {
   })
 
   it('creates an item snapshotting the parent barang\'s nama and kategori', async () => {
-    const barangId = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+    const barangId = await recordBarang({ nama: 'Semen Tiga Roda' }, at('2026-09-18T07:00:00.000Z'))
+    // recordBarang no longer writes kategori text; seed the legacy text the snapshot copies.
+    await db.barangProj.update(barangId, { kategori: 'Semen' })
 
     const ukuranId = await recordUkuran(
       { barangId, ukuran: '50 kg', hargaEceran: 65000, stokMinimum: 10 },
@@ -446,8 +452,8 @@ describe('updateUkuran', () => {
   })
 
   it('moves an ukuran to another barang, updating its nama/kategori snapshot and keeping its own price', async () => {
-    const semenId = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
-    const semenGudangId = await recordBarang({ nama: 'Semen Gudang Garam', kategori: 'Semen' }, at('2026-09-18T07:01:00.000Z'))
+    const semenId = await recordBarang({ nama: 'Semen Tiga Roda' }, at('2026-09-18T07:00:00.000Z'))
+    const semenGudangId = await recordBarang({ nama: 'Semen Gudang Garam' }, at('2026-09-18T07:01:00.000Z'))
     const ukuranId = await recordUkuran(
       { barangId: semenId, ukuran: '50 kg', hargaEceran: 65000, stokMinimum: 10 },
       at('2026-09-18T07:02:00.000Z'),
@@ -460,7 +466,9 @@ describe('updateUkuran', () => {
   })
 
   it('moving to a barang with no kategori clears the ukuran\'s kategori, rather than keeping the old barang\'s', async () => {
-    const semenId = await recordBarang({ nama: 'Semen Tiga Roda', kategori: 'Semen' }, at('2026-09-18T07:00:00.000Z'))
+    const semenId = await recordBarang({ nama: 'Semen Tiga Roda' }, at('2026-09-18T07:00:00.000Z'))
+    // recordBarang no longer writes kategori text; seed legacy text so the move has something to clear.
+    await db.barangProj.update(semenId, { kategori: 'Semen' })
     const pakuId = await recordBarang({ nama: 'Paku' }, at('2026-09-18T07:01:00.000Z'))
     const ukuranId = await recordUkuran(
       { barangId: semenId, ukuran: '50 kg', hargaEceran: 65000, stokMinimum: 10 },
@@ -650,5 +658,100 @@ describe('correctBatch', () => {
 
     const events = await db.events.toArray()
     expect(events.filter(e => e.type === 'StockAdjusted')).toHaveLength(0)
+  })
+})
+
+const ctx = at('2026-09-30T00:00:00.000Z')
+
+describe('kategori commands', () => {
+  it('recordKategori creates a row with the derived id', async () => {
+    const id = await recordKategori({ nama: 'Semen' }, ctx)
+    expect(id).toBe(kategoriIdForName('Semen'))
+    expect(await db.kategoriProj.get(id)).toMatchObject({ nama: 'Semen', diarsipkan: false })
+  })
+  it('returns the existing kategori for the same name in any spelling, without a second row', async () => {
+    const a = await recordKategori({ nama: 'Semen' }, ctx)
+    const b = await recordKategori({ nama: '  semen ' }, ctx)
+    expect(b).toBe(a)
+    expect(await db.kategoriProj.count()).toBe(1)
+  })
+  it('un-archives an archived kategori instead of duplicating it', async () => {
+    const id = await recordKategori({ nama: 'Semen' }, ctx)
+    await updateKategori({ id, nama: 'Semen', diarsipkan: true }, ctx)
+    expect(await recordKategori({ nama: 'semen' }, ctx)).toBe(id)
+    expect((await db.kategoriProj.get(id))!.diarsipkan).toBe(false)
+  })
+  it('materializes a legacy-only name rather than creating a second one', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'x', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const id = await recordKategori({ nama: 'cat' }, ctx)
+    expect(id).toBe(kategoriIdForName('Cat'))
+    expect((await db.kategoriProj.get(id))!.nama).toBe('Cat')
+  })
+  it('does not reuse a derived id that a renamed row already occupies', async () => {
+    const semen = await recordKategori({ nama: 'Semen' }, ctx)
+    await updateKategori({ id: semen, nama: 'Semen Tiga Roda', diarsipkan: false }, ctx)
+    const fresh = await recordKategori({ nama: 'Semen' }, ctx)
+    expect(fresh).not.toBe(semen)
+    expect(await db.kategoriProj.count()).toBe(2)
+  })
+  it('rejects a blank name', async () => {
+    await expect(recordKategori({ nama: '   ' }, ctx)).rejects.toThrow('Nama kategori wajib diisi.')
+  })
+  it('updateKategori renames, keeping the id', async () => {
+    const id = await recordKategori({ nama: 'Semen' }, ctx)
+    await updateKategori({ id, nama: 'Semen Tiga Roda', diarsipkan: false }, ctx)
+    expect(await db.kategoriProj.get(id)).toMatchObject({ nama: 'Semen Tiga Roda' })
+  })
+  it('updateKategori refuses a name another kategori already has', async () => {
+    await recordKategori({ nama: 'Semen' }, ctx)
+    const cat = await recordKategori({ nama: 'Cat' }, ctx)
+    await expect(updateKategori({ id: cat, nama: ' SEMEN', diarsipkan: false }, ctx)).rejects.toThrow('Nama kategori sudah dipakai.')
+  })
+  it('updateKategori materializes a legacy entry when it is renamed', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'x', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const id = kategoriIdForName('Cat')
+    await updateKategori({ id, nama: 'Cat Tembok', diarsipkan: false }, ctx)
+    expect(await db.kategoriProj.get(id)).toMatchObject({ nama: 'Cat Tembok' })
+  })
+})
+
+describe('barang <-> kategori', () => {
+  it('recordBarang stores kategoriId and no legacy text', async () => {
+    const kat = await recordKategori({ nama: 'Semen' }, ctx)
+    const id = await recordBarang({ nama: 'Tiga Roda', kategoriId: kat }, ctx)
+    expect(await db.barangProj.get(id)).toMatchObject({ kategoriId: kat })
+    expect((await db.barangProj.get(id))!.kategori).toBeUndefined()
+  })
+  it('recordBarang with a legacy-only kategoriId materializes it in the same write', async () => {
+    await db.barangProj.put({ id: 'old', nama: 'x', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const id = await recordBarang({ nama: 'Baru', kategoriId: kategoriIdForName('Cat') }, ctx)
+    expect((await db.kategoriProj.get(kategoriIdForName('Cat')))!.nama).toBe('Cat')
+    expect((await db.barangProj.get(id))!.kategoriId).toBe(kategoriIdForName('Cat'))
+  })
+  it('recordBarang refuses a kategoriId that exists nowhere', async () => {
+    await expect(recordBarang({ nama: 'x', kategoriId: 'kat_hantu' }, ctx)).rejects.toThrow('Kategori tidak ditemukan.')
+  })
+  it('updateBarang keeps legacy text when the kategori is not touched', async () => {
+    const id = await recordBarang({ nama: 'Lama' }, ctx)
+    await db.barangProj.update(id, { kategori: 'Semen' })
+    await updateBarang({ id, nama: 'Lama 2' }, ctx)
+    expect(await db.barangProj.get(id)).toMatchObject({ nama: 'Lama 2', kategori: 'Semen' })
+  })
+  it('updateBarang with a kategoriId replaces the legacy text', async () => {
+    const id = await recordBarang({ nama: 'Lama' }, ctx)
+    await db.barangProj.update(id, { kategori: 'Semen' })
+    const kat = await recordKategori({ nama: 'Cat' }, ctx)
+    await updateBarang({ id, kategoriId: kat }, ctx)
+    const row = (await db.barangProj.get(id))!
+    expect(row.kategoriId).toBe(kat)
+    expect(row.kategori).toBeUndefined()
+  })
+  it('updateBarang with kategoriId null clears both', async () => {
+    const kat = await recordKategori({ nama: 'Cat' }, ctx)
+    const id = await recordBarang({ nama: 'X', kategoriId: kat }, ctx)
+    await updateBarang({ id, kategoriId: null }, ctx)
+    const row = (await db.barangProj.get(id))!
+    expect(row.kategoriId).toBeUndefined()
+    expect(row.kategori).toBeUndefined()
   })
 })

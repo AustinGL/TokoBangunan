@@ -180,3 +180,9 @@ describe('version(5) upgrade', () => {
     expect(byItemIndex.map(s => s.id)).toEqual([saleEvent.id])
   })
 })
+
+describe('version(6) schema', () => {
+  it('adds the kategoriProj table', () => {
+    expect(db.tables.map(t => t.name)).toContain('kategoriProj')
+  })
+})
