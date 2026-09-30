@@ -104,4 +104,24 @@ test.describe('list pages', () => {
     await expect(page).toHaveURL(/\/stok\?tambah=1$/)
     await expect(tambahStok.getByRole('combobox', { name: /^ukuran/i })).toHaveValue('50 kg')
   })
+
+  test('Tambah stok: add a supplier from the "+" without leaving the sheet', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name.endsWith('-dark'), 'behaviour does not depend on colour scheme')
+    await page.goto('/stok')
+    await page.getByRole('button', { name: /tambah stok/i }).first().click()
+    const stok = page.getByRole('dialog', { name: 'Tambah stok' })
+    await stok.getByLabel('Jumlah').fill('7')
+
+    await stok.getByRole('button', { name: 'Tambah supplier baru' }).click()
+    const supplier = page.getByRole('dialog', { name: 'Supplier baru' })
+    await supplier.getByLabel('Nama', { exact: true }).fill('UD E2E Baru')
+    await supplier.getByRole('button', { name: /^Simpan/ }).click()
+
+    await expect(supplier).toBeHidden()
+    await expect(stok).toBeVisible()
+    await expect(stok.getByRole('combobox', { name: 'Supplier' })).toHaveValue('UD E2E Baru')
+    await expect(stok.getByLabel('Jumlah')).toHaveValue('7')
+    // Tambah stok is open at /stok?tambah=1; the nested sheet must not navigate away.
+    await expect(page).toHaveURL(/\/stok\?tambah=1$/)
+  })
 })

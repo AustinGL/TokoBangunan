@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
@@ -74,5 +74,39 @@ describe('SupplierPicker', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/gagal ditambahkan/i)
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.queryByText(/supplier ditambahkan/i)).toBeNull()
+  })
+
+  it('has a "+" that opens the full supplier form, saves it complete, and selects it', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<ToastProvider><SupplierPicker value={null} onChange={onChange} /></ToastProvider>)
+
+    await user.click(screen.getByRole('button', { name: 'Tambah supplier baru' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Supplier baru' })
+    await user.type(within(sheet).getByLabelText('Nama'), 'UD Lengkap')
+    await user.type(within(sheet).getByLabelText('Telepon'), '0812-1')
+    await user.click(within(sheet).getByRole('button', { name: /^Simpan/ }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String)))
+    const saved = (await db.suppliersProj.toArray()).find(s => s.nama === 'UD Lengkap')
+    expect(saved).toMatchObject({ telepon: '0812-1', perluDilengkapi: false })
+  })
+
+  it('the "+" sits beside the field at the same control height and field shape', () => {
+    render(<ToastProvider><SupplierPicker value={null} onChange={vi.fn()} /></ToastProvider>)
+    expect(screen.getByRole('button', { name: 'Tambah supplier baru' })).toHaveClass('h-control', 'w-control', 'rounded-field')
+  })
+
+  it('a failed save keeps the sheet open and says so inside it', async () => {
+    vi.mocked(recordSupplier).mockRejectedValueOnce(new Error('quota'))
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<ToastProvider><SupplierPicker value={null} onChange={onChange} /></ToastProvider>)
+    await user.click(screen.getByRole('button', { name: 'Tambah supplier baru' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Supplier baru' })
+    await user.type(within(sheet).getByLabelText('Nama'), 'UD Gagal')
+    await user.click(within(sheet).getByRole('button', { name: /^Simpan/ }))
+    expect(await within(sheet).findByText('Supplier gagal disimpan. Coba lagi.')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
