@@ -181,6 +181,12 @@
   --table-row-hover: var(--background);
 
   --tap-min: 44px;   /* every interactive control */
+
+  /* One height for every input, select, button, pill and search field.
+     48px clears the 44px tap floor and matches today's layouts closely.
+     --control-h-sm is for dense in-card actions; its hit area is padded to 44px. */
+  --control-h:    48px;
+  --control-h-sm: 36px;
 }
 
 /* 1.5b Required-field marker

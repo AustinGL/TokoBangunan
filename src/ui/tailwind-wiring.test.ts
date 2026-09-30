@@ -31,7 +31,7 @@ describe('Tailwind config wiring (tailwind.config.js theme.extend reaches the bu
     const cssPath = fileURLToPath(cssUrl)
     const source = readFileSync(cssUrl, 'utf8')
 
-    const probeClasses = ['bg-primary', 'text-ink-muted', 'rounded-card', 'rounded-sheet', 'min-h-tap', 'z-nav', 'shadow-glass', 'bg-mint-tint']
+    const probeClasses = ['bg-primary', 'text-ink-muted', 'rounded-card', 'rounded-sheet', 'min-h-tap', 'z-nav', 'shadow-card', 'bg-accent-50', 'rounded-pill', 'bg-focal', 'h-control', 'w-control', 'min-h-control', 'min-w-control', 'h-control-sm', 'w-control-sm']
     const probeSource = `${source}\n@source inline("${probeClasses.join(' ')}");\n`
 
     const result = await postcss([tailwindPostcss()]).process(probeSource, { from: cssPath })
