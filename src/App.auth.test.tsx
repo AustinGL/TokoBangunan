@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, within, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { db } from './data/db'
 
@@ -33,6 +33,7 @@ beforeEach(async () => {
   h.runSync.mockReset()
   h.unsubscribe.mockReset()
   h.listener = null
+  window.history.pushState({}, '', '/')
 })
 
 describe('App: sync follows the owner signing in and out', () => {
@@ -108,5 +109,37 @@ describe('App: sync follows the owner signing in and out', () => {
 
     expect(screen.getByText('Tersinkron')).toBeInTheDocument()
     expect(screen.queryByText(/^Belum masuk/)).toBeNull()
+  })
+})
+
+describe('App: the reminder to sign in', () => {
+  it('asks the owner to sign in while not signed in, and stops asking once signed in', async () => {
+    h.runSync.mockRejectedValueOnce(new BelumMasukError())
+    render(<App />)
+
+    const reminder = await screen.findByRole('region', { name: 'Belum masuk' })
+    expect(within(reminder).getByRole('link', { name: 'Masuk' })).toHaveAttribute('href', '/masuk')
+
+    h.runSync.mockResolvedValue(undefined)
+    await act(async () => { h.listener!('SIGNED_IN') })
+
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Belum masuk' })).toBeNull())
+  })
+
+  it('does not show it when the sync merely failed for lack of network', async () => {
+    h.runSync.mockRejectedValueOnce(new Error('Failed to fetch'))
+    render(<App />)
+    await screen.findByText(/^Belum tersinkron/)
+
+    expect(screen.queryByRole('region', { name: 'Belum masuk' })).toBeNull()
+  })
+
+  it.each(['/kasir', '/masuk'])('stays out of the way on %s', async path => {
+    window.history.pushState({}, '', path)
+    h.runSync.mockRejectedValue(new BelumMasukError())
+    render(<App />)
+    await screen.findByText(/^Belum masuk/) // the status is "not signed in", yet no banner here
+
+    expect(screen.queryByRole('region', { name: 'Belum masuk' })).toBeNull()
   })
 })

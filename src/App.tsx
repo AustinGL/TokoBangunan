@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BrowserRouter, useNavigate } from 'react-router-dom'
+import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from './app/shell/Sidebar'
 import { BottomNav } from './app/shell/BottomNav'
+import { LoginReminder } from './app/shell/LoginReminder'
 import { AppRoutes } from './app/routes'
 import { runSync, supabaseTransport, BelumMasukError, type SyncStatus } from './data/sync'
 import { db } from './data/db'
@@ -21,6 +22,10 @@ type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
 function AppShell({ syncStatus, pendingCount }: ShellProps) {
   const navigate = useNavigate()
   const supplierAlertCount = useSupplierPerluDilengkapiCount()
+  const { pathname } = useLocation()
+  // Not on Kasir (the counter screen stays clear, and never waits on this) nor
+  // on the sign-in screen itself, where it would only repeat the page.
+  const showLoginReminder = syncStatus === 'belum-masuk' && pathname !== '/kasir' && pathname !== '/masuk'
   // react-router guarantees navigate's identity is stable across renders,
   // so wrapping it in useCallback keyed on it keeps openKasir stable too -
   // the F2 listener effect below depends on it and must not re-register on
@@ -61,6 +66,7 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
         supplierAlertCount={supplierAlertCount}
       />
       <div id="konten" tabIndex={-1} className="pb-24 outline-none md:pb-0 md:pl-[248px]">
+        {showLoginReminder && <LoginReminder pendingCount={pendingCount} />}
         <AppRoutes />
       </div>
       <RouteAnnouncer />
