@@ -56,7 +56,7 @@ describe('LainnyaSheet', () => {
   it('gives every destination link the minimum tap-target class', () => {
     renderSheet(true)
     for (const label of ['Transaksi', 'Kamus Barang', 'Supplier', 'Laporan']) {
-      expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-tap')
+      expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-control')
     }
   })
 })

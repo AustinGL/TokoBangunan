@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { MoreHorizontal, Plus } from 'lucide-react'
 import { PHONE_ITEMS } from './navItems'
 import { NotifDot } from '../../ui/NotifDot'
+import { Icon } from '../../ui/Icon'
 import { LainnyaSheet } from './LainnyaSheet'
 import type { SyncStatus } from '../../data/sync'
 
@@ -21,19 +22,18 @@ export function BottomNav({ onNewTransaction, supplierAlertCount, syncStatus, pe
   const onKasir = useLocation().pathname === '/kasir'
 
   const tab = (item: typeof first) => {
-    const Icon = item.icon
     return (
       <NavLink
         key={item.path}
         to={item.path}
         end={item.path === '/'}
         className={({ isActive }) =>
-          `flex min-h-tap flex-1 flex-col items-center justify-center gap-0.5 text-[12px] ${
+          `flex min-h-control flex-1 flex-col items-center justify-center gap-0.5 text-[12px] ${
             isActive ? 'font-semibold text-primary' : 'font-medium text-ink-muted'
           }`
         }
       >
-        <Icon aria-hidden="true" size={18} />
+        <Icon icon={item.icon} size="nav" />
         {item.label}
       </NavLink>
     )
@@ -62,7 +62,7 @@ export function BottomNav({ onNewTransaction, supplierAlertCount, syncStatus, pe
             aria-label="Transaksi baru"
             className="mx-2 -mt-6 h-14 w-14 shrink-0 rounded-full bg-primary text-ink-on-primary shadow-panel"
           >
-            <Plus aria-hidden="true" size={24} className="mx-auto" />
+            <Icon icon={Plus} size="fab" className="mx-auto" />
           </button>
         )}
         {tab(third)}
@@ -70,10 +70,10 @@ export function BottomNav({ onNewTransaction, supplierAlertCount, syncStatus, pe
           type="button"
           onClick={() => setLainnyaOpen(true)}
           aria-label={supplierAlertCount > 0 ? `Lainnya, ${supplierAlertCount} perlu dilengkapi` : undefined}
-          className="flex min-h-tap flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-ink-muted"
+          className="flex min-h-control flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-ink-muted"
         >
           <span className="relative">
-            <MoreHorizontal aria-hidden="true" size={18} />
+            <Icon icon={MoreHorizontal} size="nav" />
             {supplierAlertCount > 0 && (
               <span className="absolute -right-1 -top-1">
                 <NotifDot />

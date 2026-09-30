@@ -1,6 +1,8 @@
 import { Link, NavLink } from 'react-router-dom'
 import { Store } from 'lucide-react'
 import { NAV_ITEMS, DATA_MASTER_ITEMS, type NavItem } from './navItems'
+import { Button } from '../../ui/Button'
+import { Icon } from '../../ui/Icon'
 import { NotifDot } from '../../ui/NotifDot'
 import { SyncIndicator } from '../../ui/SyncIndicator'
 import type { SyncStatus } from '../../data/sync'
@@ -14,19 +16,18 @@ type Props = {
 }
 
 function SidebarLink({ item, badgeCount = 0 }: { item: NavItem; badgeCount?: number }) {
-  const Icon = item.icon
   return (
     <NavLink
       to={item.path}
       end={item.path === '/'}
       aria-label={badgeCount > 0 ? `${item.label}, ${badgeCount} perlu dilengkapi` : undefined}
       className={({ isActive }) =>
-        `flex min-h-tap items-center gap-3 rounded-pill px-4 text-[14px] ${
+        `flex min-h-control items-center gap-3 rounded-pill px-4 text-[14px] ${
           isActive ? 'bg-accent-50 font-semibold text-primary' : 'font-medium text-ink-muted'
         }`
       }
     >
-      <Icon aria-hidden="true" size={18} />
+      <Icon icon={item.icon} size="button" />
       <span className="flex-1">{item.label}</span>
       {badgeCount > 0 && <NotifDot />}
     </NavLink>
@@ -49,7 +50,7 @@ export function Sidebar({ syncStatus, pendingCount, onNewTransaction, supplierAl
       <header className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-tile bg-primary text-ink-on-primary" aria-hidden="true">
-            <Store size={20} />
+            <Icon icon={Store} size="nav" />
           </div>
           <div>
             <div className="text-[15px] font-extrabold text-ink">Toko Bahan Bangunan</div>
@@ -59,13 +60,9 @@ export function Sidebar({ syncStatus, pendingCount, onNewTransaction, supplierAl
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onNewTransaction}
-          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-        >
+        <Button variant="primary" fullWidth onClick={onNewTransaction}>
           + Transaksi baru
-        </button>
+        </Button>
       </header>
 
       <nav aria-label="Navigasi utama" className="flex flex-1 flex-col gap-1">
@@ -91,7 +88,7 @@ export function Sidebar({ syncStatus, pendingCount, onNewTransaction, supplierAl
       ) : (
         <Link
           to="/masuk"
-          className="-mx-2 flex min-h-tap items-center rounded-tile px-2 hover:bg-[var(--table-row-hover)]"
+          className="-mx-2 flex min-h-control items-center rounded-tile px-2 hover:bg-[var(--table-row-hover)]"
         >
           <SyncIndicator status={syncStatus} pendingCount={pendingCount} />
           <span className="sr-only"> Buka akun</span>

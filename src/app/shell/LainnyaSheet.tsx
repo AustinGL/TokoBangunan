@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { LAINNYA_ITEMS } from './navItems'
+import { Icon } from '../../ui/Icon'
 import { NotifDot } from '../../ui/NotifDot'
 import { Sheet } from '../../ui/Sheet'
 import { SyncIndicator } from '../../ui/SyncIndicator'
@@ -27,7 +28,6 @@ export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pe
     <Sheet open={open} onClose={onClose} title="Lainnya" variant="side">
       <nav aria-label="Lainnya" className="flex flex-col gap-1">
         {LAINNYA_ITEMS.map(item => {
-          const Icon = item.icon
           const badgeCount = item.path === '/supplier' ? supplierAlertCount : 0
           return (
             <Link
@@ -35,9 +35,9 @@ export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pe
               to={item.path}
               onClick={onClose}
               aria-label={badgeCount > 0 ? `${item.label}, ${badgeCount} perlu dilengkapi` : undefined}
-              className="flex min-h-tap items-center gap-3 rounded-tile px-3 text-[14px] font-medium text-ink"
+              className="flex min-h-control items-center gap-3 rounded-tile px-3 text-[14px] font-medium text-ink"
             >
-              <Icon aria-hidden="true" size={18} />
+              <Icon icon={item.icon} size="button" />
               <span className="flex-1">{item.label}</span>
               {badgeCount > 0 && <NotifDot />}
             </Link>
@@ -53,7 +53,7 @@ export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pe
         <Link
           to="/masuk"
           onClick={onClose}
-          className="mt-4 flex min-h-tap flex-col gap-1 rounded-tile border border-border px-3 py-2"
+          className="mt-4 flex min-h-control flex-col gap-1 rounded-tile border border-border px-3 py-2"
         >
           <span className="text-[14px] font-medium text-ink">Akun dan cadangan</span>
           <SyncIndicator status={syncStatus} pendingCount={pendingCount} />

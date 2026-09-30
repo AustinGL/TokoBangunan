@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url'
 const SRC = fileURLToPath(new URL('..', import.meta.url))
 
 const PENDING: string[] = [
-  'app/shell/BottomNav.tsx', 'app/shell/LainnyaSheet.tsx', 'app/shell/LoginReminder.tsx', 'app/shell/Sidebar.tsx',
   'features/akun/Masuk.tsx', 'features/beranda/Beranda.tsx',
   'features/kamus/BarangSheet.tsx', 'features/kamus/KamusBarang.tsx', 'features/kamus/UkuranSheet.tsx',
   'features/kasir/CartBar.tsx', 'features/kasir/CartPanel.tsx', 'features/kasir/Kasir.tsx',

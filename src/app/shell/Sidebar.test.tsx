@@ -41,9 +41,9 @@ describe('Sidebar', () => {
   it('gives every destination link and the primary button the minimum tap-target class', () => {
     renderSidebar()
     for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Supplier']) {
-      expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-tap')
+      expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-control')
     }
-    expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toHaveClass('min-h-tap')
+    expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toHaveClass('h-control')
   })
 
   it('shows no supplier alert badge when supplierAlertCount is 0', () => {

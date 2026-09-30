@@ -46,11 +46,11 @@ describe('BottomNav', () => {
 
   it('gives every tab, the centre action and the Lainnya button the minimum tap-target class', () => {
     renderNav()
-    expect(screen.getByRole('link', { name: 'Beranda' })).toHaveClass('min-h-tap')
-    expect(screen.getByRole('link', { name: 'Stok' })).toHaveClass('min-h-tap')
-    expect(screen.getByRole('link', { name: 'Piutang' })).toHaveClass('min-h-tap')
+    expect(screen.getByRole('link', { name: 'Beranda' })).toHaveClass('min-h-control')
+    expect(screen.getByRole('link', { name: 'Stok' })).toHaveClass('min-h-control')
+    expect(screen.getByRole('link', { name: 'Piutang' })).toHaveClass('min-h-control')
     expect(screen.getByRole('button', { name: 'Transaksi baru' })).toHaveClass('h-14', 'w-14')
-    expect(screen.getByRole('button', { name: 'Lainnya' })).toHaveClass('min-h-tap')
+    expect(screen.getByRole('button', { name: 'Lainnya' })).toHaveClass('min-h-control')
   })
 
   it('separates the centre action from the tabs it abuts', () => {
