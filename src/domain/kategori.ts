@@ -4,12 +4,23 @@ export type KategoriEntry = { id: string; nama: string; diarsipkan: boolean; mat
 /** What a barang (or a legacy item with no barang) knows about its kategori. */
 export type KategoriSource = { kategoriId?: string; kategori?: string }
 
+/** A high surrogate with no low one after it, or a low one with no high one before it. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
 /**
  * The one normal form for "is this the same kategori": trimmed, inner space
- * collapsed, case-folded. Every device must compute the same ids from it, so
- * do not change it without a follow-up migration.
+ * collapsed, Unicode-normalized (NFC, so a composed and a decomposed "cafe" are
+ * one name), case-folded, and with any lone surrogate replaced by U+FFFD so the
+ * id below can always be encoded (legacy text is arbitrary user data, and
+ * encodeURIComponent throws on a lone surrogate).
+ *
+ * THIS FORM IS FROZEN. Every id derived from it is written into KategoriUpserted
+ * events on the owner's devices and lives in the append-only log forever, so
+ * changing any step (including NFC or the surrogate replacement) would give the
+ * same name a new id. Do not change it without a data migration.
  */
-export const normalizeKategoriName = (nama: string): string => nama.trim().replace(/\s+/g, ' ').toLowerCase()
+export const normalizeKategoriName = (nama: string): string =>
+  nama.trim().replace(/\s+/g, ' ').normalize('NFC').toLowerCase().replace(LONE_SURROGATE, '\uFFFD')
 
 /**
  * A kategori's id when it is first created from a name (typed in a picker, or
@@ -48,7 +59,9 @@ export function buildKategoriList(master: Kategori[], sources: KategoriSource[])
     const id = kategoriIdForName(text)
     if (!byId.has(id)) byId.set(id, { id, nama: text, diarsipkan: false, materialized: false })
   }
-  return [...byId.values()].sort((a, b) => a.nama.localeCompare(b.nama, 'id-ID', { sensitivity: 'base' }))
+  // Names that tie (e.g. 'Cat' and 'cat') fall back to the id, so every device lists them in the same order.
+  return [...byId.values()].sort((a, b) =>
+    a.nama.localeCompare(b.nama, 'id-ID', { sensitivity: 'base' }) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
 export function resolveKategori(src: KategoriSource, byId: Map<string, KategoriEntry>): { id?: string; nama?: string } {

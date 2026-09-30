@@ -27,4 +27,23 @@ describe('kategori projection', () => {
     const s = projectKategori([ev('a', t, { id: 'k', nama: 'A', diarsipkan: false }), ev('b', t, { id: 'k', nama: 'B', diarsipkan: false })])
     expect(s.k.nama).toBe('B')
   })
+  it('breaks an identical recordedAt by event id in either application order', () => {
+    const t = '2026-09-30T00:00:01.000Z'
+    const s = projectKategori([ev('b', t, { id: 'k', nama: 'B', diarsipkan: false }), ev('a', t, { id: 'k', nama: 'A', diarsipkan: false })])
+    expect(s.k.nama).toBe('B')
+    expect(s.k.updatedByEventId).toBe('b')
+  })
+  it('stores diarsipkan false when the payload omits it', () => {
+    const omitted = { ...ev('e1', '2026-09-30T00:00:00.000Z', { id: 'k', nama: 'A', diarsipkan: false }), payload: { id: 'k', nama: 'A' } }
+    expect(projectKategori([omitted]).k.diarsipkan).toBe(false)
+  })
+  it('archive then unarchive ends unarchived', () => {
+    const s = projectKategori([
+      ev('e1', '2026-09-30T00:00:01.000Z', { id: 'k', nama: 'A', diarsipkan: false }),
+      ev('e2', '2026-09-30T00:00:02.000Z', { id: 'k', nama: 'A', diarsipkan: true }),
+      ev('e3', '2026-09-30T00:00:03.000Z', { id: 'k', nama: 'A', diarsipkan: false }),
+    ])
+    expect(s.k.diarsipkan).toBe(false)
+    expect(s.k.updatedByEventId).toBe('e3')
+  })
 })
