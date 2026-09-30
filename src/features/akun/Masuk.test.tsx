@@ -13,6 +13,8 @@ const cfg = vi.hoisted(() => ({ configured: true }))
 
 vi.mock('./useSession', () => ({ useSession: () => session.value }))
 vi.mock('../../data/auth', () => auth)
+const persist = vi.hoisted(() => ({ requestPersistentStorage: vi.fn() }))
+vi.mock('../../data/persistentStorage', () => persist)
 vi.mock('../../data/supabase', () => ({ get isSupabaseConfigured() { return cfg.configured } }))
 
 import { Masuk } from './Masuk'
@@ -36,6 +38,7 @@ beforeEach(async () => {
   cfg.configured = true
   auth.signIn.mockReset()
   auth.signOut.mockReset()
+  persist.requestPersistentStorage.mockReset()
 })
 
 describe('Masuk: signed out', () => {
@@ -76,6 +79,38 @@ describe('Masuk: signed out', () => {
     expect(auth.signIn).toHaveBeenCalledWith('pemilik@toko.id', 'rahasia')
     expect(await screen.findByText('Halaman beranda')).toBeInTheDocument()
     expect(await screen.findByText('Berhasil masuk. Pencadangan dimulai.')).toBeInTheDocument()
+  })
+
+  it('says this device will remember the owner until they sign out', () => {
+    renderMasuk()
+
+    expect(screen.getByText(/perangkat ini akan mengingat anda sampai anda memilih keluar/i)).toBeInTheDocument()
+  })
+
+  it('asks the browser to keep this device remembered once signed in, so the session is not evicted', async () => {
+    auth.signIn.mockResolvedValue({ ok: true })
+    const user = userEvent.setup()
+    renderMasuk()
+
+    await user.type(screen.getByLabelText('Email'), 'pemilik@toko.id')
+    await user.type(screen.getByLabelText('Password'), 'rahasia')
+    await user.click(screen.getByRole('button', { name: 'Masuk' }))
+
+    await screen.findByText('Halaman beranda')
+    expect(persist.requestPersistentStorage).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ask for persistent storage when the sign-in failed', async () => {
+    auth.signIn.mockResolvedValue({ ok: false, message: 'Email atau password salah.' })
+    const user = userEvent.setup()
+    renderMasuk()
+
+    await user.type(screen.getByLabelText('Email'), 'pemilik@toko.id')
+    await user.type(screen.getByLabelText('Password'), 'salah')
+    await user.click(screen.getByRole('button', { name: 'Masuk' }))
+
+    await screen.findByRole('alert')
+    expect(persist.requestPersistentStorage).not.toHaveBeenCalled()
   })
 
   it('submits with Enter from the password field', async () => {

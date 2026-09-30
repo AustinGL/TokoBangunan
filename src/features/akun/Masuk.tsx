@@ -4,6 +4,7 @@ import { CloudOff, UserRound, WifiOff } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { signIn, signOut } from '../../data/auth'
+import { requestPersistentStorage } from '../../data/persistentStorage'
 import { isSupabaseConfigured } from '../../data/supabase'
 import { PageHeader } from '../../ui/PageHeader'
 import { EmptyState } from '../../ui/EmptyState'
@@ -85,6 +86,9 @@ function FormMasuk() {
     setSubmitting(true)
     const result = await signIn(email, password)
     if (result.ok) {
+      // The session is kept on this device; ask the browser not to evict it, so
+      // this device stays remembered instead of asking for the password again.
+      void requestPersistentStorage()
       showToast('Berhasil masuk. Pencadangan dimulai.')
       navigate('/', { replace: true })
     } else {
@@ -98,6 +102,7 @@ function FormMasuk() {
       <PageHeader title="Masuk" />
       <p className="text-[14px] text-ink-muted">
         Masuk agar data toko dicadangkan ke cloud dan bisa dibuka di perangkat lain. Kasir tetap bisa dipakai tanpa masuk.
+        Perangkat ini akan mengingat Anda sampai Anda memilih Keluar.
       </p>
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
