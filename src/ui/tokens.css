@@ -165,12 +165,10 @@
   --btn-secondary-bg: var(--surface);
   --btn-secondary-fg: var(--ink);
   --btn-secondary-bd: var(--border-input);
-  --btn-min-h:        44px;
 
   --field-bg:          var(--surface);
   --field-bd:          var(--border-input);
   --field-bd-invalid:  var(--danger);
-  --field-h:           52px;
   --field-placeholder: var(--ink-faint);
 
   /* Muted, not faint: the header row sits on --surface-card, where

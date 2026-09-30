@@ -1,9 +1,7 @@
 // @vitest-environment node
 /// <reference types="node" />
 // Enforces the control system: one height token, no hand-written tap sizes,
-// no numeric icon sizes. PENDING is the migration backlog. A file may be in it
-// only while it still breaks a rule, and a clean file must NOT be in it, so
-// the list can only shrink. Task 11 of the plan deletes it.
+// no numeric icon sizes. Every source file must be clean.
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
@@ -11,15 +9,14 @@ import { fileURLToPath } from 'node:url'
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
 
-const PENDING: string[] = []
-
 /** Only these may spell the tap-size classes: they own the 44px hit area. */
 const TAP_OWNERS = ['ui/Button.tsx', 'ui/IconButton.tsx']
 /** Only the Icon wrapper may hand a number to a lucide component. */
 const ICON_OWNER = 'ui/Icon.tsx'
 
 const RAW_SIZE_RULES: Array<[string, RegExp]> = [
-  ['--field-h / --btn-min-h token', /--field-h|--btn-min-h/],
+  // [h] keeps this file from matching its own grep for the retired tokens.
+  ['retired field/button height token (use --control-h)', /--field-[h]|--btn-min-[h]/],
   ['h-11 (one-off control height)', /\bh-11\b/],
   ['min-h-[52px] (one-off control height)', /min-h-\[52px\]/],
 ]
@@ -61,19 +58,8 @@ export function violations(file: string): string[] {
 }
 
 describe('control system guard', () => {
-  const files = listSource(SRC)
-
-  it('PENDING only names files that exist', () => {
-    for (const f of PENDING) expect(files, `${f} is in PENDING but does not exist`).toContain(f)
-  })
-
-  it('every file outside PENDING is clean', () => {
-    const dirty = files.filter(f => !PENDING.includes(f)).map(f => [f, violations(f)] as const).filter(([, v]) => v.length > 0)
-    expect(dirty, 'migrate these files, or they are new violations').toEqual([])
-  })
-
-  it('every file inside PENDING still has a violation (delete it from PENDING once migrated)', () => {
-    const clean = PENDING.filter(f => violations(f).length === 0)
-    expect(clean, 'these are already clean: remove them from PENDING').toEqual([])
+  it('every source file is clean', () => {
+    const dirty = listSource(SRC).map(f => [f, violations(f)] as const).filter(([, v]) => v.length > 0)
+    expect(dirty, 'fix these files: they break the control system').toEqual([])
   })
 })
