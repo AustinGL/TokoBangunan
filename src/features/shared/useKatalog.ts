@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
+import { loadKategoriEntries } from '../../data/kategoriQueries'
 import { groupUkuranByBarang } from '../../domain/katalog'
+import { resolveKategori, type KategoriEntry } from '../../domain/kategori'
 import { computeStokStatus, type StokStatus } from '../../domain/stokStatus'
 import { fromBase, qty } from '../../domain/quantity'
 
@@ -19,11 +21,18 @@ export type UkuranRow = {
 export type BarangRow = {
   barangId: string
   nama: string
+  kategoriId?: string
+  /** Resolved kategori name. */
   kategori?: string
   diarsipkan: boolean
   /** True for a legacy item with no real BarangUpserted record - see katalog.ts's BarangGroup.virtual. Callers must not pass this row's barangId to updateBarang/recordUkuran/the move picker. */
   virtual: boolean
   ukuran: UkuranRow[]
+}
+
+const resolveKategoriFields = (src: { kategoriId?: string; kategori?: string }, byId: Map<string, KategoriEntry>) => {
+  const { id, nama } = resolveKategori(src, byId)
+  return { kategoriId: id, kategori: nama }
 }
 
 /**
@@ -34,16 +43,17 @@ export type BarangRow = {
  */
 export function useKatalog(): BarangRow[] | undefined {
   return useLiveQuery(async () => {
-    const [items, barangRows, levels] = await Promise.all([
-      db.itemsProj.toArray(), db.barangProj.toArray(), db.stokProj.toArray(),
+    const [items, barangRows, levels, kategoriEntries] = await Promise.all([
+      db.itemsProj.toArray(), db.barangProj.toArray(), db.stokProj.toArray(), loadKategoriEntries(),
     ])
     const barangById = Object.fromEntries(barangRows.map(b => [b.id, b]))
     const levelByItemId = new Map(levels.map(l => [l.itemId, l]))
+    const kategoriById = new Map(kategoriEntries.map(e => [e.id, e]))
 
     const groups = groupUkuranByBarang(items, barangById).map((group): BarangRow => ({
       barangId: group.barangId,
       nama: group.nama,
-      kategori: group.kategori,
+      ...resolveKategoriFields(group, kategoriById),
       diarsipkan: group.diarsipkan,
       virtual: group.virtual,
       ukuran: group.ukuran.map((item): UkuranRow => {
@@ -68,7 +78,7 @@ export function useKatalog(): BarangRow[] | undefined {
     const groupedIds = new Set(groups.map(g => g.barangId))
     const emptyBarangRows: BarangRow[] = barangRows
       .filter(b => !groupedIds.has(b.id))
-      .map((b): BarangRow => ({ barangId: b.id, nama: b.nama, kategori: b.kategori, diarsipkan: b.diarsipkan, virtual: false, ukuran: [] }))
+      .map((b): BarangRow => ({ barangId: b.id, nama: b.nama, ...resolveKategoriFields(b, kategoriById), diarsipkan: b.diarsipkan, virtual: false, ukuran: [] }))
 
     return [...groups, ...emptyBarangRows]
   }, [])

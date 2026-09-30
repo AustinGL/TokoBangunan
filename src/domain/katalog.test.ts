@@ -21,6 +21,25 @@ const barang = (overrides: Partial<Barang> & Pick<Barang, 'id' | 'nama'>): Baran
 })
 
 describe('groupUkuranByBarang', () => {
+  it("lets a real parent own the kategori: its kategoriId wins and the item's stale text snapshot is ignored", () => {
+    const u1 = item({ id: 'u1', nama: 'Palu', baseUnit: 'pcs', barangId: 'b1', kategori: 'Lama' })
+    const barangById = { b1: barang({ id: 'b1', nama: 'Palu', kategoriId: 'kat_a' }) }
+
+    const [group] = groupUkuranByBarang([u1], barangById)
+
+    expect(group.kategoriId).toBe('kat_a')
+    expect(group.kategori).toBeUndefined()
+  })
+
+  it("falls back to the legacy item's own kategori text only when it has no barang", () => {
+    const legacy = item({ id: 'u9', nama: 'Paku', baseUnit: 'kg', kategori: 'Paku' })
+
+    const [group] = groupUkuranByBarang([legacy], {})
+
+    expect(group.kategori).toBe('Paku')
+    expect(group.kategoriId).toBeUndefined()
+  })
+
   it('groups two ukuran under their shared barang', () => {
     const semen50 = item({ id: 'u1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', barangId: 'b1' })
     const semen40 = item({ id: 'u2', nama: 'Semen Tiga Roda', baseUnit: '40 kg', barangId: 'b1' })

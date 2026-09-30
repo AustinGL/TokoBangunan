@@ -4,6 +4,9 @@ import type { Barang } from './projections/barang'
 export type BarangGroup = {
   barangId: string
   nama: string
+  /** The parent's master link. */
+  kategoriId?: string
+  /** Legacy text of the parent (or of the legacy item). */
   kategori?: string
   diarsipkan: boolean
   /** True when this group has no real BarangUpserted record - it stands in for a legacy item with no barangId. Callers must not treat barangId as a real barang id when this is true (it cannot be looked up in barangProj, moved to, or written back via updateBarang). */
@@ -33,7 +36,10 @@ export function groupUkuranByBarang(items: Item[], barangById: Record<string, Ba
     groups.set(barangId, {
       barangId,
       nama: parent?.nama ?? item.nama,
-      kategori: parent?.kategori ?? item.kategori,
+      // A real parent owns the value; only a legacy item (no barang) falls back
+      // to its own snapshot, which is stale by design once a barang exists.
+      kategori: parent ? parent.kategori : item.kategori,
+      kategoriId: parent?.kategoriId,
       diarsipkan: parent?.diarsipkan ?? item.diarsipkan,
       virtual: item.barangId === undefined,
       ukuran: [item],

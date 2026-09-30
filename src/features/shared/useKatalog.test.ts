@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/db'
+import { kategoriIdForName } from '../../domain/kategori'
 import { useKatalog } from './useKatalog'
 
 beforeEach(async () => {
@@ -77,5 +78,26 @@ describe('useKatalog', () => {
     expect(result.current).toHaveLength(1)
     expect(result.current![0]).toMatchObject({ barangId: 'b1', nama: 'Semen Tiga Roda', kategori: 'Semen' })
     expect(result.current![0].ukuran).toEqual([])
+  })
+  it('resolves a barang kategoriId to the master name, so a rename reaches it', async () => {
+    await db.kategoriProj.put({ id: 'kat_a', nama: 'Perkakas', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    await db.barangProj.put({ id: 'b1', nama: 'Palu', kategoriId: 'kat_a', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const { result } = renderHook(() => useKatalog())
+    await waitFor(() => expect(result.current?.find(r => r.barangId === 'b1')).toMatchObject({ kategori: 'Perkakas', kategoriId: 'kat_a' }))
+  })
+  it('resolves legacy text through a renamed master row, and a legacy barang without a row keeps its text', async () => {
+    await db.kategoriProj.put({ id: kategoriIdForName('Semen'), nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    await db.barangProj.put({ id: 'b1', nama: 'A', kategori: 'semen', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    await db.barangProj.put({ id: 'b2', nama: 'B', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const { result } = renderHook(() => useKatalog())
+    await waitFor(() => expect(result.current).toHaveLength(2))
+    expect(result.current!.find(r => r.barangId === 'b1')!.kategori).toBe('Semen Tiga Roda')
+    expect(result.current!.find(r => r.barangId === 'b2')!.kategori).toBe('Cat')
+  })
+  it('still shows the name of an ARCHIVED kategori on its barang', async () => {
+    await db.kategoriProj.put({ id: 'kat_a', nama: 'Lama', diarsipkan: true, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    await db.barangProj.put({ id: 'b1', nama: 'Palu', kategoriId: 'kat_a', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const { result } = renderHook(() => useKatalog())
+    await waitFor(() => expect(result.current?.[0].kategori).toBe('Lama'))
   })
 })
