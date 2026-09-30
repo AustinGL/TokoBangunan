@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Combobox } from '../../ui/Combobox'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 import { useKatalog } from './useKatalog'
 import { UkuranSheet, type UkuranSheetValues } from '../kamus/UkuranSheet'
 import { recordUkuran } from '../../data/commands'
@@ -92,15 +94,7 @@ export function UkuranPicker({ barangId, value, onChange, error, required }: Pro
             error={error} disabled={!barangId} required={required}
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          disabled={!barangId}
-          aria-label="Tambah ukuran baru"
-          className="flex min-h-tap min-w-tap items-center justify-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] disabled:opacity-50"
-        >
-          <Plus aria-hidden="true" size={18} />
-        </button>
+        <IconButton icon={Plus} label="Tambah ukuran baru" shape="field" disabled={!barangId} onClick={() => setCreating(true)} />
       </div>
       {creating && barangId && (
         <UkuranSheet
@@ -116,20 +110,12 @@ export function UkuranPicker({ barangId, value, onChange, error, required }: Pro
             </p>
             {createError && <p role="alert" className="text-[13px] text-danger">{createError}</p>}
             <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => { onChange(pendingDuplicate.existingValue); setPendingDuplicate(null) }}
-                className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-              >
+              <Button variant="primary" onClick={() => { onChange(pendingDuplicate.existingValue); setPendingDuplicate(null) }}>
                 Pakai yang ada
-              </button>
-              <button
-                type="button"
-                onClick={handleTetapBuatBaru}
-                className="min-h-tap rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
-              >
+              </Button>
+              <Button variant="secondary" onClick={handleTetapBuatBaru}>
                 Tetap buat baru
-              </button>
+              </Button>
             </div>
           </div>
         </Sheet>

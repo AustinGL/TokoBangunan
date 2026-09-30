@@ -11,13 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
 
-const PENDING: string[] = [
-  'features/akun/Masuk.tsx', 'features/beranda/Beranda.tsx',
-  'features/kamus/BarangSheet.tsx', 'features/kamus/KamusBarang.tsx', 'features/kamus/UkuranSheet.tsx',
-  'features/shared/BarangPicker.tsx', 'features/shared/UkuranPicker.tsx',
-  'features/stok/AturUkuranSheet.tsx', 'features/stok/KoreksiPembelianSheet.tsx', 'features/stok/TambahStokSheet.tsx',
-  'features/supplier/Supplier.tsx', 'features/supplier/SupplierSheet.tsx',
-]
+const PENDING: string[] = []
 
 /** Only these may spell the tap-size classes: they own the 44px hit area. */
 const TAP_OWNERS = ['ui/Button.tsx', 'ui/IconButton.tsx']

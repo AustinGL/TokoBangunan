@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
 
 export type BarangSheetValues = { nama: string; kategori: string | null; diarsipkan: boolean }
 
@@ -61,7 +62,7 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
           <input
             id="barang-nama" value={nama} onChange={e => setNama(e.target.value)}
             aria-invalid={error ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {error && <p className="text-[13px] text-danger">{error}</p>}
         </div>
@@ -70,21 +71,18 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
           <label htmlFor="barang-kategori" className="text-[14px] font-medium text-ink">Kategori</label>
           <input
             id="barang-kategori" value={kategori} onChange={e => setKategori(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
           />
         </div>
 
-        <label className="flex min-h-tap items-center gap-2 text-[14px] text-ink">
+        <label className="flex min-h-control items-center gap-2 text-[14px] text-ink">
           <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
           Arsipkan
         </label>
 
-        <button
-          type="submit" disabled={submitting}
-          className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Menyimpan...' : 'Simpan'}
-        </button>
+        </Button>
       </form>
     </Sheet>
   )

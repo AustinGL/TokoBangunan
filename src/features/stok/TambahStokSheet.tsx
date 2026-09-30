@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { BarangPicker } from '../shared/BarangPicker'
 import { UkuranPicker } from '../shared/UkuranPicker'
@@ -234,7 +235,7 @@ export function TambahStokSheet({
             id="tambah-stok-tanggal" type="date" value={tanggalBeli} max={todayIsoDate(systemClock)}
             onChange={e => setTanggalBeli(e.target.value)}
             aria-invalid={errors.tanggal ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${errors.tanggal ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${errors.tanggal ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {errors.tanggal && <p className="text-[13px] text-danger">{errors.tanggal}</p>}
         </div>
@@ -247,7 +248,7 @@ export function TambahStokSheet({
             id="tambah-stok-jumlah" type="number" inputMode="numeric" min={1} step={1}
             value={jumlah} onChange={e => setJumlah(e.target.value)}
             aria-invalid={errors.jumlah ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${errors.jumlah ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${errors.jumlah ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {errors.jumlah && <p className="text-[13px] text-danger">{errors.jumlah}</p>}
         </div>
@@ -263,18 +264,12 @@ export function TambahStokSheet({
         />
 
         <div className="flex items-center justify-between gap-3">
-          <button
-            type="button" disabled={submitting} onClick={() => void submit(true)}
-            className="min-h-tap rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)] disabled:opacity-50"
-          >
+          <Button variant="secondary" disabled={submitting} onClick={() => void submit(true)}>
             Simpan & tambah lagi
-          </button>
-          <button
-            type="submit" disabled={submitting}
-            className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-          >
+          </Button>
+          <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Menyimpan...' : 'Simpan stok'}
-          </button>
+          </Button>
         </div>
       </form>
     </Sheet>

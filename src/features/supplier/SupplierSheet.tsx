@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
 import { formatTanggal } from '../shared/formatTanggal'
 
 export type SupplierSheetValues = { nama: string; telepon: string | null; alamat: string | null; kontak: string | null; catatan: string | null }
@@ -74,7 +75,7 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
           <input
             id="supplier-nama" value={nama} onChange={e => setNama(e.target.value)}
             aria-invalid={error ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {error && <p className="text-[13px] text-danger">{error}</p>}
         </div>
@@ -82,19 +83,19 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
         <div className="flex flex-col gap-1">
           <label htmlFor="supplier-telepon" className="text-[14px] font-medium text-ink">Telepon</label>
           <input id="supplier-telepon" value={telepon} onChange={e => setTelepon(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="supplier-alamat" className="text-[14px] font-medium text-ink">Alamat</label>
           <input id="supplier-alamat" value={alamat} onChange={e => setAlamat(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="supplier-kontak" className="text-[14px] font-medium text-ink">Kontak</label>
           <input id="supplier-kontak" value={kontak} onChange={e => setKontak(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -103,12 +104,9 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
             className="rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] p-3 text-[14px] text-ink" />
         </div>
 
-        <button
-          type="submit" disabled={submitting}
-          className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Menyimpan...' : 'Simpan'}
-        </button>
+        </Button>
 
         {riwayat && (
           <div className="flex flex-col gap-2 border-t border-border pt-4">

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { updateUkuran } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
@@ -79,17 +80,14 @@ export function AturUkuranSheet({ open, onClose, item }: Props) {
             id="atur-ukuran-min" type="number" inputMode="numeric" min={0} step={1}
             value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
             aria-invalid={stokError ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {stokError && <p className="text-[13px] text-danger">{stokError}</p>}
         </div>
 
-        <button
-          type="submit" disabled={submitting}
-          className="min-h-tap rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Menyimpan...' : 'Simpan'}
-        </button>
+        </Button>
       </form>
     </Sheet>
   )

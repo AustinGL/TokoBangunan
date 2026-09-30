@@ -10,12 +10,13 @@ import { PageHeader } from '../../ui/PageHeader'
 import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
 import { IconTile } from '../../ui/IconTile'
+import { Button } from '../../ui/Button'
 import { useToast } from '../../ui/useToast'
 import { useSession } from './useSession'
 
 const PAGE = 'mx-auto flex w-full max-w-md flex-col gap-5 p-4 md:p-8'
 const ALERT = 'rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger'
-const FIELD = 'h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink'
+const FIELD = 'h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink'
 
 /**
  * Signing in is optional: the shop runs fully without it, on this device.
@@ -132,12 +133,9 @@ function FormMasuk() {
           {errors.password && <p id="masuk-password-error" className="text-[13px] text-danger">{errors.password}</p>}
         </div>
 
-        <button
-          type="submit" disabled={submitting}
-          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Memproses...' : 'Masuk'}
-        </button>
+        </Button>
       </form>
     </main>
   )
@@ -177,12 +175,9 @@ function AkunMasuk({ email }: { email: string }) {
 
         {error && <p role="alert" className={ALERT}>{error}</p>}
 
-        <button
-          type="button" onClick={handleKeluar} disabled={busy}
-          className="min-h-tap rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)] disabled:text-ink-disabled"
-        >
+        <Button variant="secondary" onClick={handleKeluar} disabled={busy}>
           {busy ? 'Memproses...' : 'Keluar'}
-        </button>
+        </Button>
         <p className="text-[13px] text-ink-muted">
           Keluar tidak menghapus data. Semua data toko tetap ada dan terlihat di perangkat ini, dan perubahan yang belum tercadangkan tidak hilang.
         </p>

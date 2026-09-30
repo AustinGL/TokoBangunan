@@ -9,6 +9,8 @@ import { StatusPill } from '../../ui/StatusPill'
 import { AlertTriangle, Truck } from 'lucide-react'
 import { PageHeader } from '../../ui/PageHeader'
 import { IconTile } from '../../ui/IconTile'
+import { Button } from '../../ui/Button'
+import { Icon } from '../../ui/Icon'
 import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
 import type { Supplier as SupplierRow } from '../../domain/projections/suppliers'
@@ -80,30 +82,21 @@ export function Supplier() {
         title="Supplier"
         subtitle={suppliers !== undefined ? `${suppliers.length} supplier` : undefined}
         action={
-          <button
-            type="button"
-            onClick={() => setSheet({ mode: 'create' })}
-            className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-          >
+          <Button variant="primary" onClick={() => setSheet({ mode: 'create' })}>
             + Supplier baru
-          </button>
+          </Button>
         }
       />
 
       {perluDilengkapiCount > 0 && (
         <div className="flex items-center justify-between gap-4 rounded-card border border-warning bg-warning-bg p-4">
           <p className="flex items-center gap-3 text-[14px] font-medium text-warning">
-            <AlertTriangle aria-hidden="true" size={20} className="shrink-0" />
+            <Icon icon={AlertTriangle} size="nav" className="shrink-0" />
             <span>{perluDilengkapiCount} supplier baru perlu dilengkapi</span>
           </p>
-          <button
-            type="button"
-            aria-pressed={reviewFilterActive}
-            onClick={() => setReviewOnly(on => !on)}
-            className="min-h-tap shrink-0 rounded-pill bg-surface px-4 text-[13px] font-semibold text-warning"
-          >
+          <Button variant="secondary" size="sm" aria-pressed={reviewFilterActive} onClick={() => setReviewOnly(on => !on)}>
             {reviewFilterActive ? 'Tampilkan semua' : 'Tinjau'}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -118,7 +111,7 @@ export function Supplier() {
               <button
                 type="button"
                 onClick={() => openEdit(row)}
-                className="flex min-h-tap w-full items-center gap-3 rounded-card border border-border bg-surface p-4 text-left shadow-card transition-colors duration-instant hover:bg-[var(--table-row-hover)]"
+                className="flex w-full items-center gap-3 rounded-card border border-border bg-surface p-4 text-left shadow-card transition-colors duration-instant hover:bg-[var(--table-row-hover)]"
               >
                 <IconTile icon={Truck} tone={row.perluDilengkapi ? 'warning' : 'neutral'} />
                 <span className="flex min-w-0 flex-1 flex-col">

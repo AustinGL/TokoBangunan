@@ -10,6 +10,8 @@ import { PageHeader } from '../../ui/PageHeader'
 import { SearchField } from '../../ui/SearchField'
 import { Select } from '../../ui/Select'
 import { IconTile } from '../../ui/IconTile'
+import { Button } from '../../ui/Button'
+import { Icon } from '../../ui/Icon'
 import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
 import { formatRupiah, rupiah } from '../../domain/money'
@@ -104,13 +106,9 @@ export function KamusBarang() {
         title="Kamus Barang"
         subtitle={rows !== undefined ? `${totals.barang} barang, ${totals.ukuran} ukuran` : undefined}
         action={
-          <button
-            type="button"
-            onClick={() => setBarangSheet({ mode: 'create' })}
-            className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-          >
+          <Button variant="primary" onClick={() => setBarangSheet({ mode: 'create' })}>
             + Barang baru
-          </button>
+          </Button>
         }
       />
 
@@ -127,7 +125,7 @@ export function KamusBarang() {
             />
           )}
         </div>
-        <label className="flex min-h-tap w-fit cursor-pointer items-center gap-2 rounded-pill border border-border-input bg-surface px-4 text-[13px] font-semibold text-ink">
+        <label className="flex h-control w-fit cursor-pointer items-center gap-2 rounded-pill border border-border-input bg-surface px-4 text-[13px] font-semibold text-ink">
           <input type="checkbox" checked={showArsip} onChange={e => setShowArsip(e.target.checked)} className="h-5 w-5 accent-primary" />
           Tampilkan arsip
         </label>
@@ -150,7 +148,7 @@ export function KamusBarang() {
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : row.barangId)}
                   aria-expanded={isOpen}
-                  className="flex min-h-tap w-full items-center gap-3 p-4 text-left"
+                  className="flex w-full items-center gap-3 p-4 text-left"
                 >
                   <IconTile icon={Package} />
                   <span className="flex min-w-0 flex-1 flex-col">
@@ -160,7 +158,7 @@ export function KamusBarang() {
                   <span className="shrink-0 rounded-pill bg-neutral-bg px-3 py-1 text-[12px] font-medium text-neutral">
                     {row.ukuran.length} ukuran
                   </span>
-                  {isOpen ? <ChevronDown aria-hidden="true" size={18} className="shrink-0" /> : <ChevronRight aria-hidden="true" size={18} className="shrink-0" />}
+                  <Icon icon={isOpen ? ChevronDown : ChevronRight} size="button" className="shrink-0" />
                 </button>
 
                 {isOpen && (
@@ -171,20 +169,12 @@ export function KamusBarang() {
                       </p>
                     ) : (
                       <div className="flex items-center justify-between gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setBarangSheet({ mode: 'edit', row })}
-                          className="min-h-tap rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-3 text-[13px] font-semibold text-[var(--btn-secondary-fg)]"
-                        >
+                        <Button variant="secondary" size="sm" onClick={() => setBarangSheet({ mode: 'edit', row })}>
                           Ubah barang
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setUkuranSheet({ barangId: row.barangId })}
-                          className="min-h-tap rounded-pill bg-[var(--btn-secondary-bg)] border border-[var(--btn-secondary-bd)] px-3 text-[13px] font-semibold text-[var(--btn-secondary-fg)]"
-                        >
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={() => setUkuranSheet({ barangId: row.barangId })}>
                           + Tambah ukuran
-                        </button>
+                        </Button>
                       </div>
                     )}
 
@@ -201,13 +191,9 @@ export function KamusBarang() {
                               </span>
                             </div>
                             <StatusPill tone={STOK_TONE[u.status]}>{STOK_LABEL[u.status]}</StatusPill>
-                            <button
-                              type="button"
-                              onClick={() => setUkuranSheet({ barangId: row.barangId, row: u })}
-                              className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => setUkuranSheet({ barangId: row.barangId, row: u })}>
                               Ubah
-                            </button>
+                            </Button>
                           </li>
                         ))}
                       </ul>

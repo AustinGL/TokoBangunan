@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { Select } from '../../ui/Select'
 
@@ -100,7 +101,7 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
             id="ukuran-text" value={ukuran} onChange={e => setUkuran(e.target.value)}
             placeholder="mis. 50 kg"
             aria-invalid={error ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {error && <p className="text-[13px] text-danger">{error}</p>}
         </div>
@@ -118,7 +119,7 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
             id="ukuran-min" type="number" inputMode="numeric" min={0} step={1}
             value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
             aria-invalid={stokError ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {stokError && <p className="text-[13px] text-danger">{stokError}</p>}
         </div>
@@ -127,7 +128,7 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           <label htmlFor="ukuran-barcode" className="text-[14px] font-medium text-ink">Barcode</label>
           <input
             id="ukuran-barcode" value={barcode} onChange={e => setBarcode(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
           />
         </div>
 
@@ -139,7 +140,7 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
               options={barangOptions.map(option => ({ value: option.barangId, label: option.nama }))}
             />
 
-            <label className="flex min-h-tap items-center gap-2 text-[14px] text-ink">
+            <label className="flex min-h-control items-center gap-2 text-[14px] text-ink">
               <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
               Arsipkan
             </label>
@@ -147,12 +148,9 @@ export function UkuranSheet({ open, onClose, onSubmit, barangOptions, currentBar
           </>
         )}
 
-        <button
-          type="submit" disabled={submitting}
-          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Menyimpan...' : 'Simpan'}
-        </button>
+        </Button>
       </form>
     </Sheet>
   )

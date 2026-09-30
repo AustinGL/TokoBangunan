@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Combobox } from '../../ui/Combobox'
+import { IconButton } from '../../ui/IconButton'
 import { useKatalog } from './useKatalog'
 import { BarangSheet, type BarangSheetValues } from '../kamus/BarangSheet'
 import { recordBarang } from '../../data/commands'
@@ -37,14 +38,7 @@ export function BarangPicker({ value, onChange, error, required, initialNama }: 
         <div className="flex-1">
           <Combobox id="tambah-stok-barang" label="Nama barang" options={options} value={value} onChange={onChange} error={error} required={required} />
         </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          aria-label="Tambah barang baru"
-          className="flex min-h-tap min-w-tap items-center justify-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)]"
-        >
-          <Plus aria-hidden="true" size={18} />
-        </button>
+        <IconButton icon={Plus} label="Tambah barang baru" shape="field" onClick={() => setCreating(true)} />
       </div>
       {creating && <BarangSheet open onClose={() => setCreating(false)} onSubmit={handleCreate} initialNama={initialNama} />}
     </>

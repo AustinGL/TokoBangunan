@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
+import { Button } from '../../ui/Button'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { Select } from '../../ui/Select'
 import { correctBatch } from '../../data/commands'
@@ -148,7 +149,7 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
             id="koreksi-tanggal" type="date" value={tanggalBeli} max={todayIsoDate(systemClock)}
             onChange={e => setTanggalBeli(e.target.value)}
             aria-invalid={tanggalError ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${tanggalError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${tanggalError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {tanggalError && <p className="text-[13px] text-danger">{tanggalError}</p>}
         </div>
@@ -159,7 +160,7 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
             id="koreksi-jumlah" type="number" inputMode="numeric" min={0} step={1}
             value={jumlah} onChange={e => setJumlah(e.target.value)}
             aria-invalid={jumlahError ? true : undefined}
-            className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${jumlahError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${jumlahError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
           {jumlahError && <p className="text-[13px] text-danger">{jumlahError}</p>}
         </div>
@@ -170,12 +171,9 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
           error={hargaJualError ?? undefined}
         />
 
-        <button
-          type="submit" disabled={submitting}
-          className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:text-ink-disabled"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Menyimpan...' : 'Simpan'}
-        </button>
+        </Button>
       </form>
     </Sheet>
   )
