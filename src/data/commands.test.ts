@@ -693,6 +693,27 @@ describe('kategori commands', () => {
     const fresh = await recordKategori({ nama: 'Semen' }, ctx)
     expect(fresh).not.toBe(semen)
     expect(await db.kategoriProj.count()).toBe(2)
+    expect(await db.kategoriProj.get(fresh)).toMatchObject({ nama: 'Semen' })
+    expect(await db.kategoriProj.get(semen)).toMatchObject({ nama: 'Semen Tiga Roda' })
+  })
+  it('recordKategori on an existing active row appends no event', async () => {
+    await recordKategori({ nama: 'Semen' }, ctx)
+    const before = await db.events.count()
+    await recordKategori({ nama: ' SEMEN ' }, ctx)
+    expect(await db.events.count()).toBe(before)
+  })
+  it('updateKategori rejects an unknown id', async () => {
+    await expect(updateKategori({ id: 'kat_hantu', nama: 'X', diarsipkan: false }, ctx)).rejects.toThrow('Kategori tidak ditemukan.')
+  })
+  it('updateKategori rejects a blank name', async () => {
+    const id = await recordKategori({ nama: 'Semen' }, ctx)
+    await expect(updateKategori({ id, nama: '  ', diarsipkan: false }, ctx)).rejects.toThrow('Nama kategori wajib diisi.')
+  })
+  it('updateKategori refuses to rename onto the name of an archived kategori', async () => {
+    const semen = await recordKategori({ nama: 'Semen' }, ctx)
+    await updateKategori({ id: semen, nama: 'Semen', diarsipkan: true }, ctx)
+    const cat = await recordKategori({ nama: 'Cat' }, ctx)
+    await expect(updateKategori({ id: cat, nama: 'semen', diarsipkan: false }, ctx)).rejects.toThrow('Nama kategori sudah dipakai.')
   })
   it('rejects a blank name', async () => {
     await expect(recordKategori({ nama: '   ' }, ctx)).rejects.toThrow('Nama kategori wajib diisi.')
@@ -727,6 +748,23 @@ describe('barang <-> kategori', () => {
     const id = await recordBarang({ nama: 'Baru', kategoriId: kategoriIdForName('Cat') }, ctx)
     expect((await db.kategoriProj.get(kategoriIdForName('Cat')))!.nama).toBe('Cat')
     expect((await db.barangProj.get(id))!.kategoriId).toBe(kategoriIdForName('Cat'))
+  })
+  it('recordBarang leaves no orphan kategori event when the barang itself fails validation', async () => {
+    await db.barangProj.put({ id: 'old', nama: 'x', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    await expect(recordBarang({ nama: '', kategoriId: kategoriIdForName('Cat') }, ctx)).rejects.toThrow()
+    expect(await db.kategoriProj.count()).toBe(0)
+    expect(await db.events.count()).toBe(0)
+  })
+  it('updateBarang with a legacy-only kategoriId materializes it in the same write', async () => {
+    await db.barangProj.put({ id: 'old', nama: 'x', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
+    const id = await recordBarang({ nama: 'Baru' }, ctx)
+    await updateBarang({ id, kategoriId: kategoriIdForName('Cat') }, ctx)
+    expect((await db.kategoriProj.get(kategoriIdForName('Cat')))!.nama).toBe('Cat')
+    expect((await db.barangProj.get(id))!.kategoriId).toBe(kategoriIdForName('Cat'))
+  })
+  it('updateBarang refuses a kategoriId that exists nowhere', async () => {
+    const id = await recordBarang({ nama: 'Baru' }, ctx)
+    await expect(updateBarang({ id, kategoriId: 'kat_hantu' }, ctx)).rejects.toThrow('Kategori tidak ditemukan.')
   })
   it('recordBarang refuses a kategoriId that exists nowhere', async () => {
     await expect(recordBarang({ nama: 'x', kategoriId: 'kat_hantu' }, ctx)).rejects.toThrow('Kategori tidak ditemukan.')

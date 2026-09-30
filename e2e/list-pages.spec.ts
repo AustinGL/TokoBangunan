@@ -70,7 +70,8 @@ test.describe('list pages', () => {
       page.getByRole('button', { name: /^Semua barang:/ }),
       page.getByRole('button', { name: /^Menipis:/ }),
       page.getByRole('button', { name: /^Habis:/ }),
-      page.getByRole('combobox', { name: /kategori/i }),
+      // kategori combobox restored in Task 18: StockFilters only renders it when a
+      // saved kategori exists, and nothing persists one until Task 18 (Task 15 stopgap).
       page.getByLabel('Cari barang'),
     ]) {
       const box = await control.boundingBox()

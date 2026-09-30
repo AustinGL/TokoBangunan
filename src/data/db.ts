@@ -120,12 +120,23 @@ class TokoDb extends Dexie {
       await tx.table('salesProj').clear()
       await tx.table('salesProj').bulkPut(Object.values(projectSales(sorted)))
     })
-    // kategoriProj is a new table with no events behind it yet (KategoriUpserted
-    // is new in this version), so there is nothing to backfill. An event that
-    // arrives before this schema is quarantined and re-parsed by
-    // retryQuarantined, the same path every earlier new event type used.
+    // kategoriProj is a new table with no KategoriUpserted events behind it
+    // yet, so it needs no backfill (a KategoriUpserted that arrives before
+    // this schema is quarantined and re-parsed by promoteQuarantined, the same
+    // path every earlier new event type used). The cursor reset is for the
+    // OTHER change in this feature: BarangUpserted gained the optional
+    // kategoriId. A device on a build that predates it pulls such an event as
+    // a VALID one (z.object silently strips the unknown key) and stores it
+    // without kategoriId; nothing re-fetches it after the upgrade and
+    // rebuildProjections only reads that stripped log, so the assignment would
+    // be lost and the next updateBarang would carry undefined forward on every
+    // device. Same fix as version(4): reset the cursor so the next sync
+    // re-pulls the whole log, and applyRemoteEvents's bulkPut overwrites each
+    // stripped row with a copy this schema parses in full.
     this.version(6).stores({
       kategoriProj: 'id, nama',
+    }).upgrade(async tx => {
+      await tx.table('meta').put({ key: 'syncCursor', value: 0 })
     })
   }
 }

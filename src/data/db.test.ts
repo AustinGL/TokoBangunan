@@ -80,6 +80,38 @@ class LegacyDbV4 extends Dexie {
   }
 }
 
+/**
+ * Replicates exactly TokoDb's versions 1-5, so opening it seeds a genuine
+ * v5 IndexedDB database: the state a device is in just before version(6).
+ */
+class LegacyDbV5 extends Dexie {
+  events!: Table<EventEnvelope, string>
+  meta!: Table<{ key: string; value: unknown }, string>
+
+  constructor() {
+    super(DB_NAME)
+    this.version(1).stores({
+      events: 'id, serverSeq, type, occurredAt, recordedAt',
+      meta: 'key',
+      itemsProj: 'id, nama, kategori',
+    })
+    this.version(2).stores({ quarantine: 'key, quarantinedAt' })
+    this.version(3).stores({
+      stokProj: 'itemId',
+      salesProj: 'id, occurredAt',
+      outbox: 'id',
+    })
+    this.version(4).stores({
+      barangProj: 'id, nama',
+      suppliersProj: 'id, nama',
+      batchesProj: 'batchId, itemId, supplierId, tanggalBeli',
+    })
+    this.version(5).stores({
+      salesProj: 'id, occurredAt, *itemIds, *batchIds',
+    })
+  }
+}
+
 beforeEach(async () => {
   await db.delete()
 })
@@ -184,5 +216,16 @@ describe('version(5) upgrade', () => {
 describe('version(6) schema', () => {
   it('adds the kategoriProj table', () => {
     expect(db.tables.map(t => t.name)).toContain('kategoriProj')
+  })
+
+  it('resets the sync cursor to 0, so a device that pulled BarangUpserted with kategoriId under an older schema (zod-stripped) re-pulls it in full', async () => {
+    const legacy = new LegacyDbV5()
+    await legacy.open()
+    await legacy.meta.put({ key: 'syncCursor', value: 999 })
+    legacy.close()
+
+    await db.open()
+
+    expect(await getCursor()).toBe(0)
   })
 })
