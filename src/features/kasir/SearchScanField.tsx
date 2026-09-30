@@ -1,4 +1,5 @@
 import { useRef, type ChangeEvent, type KeyboardEvent } from 'react'
+import { Search } from 'lucide-react'
 
 /**
  * MASTER.md section 8, verbatim:
@@ -145,15 +146,11 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
       </label>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <svg
-            width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          <Search
             aria-hidden="true"
+            size={18}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
+          />
           <input
             id="kasir-search"
             ref={inputRef}
@@ -169,7 +166,7 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
         <button
           type="button"
           onClick={handleScanButtonClick}
-          className="min-h-tap min-w-tap rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
+          className="min-h-tap min-w-tap rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
         >
           Scan
         </button>
