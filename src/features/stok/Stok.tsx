@@ -100,7 +100,7 @@ export function Stok() {
       ) : visibleRows.length === 0 ? (
         <EmptyState icon={SearchX}>Tidak ada barang yang cocok dengan pencarian atau filter.</EmptyState>
       ) : (
-        <ul className="grid gap-3 lg:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {visibleRows.map(row => (
             <li key={row.barangId}>
               <StokRow row={row} />

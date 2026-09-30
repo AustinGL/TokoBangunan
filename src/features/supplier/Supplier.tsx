@@ -112,7 +112,7 @@ export function Supplier() {
       ) : suppliers.length === 0 ? (
         <EmptyState icon={Truck}>Belum ada supplier. Mulai tambahkan supplier.</EmptyState>
       ) : (
-        <ul className="grid gap-3 lg:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {visible.map(row => (
             <li key={row.id}>
               <button

@@ -9,13 +9,16 @@ import { KoreksiPembelianSheet } from './KoreksiPembelianSheet'
 import { formatRupiah, rupiah } from '../../domain/money'
 import { formatTanggal } from '../shared/formatTanggal'
 import type { RiwayatBatchRow } from './riwayatStok'
+import { StatusPill } from '../../ui/StatusPill'
+import { Package } from 'lucide-react'
+import { IconTile } from '../../ui/IconTile'
+import { STOK_TONE, STOK_LABEL } from '../shared/stokTone'
 
-const STATUS_LABEL: Record<string, string> = { habis: 'Habis', menipis: 'Menipis', aman: 'Aman' }
-const STATUS_CLASS: Record<string, string> = {
-  habis: 'bg-danger-bg text-danger', menipis: 'bg-warning-bg text-warning', aman: 'bg-success-bg text-success',
-}
 
 /** Sentinel for ?ukuran= meaning "every surviving ukuran" - never a real itemId (those are UUIDv7s). */
+/** A Riwayat cell: a plain table cell on wide screens; on a phone a label-above-value block. */
+const CELL = 'p-2 text-ink max-md:flex max-md:flex-col max-md:p-0 max-md:before:text-[12px] max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]'
+
 const ALL_UKURAN_PARAM = 'semua'
 
 export function BarangDetail() {
@@ -70,7 +73,7 @@ export function BarangDetail() {
 
   if (katalog === undefined) {
     return (
-      <main className="flex flex-col gap-5 p-4 md:p-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
         <div aria-busy="true" role="status" className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
           Memuat barang...
         </div>
@@ -80,7 +83,7 @@ export function BarangDetail() {
 
   if (!barangRow) {
     return (
-      <main className="flex flex-col gap-5 p-4 md:p-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
         <Link to="/stok" className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
         <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
           Barang tidak ditemukan.
@@ -90,14 +93,17 @@ export function BarangDetail() {
   }
 
   return (
-    <main className="flex flex-col gap-5 p-4 md:p-8">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Link to="/stok" className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
-          <h1 className="text-[17px] font-bold text-ink">
-            {barangRow.nama}
-            {barangRow.kategori && <span className="ml-2 text-[13px] font-normal text-ink-muted">· {barangRow.kategori}</span>}
-          </h1>
+        <div className="flex items-center gap-3">
+          <IconTile icon={Package} />
+          <div className="flex min-w-0 flex-col gap-1">
+            <Link to="/stok" className="-ml-2 inline-flex min-h-tap min-w-tap items-center px-2 text-[14px] font-semibold text-ink-muted">‹ Stok</Link>
+            <h1 className="break-words text-[20px] font-bold text-ink">
+              {barangRow.nama}
+              {barangRow.kategori && <span className="ml-2 text-[13px] font-normal text-ink-muted">· {barangRow.kategori}</span>}
+            </h1>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {/* No per-barang deep-link exists in Kamus Barang yet - a plain
@@ -105,14 +111,14 @@ export function BarangDetail() {
               "tracked for its own follow-up" notes. */}
           <Link
             to="/kamus"
-            className="inline-flex min-h-tap items-center rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
+            className="inline-flex min-h-tap items-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
           >
             Ubah di Kamus
           </Link>
           <button
             type="button"
             onClick={() => setTambahStokOpen(true)}
-            className="min-h-tap rounded-tile bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
+            className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
           >
             + Tambah stok
           </button>
@@ -127,16 +133,14 @@ export function BarangDetail() {
               <button type="button" aria-pressed={active} onClick={() => selectUkuran(u.id)} className="flex min-h-tap flex-col gap-1 text-left">
                 <span className="text-[13px] font-semibold text-ink-muted">{u.ukuran}</span>
                 <span className="text-[22px] font-bold tabular-nums text-ink">Sisa {u.quantity}</span>
-                <span className={`inline-flex w-fit items-center rounded-[var(--r-pill)] px-[10px] py-[4px] text-[12px] font-semibold ${STATUS_CLASS[u.status]}`}>
-                  {STATUS_LABEL[u.status]}
-                </span>
+                <span className="w-fit"><StatusPill tone={STOK_TONE[u.status]}>{STOK_LABEL[u.status]}</StatusPill></span>
                 <span className="text-[13px] text-ink-muted">@ {formatRupiah(rupiah(u.hargaEceran))} · min {u.stokMinimum}</span>
               </button>
               <button
                 type="button" onClick={() => setAturUkuran(u)}
-                className="min-h-tap self-start text-[13px] font-semibold text-ink underline"
+                className="min-h-tap min-w-tap self-start text-[13px] font-semibold text-ink underline"
               >
-                Atur
+                Atur ukuran
               </button>
             </div>
           )
@@ -149,7 +153,7 @@ export function BarangDetail() {
             Riwayat stok · {semuaUkuran ? 'Semua ukuran' : selectedUkuran?.ukuran ?? '-'}
           </h2>
           {!semuaUkuran && survivingUkuran.length > 1 && (
-            <button type="button" onClick={selectSemuaUkuran} className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink underline">
+            <button type="button" onClick={selectSemuaUkuran} className="inline-flex min-h-tap min-w-tap items-center text-[13px] font-semibold text-ink underline">
               Semua ukuran
             </button>
           )}
@@ -164,45 +168,53 @@ export function BarangDetail() {
             Belum ada riwayat pembelian untuk ukuran ini.
           </p>
         ) : (
-          <table className="w-full text-left text-[13px]">
-            <thead>
-              <tr className="text-ink-muted">
-                <th scope="col" className="p-2">Tgl beli</th>
+          // On a phone each batch becomes a small card: label above value, two
+          // columns. Same table, same cells (so the text is not duplicated);
+          // explicit roles keep it a table for assistive tech even though the
+          // CSS stops it looking like one.
+          <table role="table" className="w-full text-left text-[13px] max-md:block">
+            <thead role="rowgroup" className="max-md:sr-only">
+              <tr role="row" className="text-ink-muted">
+                <th scope="col" className="p-2">Tanggal beli</th>
                 <th scope="col" className="p-2">Supplier</th>
                 {semuaUkuran && <th scope="col" className="p-2">Ukuran</th>}
-                <th scope="col" className="p-2">Beli</th>
-                <th scope="col" className="p-2">H.beli</th>
-                <th scope="col" className="p-2">H.jual</th>
+                <th scope="col" className="p-2">Jumlah beli</th>
+                <th scope="col" className="p-2">Harga beli</th>
+                <th scope="col" className="p-2">Harga jual</th>
                 <th scope="col" className="p-2">Sisa</th>
                 <th scope="col" className="p-2">Transaksi</th>
-                <th scope="col" className="p-2" />
+                <th scope="col" className="p-2"><span className="sr-only">Aksi</span></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className="max-md:flex max-md:flex-col max-md:gap-3">
               {riwayat.map(row => (
-                <tr key={row.kind === 'batch' ? row.batchId : `legacy-${row.itemId}`} className="border-t border-border">
-                  <td className="p-2 text-ink">{row.kind === 'batch' ? formatTanggal(row.tanggalBeli) : '—'}</td>
-                  <td className="p-2 text-ink">{row.kind === 'batch' ? (row.supplierNama ?? '—') : 'Stok lama'}</td>
-                  {semuaUkuran && <td className="p-2 text-ink">{row.ukuran}</td>}
-                  <td className="p-2 text-ink">{row.kind === 'batch' ? row.diterima : '—'}</td>
-                  <td className="p-2 text-ink">
+                <tr
+                  role="row"
+                  key={row.kind === 'batch' ? row.batchId : `legacy-${row.itemId}`}
+                  className="border-t border-border max-md:grid max-md:grid-cols-2 max-md:gap-x-4 max-md:gap-y-2 max-md:rounded-card max-md:border max-md:bg-surface max-md:p-3"
+                >
+                  <td role="cell" data-label="Tanggal beli" className={CELL}>{row.kind === 'batch' ? formatTanggal(row.tanggalBeli) : '—'}</td>
+                  <td role="cell" data-label="Supplier" className={CELL}>{row.kind === 'batch' ? (row.supplierNama ?? '—') : 'Stok lama'}</td>
+                  {semuaUkuran && <td role="cell" data-label="Ukuran" className={CELL}>{row.ukuran}</td>}
+                  <td role="cell" data-label="Jumlah beli" className={CELL}>{row.kind === 'batch' ? row.diterima : '—'}</td>
+                  <td role="cell" data-label="Harga beli" className={CELL}>
                     {row.kind === 'batch' ? (row.hargaBeli !== undefined ? formatRupiah(rupiah(row.hargaBeli)) : '—') : '—'}
                   </td>
-                  <td className="p-2 text-ink">{row.kind === 'batch' ? formatRupiah(rupiah(row.hargaJual)) : '—'}</td>
-                  <td className="p-2 text-ink">{row.sisa}</td>
-                  <td className="p-2 text-ink">
+                  <td role="cell" data-label="Harga jual" className={CELL}>{row.kind === 'batch' ? formatRupiah(rupiah(row.hargaJual)) : '—'}</td>
+                  <td role="cell" data-label="Sisa" className={CELL}>{row.sisa}</td>
+                  <td role="cell" data-label="Transaksi" className={CELL}>
                     <Link
                       to={row.kind === 'batch' ? `/transaksi?batch=${row.batchId}` : `/transaksi?item=${row.itemId}`}
-                      className="inline-flex min-h-tap items-center underline"
+                      className="inline-flex min-h-tap min-w-tap items-center underline"
                     >
                       {row.transaksiCount} ›
                     </Link>
                   </td>
-                  <td className="p-2">
+                  <td role="cell" className="p-2 max-md:col-span-2">
                     {row.kind === 'batch' && (
                       <button
                         type="button" onClick={() => setKoreksiBatch(row)}
-                        className="min-h-tap text-[13px] font-semibold text-ink underline"
+                        className="min-h-tap min-w-tap text-[13px] font-semibold text-ink underline"
                       >
                         ⋯ Koreksi pembelian
                       </button>
