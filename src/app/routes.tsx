@@ -5,6 +5,8 @@ import { Kasir } from '../features/kasir/Kasir'
 import { SaleList } from '../features/transaksi/SaleList'
 import { KamusBarang } from '../features/kamus/KamusBarang'
 import { Supplier } from '../features/supplier/Supplier'
+import { Beranda } from '../features/beranda/Beranda'
+import { Masuk } from '../features/akun/Masuk'
 
 const Placeholder = ({ name }: { name: string }) => (
   <main className="p-8">
@@ -23,7 +25,7 @@ const NotFound = () => (
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/"          element={<Placeholder name="Beranda" />} />
+      <Route path="/"          element={<Beranda />} />
       <Route path="/transaksi" element={<SaleList />} />
       <Route path="/stok"      element={<Stok />} />
       <Route path="/stok/:barangKey" element={<BarangDetail />} />
@@ -32,6 +34,8 @@ export function AppRoutes() {
       <Route path="/laporan"   element={<Placeholder name="Laporan" />} />
       <Route path="/kamus"     element={<KamusBarang />} />
       <Route path="/kasir"     element={<Kasir />} />
+      {/* Optional: signing in only turns on cloud backup. Nothing links to it as a gate. */}
+      <Route path="/masuk"     element={<Masuk />} />
       {/* Lainnya is a sheet now (BottomNav.tsx / LainnyaSheet.tsx), not a
           route: its old destinations (Transaksi, Supplier, Laporan) are all
           real screens already, reachable directly, and Kamus Barang joined

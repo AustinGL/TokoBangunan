@@ -1,8 +1,9 @@
 import 'fake-indexeddb/auto'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../data/db'
+import { ToastProvider } from '../ui/Toast'
 import { AppRoutes } from './routes'
 
 beforeEach(async () => {
@@ -65,6 +66,22 @@ describe('AppRoutes: /lainnya redirects home (the sheet replaces the old route)'
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: 'Beranda' })).toBeInTheDocument()
+    expect(screen.queryByText('Halaman tidak ditemukan')).toBeNull()
+  })
+})
+
+describe('AppRoutes: the /masuk route', () => {
+  it('renders the account screen for /masuk, not the not-found page', async () => {
+    render(
+      <MemoryRouter initialEntries={['/masuk']}>
+        <ToastProvider><AppRoutes /></ToastProvider>
+      </MemoryRouter>,
+    )
+
+    // "Akun" while the device session loads, then "Masuk" (or "Akun" again when a
+    // cloud project is not configured for this run): the heading element is
+    // replaced between those states, so wait on the condition, not on one element.
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /^(Masuk|Akun)$/ })).toBeInTheDocument())
     expect(screen.queryByText('Halaman tidak ditemukan')).toBeNull()
   })
 })
