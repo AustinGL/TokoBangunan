@@ -102,6 +102,14 @@ const barangUpsertedSchema = z.object({
   id: z.string().min(1),
   nama: z.string().min(1),
   kategori: z.string().optional(),
+  // Set once a barang picks a Kategori master row; `kategori` text is legacy, only ever read.
+  kategoriId: z.string().min(1).optional(),
+  diarsipkan: z.boolean().default(false),
+})
+
+const kategoriUpsertedSchema = z.object({
+  id: z.string().min(1),
+  nama: z.string().min(1),
   diarsipkan: z.boolean().default(false),
 })
 
@@ -144,6 +152,7 @@ export const eventSchemas = {
   SaleRecorded: saleRecordedSchema,
   SaleVoided: saleVoidedSchema,
   BarangUpserted: barangUpsertedSchema,
+  KategoriUpserted: kategoriUpsertedSchema,
   StockReceived: stockReceivedSchema,
   BatchCorrected: batchCorrectedSchema,
 } as const

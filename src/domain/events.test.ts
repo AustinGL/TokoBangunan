@@ -252,6 +252,24 @@ describe('BarangUpserted', () => {
   })
 })
 
+describe('KategoriUpserted / BarangUpserted.kategoriId', () => {
+  it('accepts a kategori and defaults diarsipkan to false', () => {
+    const e = createEvent('KategoriUpserted', { id: 'kat_a', nama: 'Alat' }, opts)
+    expect(e.payload).toEqual({ id: 'kat_a', nama: 'Alat', diarsipkan: false })
+  })
+  it('rejects an empty kategori name', () => {
+    expect(() => createEvent('KategoriUpserted', { id: 'k', nama: '' }, opts)).toThrow()
+  })
+  it('an old BarangUpserted without kategoriId still validates', () => {
+    const e = createEvent('BarangUpserted', { id: 'b', nama: 'Semen', kategori: 'Semen' }, opts)
+    expect(e.payload).toMatchObject({ kategori: 'Semen' })
+  })
+  it('a BarangUpserted may carry a kategoriId', () => {
+    const e = createEvent('BarangUpserted', { id: 'b', nama: 'Semen', kategoriId: 'kat_semen' }, opts)
+    expect(e.payload).toMatchObject({ kategoriId: 'kat_semen' })
+  })
+})
+
 describe('ItemUpserted extensions (barangId, diarsipkan)', () => {
   it('accepts a payload carrying barangId and diarsipkan', () => {
     const e = createEvent('ItemUpserted', { ...itemPayload, barangId: 'barang-semen', diarsipkan: true }, opts)

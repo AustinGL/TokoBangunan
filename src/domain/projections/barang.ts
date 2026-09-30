@@ -4,6 +4,8 @@ export type Barang = {
   id: string
   nama: string
   kategori?: string
+  /** Master link; wins over legacy `kategori` text. */
+  kategoriId?: string
   diarsipkan: boolean
   /** recordedAt of the write that produced this state, for last-write-wins. */
   updatedAt: string
