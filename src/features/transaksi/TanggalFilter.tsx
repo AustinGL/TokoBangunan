@@ -13,6 +13,10 @@
  * useStokList.ts.
  */
 
+import { systemClock } from '../../domain/clock'
+import { isoDateDaysAgo } from '../../domain/tanggal'
+import { Button } from '../../ui/Button'
+
 type Props = {
   /** yyyy-mm-dd, or null for "semua" (no filter, the default). */
   value: string | null
@@ -20,10 +24,26 @@ type Props = {
 }
 
 export function TanggalFilter({ value, onChange }: Props) {
+  // The two days the owner asks about most, one tap each, before the date
+  // picker (a bare dd/mm/yyyy box) is needed at all.
+  const presets = [
+    { label: 'Hari ini', date: isoDateDaysAgo(systemClock, 0) },
+    { label: 'Kemarin', date: isoDateDaysAgo(systemClock, 1) },
+  ]
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="transaksi-tanggal-filter" className="text-[13px] font-medium text-ink">
+    <div className="flex flex-wrap items-center gap-2">
+      {presets.map(p => (
+        <Button
+          key={p.label}
+          variant={value === p.date ? 'primary' : 'secondary'}
+          aria-pressed={value === p.date}
+          onClick={() => onChange(value === p.date ? null : p.date)}
+        >
+          {p.label}
+        </Button>
+      ))}
+      <div className="flex items-center">
+        <label htmlFor="transaksi-tanggal-filter" className="sr-only">
           Tanggal
         </label>
         <input
@@ -31,17 +51,13 @@ export function TanggalFilter({ value, onChange }: Props) {
           type="date"
           value={value ?? ''}
           onChange={e => onChange(e.target.value === '' ? null : e.target.value)}
-          className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
+          className="h-control rounded-pill border border-[var(--field-bd)] bg-[var(--field-bg)] px-4 text-[14px] text-ink"
         />
       </div>
       {value !== null && (
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
-        >
+        <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
           Tampilkan semua
-        </button>
+        </Button>
       )}
     </div>
   )

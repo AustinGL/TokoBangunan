@@ -26,3 +26,14 @@ export function todayIsoDate(clock: Clock): string {
   const day = String(now.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+/**
+ * "yyyy-mm-dd" for the calendar day `daysAgo` days before the clock's today
+ * (0 = today, 1 = yesterday). Built from local date fields, never from a UTC
+ * round-trip, so a day boundary in a UTC+7 shop is the shop's own midnight.
+ */
+export function isoDateDaysAgo(clock: Clock, daysAgo: number): string {
+  const now = clock.now()
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo, 12, 0, 0, 0)
+  return todayIsoDate({ now: () => d })
+}

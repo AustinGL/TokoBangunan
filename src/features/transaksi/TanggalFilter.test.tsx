@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/db'
 import { recordSale, type RecordSaleInput } from '../../data/commands'
 import { fixedClock } from '../../domain/clock'
 import { SaleList } from './SaleList'
+import { TanggalFilter } from './TanggalFilter'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
 
@@ -141,5 +142,21 @@ describe('TanggalFilter: local-day boundaries, not UTC', () => {
     fireEvent.change(dateInput, { target: { value: '2026-09-22' } })
 
     expect(await screen.findByText('Tidak ada transaksi pada tanggal ini.')).toBeInTheDocument()
+  })
+})
+
+describe('TanggalFilter: one control height with its presets', () => {
+  it('draws no label above the date input, so it lines up with the preset buttons', () => {
+    render(<TanggalFilter value={null} onChange={vi.fn()} />)
+    const input = screen.getByLabelText('Tanggal')
+    expect(input).toHaveClass('h-control')
+    const label = document.querySelector('label[for="transaksi-tanggal-filter"]')!
+    expect(label).toHaveClass('sr-only')
+  })
+
+  it('presets and the date field share one control height', () => {
+    render(<TanggalFilter value={null} onChange={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Hari ini' })).toHaveClass('h-control')
+    expect(screen.getByRole('button', { name: 'Kemarin' })).toHaveClass('h-control')
   })
 })

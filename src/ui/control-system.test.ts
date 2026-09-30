@@ -17,7 +17,6 @@ const PENDING: string[] = [
   'features/shared/BarangPicker.tsx', 'features/shared/UkuranPicker.tsx',
   'features/stok/AturUkuranSheet.tsx', 'features/stok/KoreksiPembelianSheet.tsx', 'features/stok/TambahStokSheet.tsx',
   'features/supplier/Supplier.tsx', 'features/supplier/SupplierSheet.tsx',
-  'features/transaksi/SaleDetail.tsx', 'features/transaksi/SaleList.tsx', 'features/transaksi/TanggalFilter.tsx',
 ]
 
 /** Only these may spell the tap-size classes: they own the 44px hit area. */

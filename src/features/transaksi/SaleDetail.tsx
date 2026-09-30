@@ -7,6 +7,7 @@ import { systemClock } from '../../domain/clock'
 import { formatRupiah, rupiah } from '../../domain/money'
 import { fromBase, qty } from '../../domain/quantity'
 import { formatTanggal } from '../shared/formatTanggal'
+import { Button } from '../../ui/Button'
 
 /**
  * Component breakdown table's exact row: "Sale detail |
@@ -127,13 +128,9 @@ export function SaleDetail({ saleId, onClose }: Props) {
       <div className="no-print flex items-center justify-between gap-4">
         <h2 className="text-[15px] font-bold text-ink">Detail transaksi</h2>
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
-          >
+          <Button variant="ghost" size="sm" onClick={onClose}>
             Tutup
-          </button>
+          </Button>
         )}
       </div>
 
@@ -210,13 +207,9 @@ export function SaleDetail({ saleId, onClose }: Props) {
       </div>
 
       <div className="no-print flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={handleCetak}
-          className="min-h-tap w-fit rounded-tile border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
-        >
+        <Button variant="secondary" onClick={handleCetak} className="self-start">
           Cetak nota
-        </button>
+        </Button>
 
         {voidError && (
           <div
@@ -230,13 +223,9 @@ export function SaleDetail({ saleId, onClose }: Props) {
         )}
 
         {sale.status === 'aktif' && !confirmOpen && (
-          <button
-            type="button"
-            onClick={handleBatalkanClick}
-            className="min-h-tap w-fit rounded-tile border border-danger px-4 text-[14px] font-semibold text-danger"
-          >
+          <Button variant="danger" onClick={handleBatalkanClick} className="self-start">
             Batalkan
-          </button>
+          </Button>
         )}
 
         {sale.status === 'aktif' && confirmOpen && (
@@ -253,7 +242,7 @@ export function SaleDetail({ saleId, onClose }: Props) {
                 onChange={e => setAlasan(e.target.value)}
                 aria-invalid={alasanError ? true : undefined}
                 aria-describedby={alasanError ? 'sale-void-alasan-error' : undefined}
-                className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${
+                className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${
                   alasanError ? 'border-danger' : 'border-[var(--field-bd)]'
                 }`}
               />
@@ -264,20 +253,12 @@ export function SaleDetail({ saleId, onClose }: Props) {
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleCancelConfirm}
-                className="min-h-tap rounded-tile px-4 text-[14px] font-medium text-ink-muted"
-              >
+              <Button variant="ghost" onClick={handleCancelConfirm}>
                 Batal
-              </button>
-              <button
-                type="submit"
-                disabled={voiding}
-                className="min-h-tap rounded-field bg-danger px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:opacity-70"
-              >
+              </Button>
+              <Button type="submit" variant="danger" disabled={voiding}>
                 {voiding ? 'Membatalkan...' : 'Ya, batalkan'}
-              </button>
+              </Button>
             </div>
           </form>
         )}

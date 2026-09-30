@@ -81,7 +81,7 @@ function SaleTable({ rows, onSelect }: { rows: Sale[]; onSelect: (saleId: string
                 type="button"
                 onClick={e => { e.stopPropagation(); onSelect(sale.id) }}
                 aria-label={`Buka detail transaksi ${shortNota(sale.id)}`}
-                className="-ml-2 inline-flex min-h-tap items-center px-2 text-[12px] font-semibold tabular-nums text-primary underline"
+                className="-ml-2 inline-flex min-h-control items-center px-2 text-[12px] font-semibold tabular-nums text-primary underline"
               >
                 {shortNota(sale.id)}
               </button>
