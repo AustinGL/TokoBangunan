@@ -178,4 +178,12 @@ describe('Masuk: other states', () => {
     expect(screen.getByText(/cadangan cloud belum diatur/i)).toBeInTheDocument()
     expect(screen.queryByLabelText('Password')).toBeNull()
   })
+
+  it('says the account cannot be checked offline, and shows no sign-in form, rather than treating the owner as signed out', () => {
+    session.value = { status: 'offline' }
+    renderMasuk()
+
+    expect(screen.getByText(/tidak bisa memeriksa akun karena perangkat sedang offline/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Password')).toBeNull()
+  })
 })

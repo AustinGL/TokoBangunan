@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CloudOff, UserRound } from 'lucide-react'
+import { CloudOff, UserRound, WifiOff } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { signIn, signOut } from '../../data/auth'
@@ -38,6 +38,17 @@ export function Masuk() {
       <main className={PAGE}>
         <PageHeader title="Akun" />
         <ListSkeleton label="Memuat akun..." rows={2} />
+      </main>
+    )
+  }
+
+  if (session.status === 'offline') {
+    return (
+      <main className={PAGE}>
+        <PageHeader title="Akun" />
+        <EmptyState icon={WifiOff}>
+          Tidak bisa memeriksa akun karena perangkat sedang offline. Kasir tetap bisa dipakai, dan data tersimpan di perangkat ini.
+        </EmptyState>
       </main>
     )
   }

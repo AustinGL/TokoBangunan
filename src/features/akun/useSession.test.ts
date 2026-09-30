@@ -1,4 +1,5 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
+import { AuthRetryableFetchError } from '@supabase/supabase-js'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const auth = vi.hoisted(() => ({
@@ -77,5 +78,33 @@ describe('useSession', () => {
     unmount()
 
     expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports "offline", not signed out, when the stored session cannot be checked for lack of network', async () => {
+    // Offline with an expired access token: the refresh fails, so there is no session to show,
+    // but the owner has not signed out and must not be asked for a password.
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) })
+
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'offline' }))
+  })
+
+  it('still reports signed out for an error that is not about the network', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: { name: 'AuthApiError', message: 'invalid refresh token', status: 400 } })
+
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'keluar' }))
+  })
+
+  it('does not let the start-up event (INITIAL_SESSION, null while offline) overwrite what getSession found', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) })
+    const { result } = renderHook(() => useSession())
+    await waitFor(() => expect(result.current.status).toBe('offline'))
+
+    act(() => listener('INITIAL_SESSION', null))
+
+    expect(result.current).toEqual({ status: 'offline' })
   })
 })
