@@ -23,12 +23,12 @@ const rows = toStokRows([
 // A tiny harness wires StockFilters (a controlled component) up to
 // filterStokRows and renders the narrowed result, so the tests below can
 // assert on real filtering behavior rather than just that state changed.
-function Harness() {
+function Harness({ categories = ['Semen', 'Cat'] }: { categories?: string[] }) {
   const [filters, setFilters] = useState<StokFilterState>(EMPTY_STOK_FILTERS)
   const visible = filterStokRows(rows, filters)
   return (
     <div>
-      <StockFilters categories={['Semen', 'Cat']} filters={filters} onChange={setFilters} />
+      <StockFilters categories={categories} filters={filters} onChange={setFilters} />
       <ul>
         {visible.map(row => (
           <li key={row.barangId}>{row.nama}</li>
@@ -77,22 +77,12 @@ describe('StockFilters', () => {
     expect(screen.queryByText('Semen Putih')).toBeNull()
   })
 
-  it('narrows the list with the habis/menipis toggle', async () => {
+  it('narrows the list from the Kategori dropdown', async () => {
     const user = userEvent.setup()
     render(<Harness />)
 
-    await user.click(screen.getByRole('button', { name: 'Habis' }))
-
-    expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
-    expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
-    expect(screen.queryByText('Semen Putih')).toBeNull()
-  })
-
-  it('narrows the list by kategori pill selection', async () => {
-    const user = userEvent.setup()
-    render(<Harness />)
-
-    await user.click(screen.getByRole('radio', { name: 'Cat' }))
+    await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    await user.click(screen.getByRole('option', { name: 'Cat' }))
 
     expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
     expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
@@ -103,11 +93,33 @@ describe('StockFilters', () => {
     const user = userEvent.setup()
     render(<Harness />)
 
-    await user.click(screen.getByRole('radio', { name: 'Semen' }))
+    await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    await user.click(screen.getByRole('option', { name: 'Semen' }))
     await user.type(screen.getByLabelText(/cari barang/i), 'tiga')
 
     expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument()
     expect(screen.queryByText('Semen Putih')).toBeNull()
     expect(screen.queryByText('Cat Tembok Putih')).toBeNull()
+  })
+
+  it('offers Reset filter only while a filter is active, and it restores the full list', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    expect(screen.queryByRole('button', { name: 'Reset filter' })).toBeNull()
+
+    await user.type(screen.getByLabelText(/cari barang/i), 'putih')
+    expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Reset filter' }))
+
+    expect(screen.getByLabelText(/cari barang/i)).toHaveValue('')
+    expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset filter' })).toBeNull()
+  })
+
+  it('has no Kategori dropdown when there are no kategori to choose from', () => {
+    render(<Harness categories={[]} />)
+    expect(screen.queryByRole('combobox', { name: /kategori/i })).toBeNull()
   })
 })

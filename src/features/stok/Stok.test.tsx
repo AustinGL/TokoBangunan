@@ -35,7 +35,7 @@ function NavigationTypeProbe() {
 }
 
 describe('Stok', () => {
-  it('shows the header summary counting every non-archived barang, a worst-status pill and ukuran chips per row', async () => {
+  it('shows the summary tiles counting every non-archived barang, a worst-status pill and ukuran chips per row', async () => {
     await seedBarang('b1', 'Semen Tiga Roda', 'Semen')
     await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
     await seedUkuran({ id: 'u2', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '40 kg', hargaEceran: 58000, stokMinimum: 10 })
@@ -44,9 +44,11 @@ describe('Stok', () => {
 
     render(<MemoryRouter><Stok /></MemoryRouter>)
 
-    expect(await screen.findByText('1 barang · 0 menipis · 1 habis')).toBeInTheDocument()
-    // Scoped to the row list: StockFilters' own status-toggle bar also has a
-    // "Habis" button, so an unscoped getByText matches both.
+    expect(await screen.findByRole('button', { name: 'Semua barang: 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Menipis: 0' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Habis: 1' })).toBeInTheDocument()
+    expect(screen.getByText('1 barang')).toBeInTheDocument()
+    // Scoped to the row list: the Habis status tile above also says "Habis".
     const list = within(screen.getByRole('list'))
     expect(list.getByText('Habis')).toBeInTheDocument() // worst of aman/habis is habis
     expect(list.getByText('50 kg · 32')).toBeInTheDocument()
@@ -54,7 +56,7 @@ describe('Stok', () => {
     expect(list.getByText('Rp 58.000 - Rp 65.000')).toBeInTheDocument()
   })
 
-  it('keeps the header summary unchanged while a search narrows the visible rows', async () => {
+  it('keeps the summary tiles unchanged while a search narrows the visible rows', async () => {
     await seedBarang('b1', 'Semen Tiga Roda')
     await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
     await seedBarang('b2', 'Cat Tembok Putih')
@@ -65,11 +67,13 @@ describe('Stok', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Stok /></MemoryRouter>)
 
-    expect(await screen.findByText('2 barang · 0 menipis · 1 habis')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Semua barang: 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Habis: 1' })).toBeInTheDocument()
     await user.type(screen.getByLabelText(/cari barang/i), 'semen')
 
     expect(screen.queryByText('Cat Tembok Putih')).toBeNull()
-    expect(screen.getByText('2 barang · 0 menipis · 1 habis')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Semua barang: 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Habis: 1' })).toBeInTheDocument()
   })
 
   it('does not show a barang whose every ukuran is archived', async () => {
@@ -93,6 +97,57 @@ describe('Stok', () => {
     expect(link).toHaveAttribute('href', '/stok/b1')
   })
 
+  it('filters by the Habis tile, and clicking the pressed tile again clears it, with counts unchanged', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+    await seedBarang('b2', 'Cat Tembok Putih')
+    await seedUkuran({ id: 'u2', barangId: 'b2', nama: 'Cat Tembok Putih', baseUnit: '5 kg', hargaEceran: 95000, stokMinimum: 5 })
+    await seedStok('u1', 50000)
+    await seedStok('u2', 0)
+    const user = userEvent.setup()
+    render(<MemoryRouter><Stok /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Habis: 1' }))
+    expect(screen.getByRole('button', { name: 'Habis: 1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
+    expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Semua barang: 2' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Habis: 1' }))
+    expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument()
+    expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
+  })
+
+  it('shows no tiles and no toolbar, only the empty state, when there is no stock at all', async () => {
+    render(<MemoryRouter><Stok /></MemoryRouter>)
+
+    expect(await screen.findByText('Belum ada stok. Tambahkan barang di menu Kamus Barang.')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Filter status stok' })).toBeNull()
+    expect(screen.queryByLabelText(/cari barang/i)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Buka Kamus Barang' })).toHaveAttribute('href', '/kamus')
+  })
+
+  it('shows a no-match state for a search that matches nothing, and Reset filter brings the rows back', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+    await seedStok('u1', 50000)
+    const user = userEvent.setup()
+    render(<MemoryRouter><Stok /></MemoryRouter>)
+
+    await user.type(await screen.findByLabelText(/cari barang/i), 'zzz-tidak-ada')
+    expect(screen.getByText('Tidak ada barang yang cocok dengan pencarian atau filter.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reset filter' }))
+    expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument()
+    expect(screen.queryByText('Tidak ada barang yang cocok dengan pencarian atau filter.')).toBeNull()
+  })
+
+  it('shows a busy skeleton, not the empty state, while the stock is still loading', () => {
+    render(<MemoryRouter><Stok /></MemoryRouter>)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Memuat daftar stok...')
+    expect(screen.queryByText(/belum ada stok/i)).toBeNull()
+  })
 })
 
 describe('Stok: Tambah stok', () => {
@@ -116,6 +171,19 @@ describe('Stok: Tambah stok', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Tambah stok' })).toBeInTheDocument()
+  })
+
+  it('prefills barang and ukuran when a Beranda "Perlu diurus" link carries them', async () => {
+    await seedBarang('b1', 'Semen Tiga Roda')
+    await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
+    render(
+      <MemoryRouter initialEntries={['/stok?tambah=1&barang=b1&ukuran=u1']}>
+        <ToastProvider><Stok /></ToastProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /nama barang/i })).toHaveValue('Semen Tiga Roda'))
+    expect(screen.getByRole('combobox', { name: /^ukuran$/i })).toHaveValue('50 kg')
   })
 
   it('closes the sheet via its own Tutup button', async () => {
