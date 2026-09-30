@@ -1,5 +1,6 @@
 import { AlertCircle, AlertTriangle } from 'lucide-react'
 import type { StokStatus } from '../../domain/stokStatus'
+import { Icon } from '../../ui/Icon'
 
 const CLASS: Record<StokStatus, string> = {
   aman: 'border-border-input bg-surface text-ink-muted',
@@ -15,8 +16,8 @@ const CLASS: Record<StokStatus, string> = {
 export function UkuranChip({ ukuran, quantity, status }: { ukuran: string; quantity: number; status: StokStatus }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-pill border px-3 py-1 text-[12px] tabular-nums ${CLASS[status]}`}>
-      {status === 'habis' && <AlertCircle aria-hidden="true" size={12} />}
-      {status === 'menipis' && <AlertTriangle aria-hidden="true" size={12} />}
+      {status === 'habis' && <Icon icon={AlertCircle} size="micro" />}
+      {status === 'menipis' && <Icon icon={AlertTriangle} size="micro" />}
       {status !== 'aman' && <span className="sr-only">{`stok ${status}`}</span>}
       {`${ukuran} · ${quantity}`}
     </span>

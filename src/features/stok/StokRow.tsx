@@ -4,6 +4,7 @@ import type { StokBarangRow } from './stokList'
 import { formatRupiah, type Rupiah } from '../../domain/money'
 import { StatusPill } from '../../ui/StatusPill'
 import { IconTile, type IconTone } from '../../ui/IconTile'
+import { Icon } from '../../ui/Icon'
 import { UkuranChip } from '../shared/UkuranChip'
 import { STOK_TONE, STOK_LABEL } from '../shared/stokTone'
 
@@ -40,7 +41,7 @@ export function StokRow({ row }: { row: StokBarangRow }) {
         </div>
         <span className="text-[13px] tabular-nums text-ink-muted">{formatHargaRange(row.hargaMin, row.hargaMax)}</span>
       </div>
-      <ChevronRight aria-hidden="true" size={18} className="shrink-0 text-ink-faint" />
+      <Icon icon={ChevronRight} size="button" className="shrink-0 text-ink-faint" />
     </Link>
   )
 }

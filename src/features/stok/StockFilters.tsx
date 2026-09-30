@@ -1,5 +1,6 @@
 import { SearchField } from '../../ui/SearchField'
 import { Select } from '../../ui/Select'
+import { Button } from '../../ui/Button'
 import { EMPTY_STOK_FILTERS, type StokFilterState } from './stokList'
 
 /**
@@ -43,13 +44,7 @@ export function StockFilters({ categories, filters, onChange }: Props) {
         />
       )}
       {active && (
-        <button
-          type="button"
-          onClick={() => onChange(EMPTY_STOK_FILTERS)}
-          className="min-h-tap rounded-pill px-3 text-[13px] font-semibold text-primary hover:underline"
-        >
-          Reset filter
-        </button>
+        <Button variant="ghost" size="sm" onClick={() => onChange(EMPTY_STOK_FILTERS)}>Reset filter</Button>
       )}
     </div>
   )

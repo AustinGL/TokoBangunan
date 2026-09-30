@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useKatalog, type UkuranRow } from '../shared/useKatalog'
 import { useSuppliers } from '../shared/useSuppliers'
 import { useRiwayatStok } from './useRiwayatStok'
@@ -10,6 +10,7 @@ import { formatRupiah, rupiah } from '../../domain/money'
 import { formatTanggal } from '../shared/formatTanggal'
 import type { RiwayatBatchRow } from './riwayatStok'
 import { StatusPill } from '../../ui/StatusPill'
+import { Button, ButtonLink } from '../../ui/Button'
 import { Package } from 'lucide-react'
 import { IconTile } from '../../ui/IconTile'
 import { STOK_TONE, STOK_LABEL } from '../shared/stokTone'
@@ -84,7 +85,7 @@ export function BarangDetail() {
   if (!barangRow) {
     return (
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
-        <Link to="/stok" className="inline-flex min-h-tap items-center text-[13px] font-semibold text-ink-muted">‹ Stok</Link>
+        <ButtonLink to="/stok" variant="link" className="self-start">‹ Stok</ButtonLink>
         <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
           Barang tidak ditemukan.
         </p>
@@ -98,7 +99,7 @@ export function BarangDetail() {
         <div className="flex items-center gap-3">
           <IconTile icon={Package} />
           <div className="flex min-w-0 flex-col gap-1">
-            <Link to="/stok" className="-ml-2 inline-flex min-h-tap min-w-tap items-center px-2 text-[14px] font-semibold text-ink-muted">‹ Stok</Link>
+            <ButtonLink to="/stok" variant="link" className="-ml-1 self-start">‹ Stok</ButtonLink>
             <h1 className="break-words text-[20px] font-bold text-ink">
               {barangRow.nama}
               {barangRow.kategori && <span className="ml-2 text-[13px] font-normal text-ink-muted">· {barangRow.kategori}</span>}
@@ -109,19 +110,8 @@ export function BarangDetail() {
           {/* No per-barang deep-link exists in Kamus Barang yet - a plain
               link, same scope-decision precedent as plan 08's own explicit
               "tracked for its own follow-up" notes. */}
-          <Link
-            to="/kamus"
-            className="inline-flex min-h-tap items-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
-          >
-            Ubah di Kamus
-          </Link>
-          <button
-            type="button"
-            onClick={() => setTambahStokOpen(true)}
-            className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-          >
-            + Tambah stok
-          </button>
+          <ButtonLink to="/kamus" variant="secondary">Ubah di Kamus</ButtonLink>
+          <Button variant="primary" onClick={() => setTambahStokOpen(true)}>+ Tambah stok</Button>
         </div>
       </div>
 
@@ -130,18 +120,13 @@ export function BarangDetail() {
           const active = !semuaUkuran && selectedUkuran?.id === u.id
           return (
             <div key={u.id} className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
-              <button type="button" aria-pressed={active} onClick={() => selectUkuran(u.id)} className="flex min-h-tap flex-col gap-1 text-left">
+              <button type="button" aria-pressed={active} onClick={() => selectUkuran(u.id)} className="flex min-h-control flex-col gap-1 text-left">
                 <span className="text-[13px] font-semibold text-ink-muted">{u.ukuran}</span>
                 <span className="text-[22px] font-bold tabular-nums text-ink">Sisa {u.quantity}</span>
                 <span className="w-fit"><StatusPill tone={STOK_TONE[u.status]}>{STOK_LABEL[u.status]}</StatusPill></span>
                 <span className="text-[13px] text-ink-muted">@ {formatRupiah(rupiah(u.hargaEceran))} · min {u.stokMinimum}</span>
               </button>
-              <button
-                type="button" onClick={() => setAturUkuran(u)}
-                className="min-h-tap min-w-tap self-start text-[13px] font-semibold text-ink underline"
-              >
-                Atur ukuran
-              </button>
+              <Button variant="link" className="self-start" onClick={() => setAturUkuran(u)}>Atur ukuran</Button>
             </div>
           )
         })}
@@ -153,9 +138,7 @@ export function BarangDetail() {
             Riwayat stok · {semuaUkuran ? 'Semua ukuran' : selectedUkuran?.ukuran ?? '-'}
           </h2>
           {!semuaUkuran && survivingUkuran.length > 1 && (
-            <button type="button" onClick={selectSemuaUkuran} className="inline-flex min-h-tap min-w-tap items-center text-[13px] font-semibold text-ink underline">
-              Semua ukuran
-            </button>
+            <Button variant="link" onClick={selectSemuaUkuran}>Semua ukuran</Button>
           )}
         </div>
 
@@ -203,21 +186,17 @@ export function BarangDetail() {
                   <td role="cell" data-label="Harga jual" className={CELL}>{row.kind === 'batch' ? formatRupiah(rupiah(row.hargaJual)) : '—'}</td>
                   <td role="cell" data-label="Sisa" className={CELL}>{row.sisa}</td>
                   <td role="cell" data-label="Transaksi" className={CELL}>
-                    <Link
+                    <ButtonLink
                       to={row.kind === 'batch' ? `/transaksi?batch=${row.batchId}` : `/transaksi?item=${row.itemId}`}
-                      className="inline-flex min-h-tap min-w-tap items-center underline"
+                      variant="link"
+                      className="self-start"
                     >
                       {row.transaksiCount} ›
-                    </Link>
+                    </ButtonLink>
                   </td>
                   <td role="cell" className="p-2 max-md:col-span-2">
                     {row.kind === 'batch' && (
-                      <button
-                        type="button" onClick={() => setKoreksiBatch(row)}
-                        className="min-h-tap min-w-tap text-[13px] font-semibold text-ink underline"
-                      >
-                        ⋯ Koreksi pembelian
-                      </button>
+                      <Button variant="link" onClick={() => setKoreksiBatch(row)}>⋯ Koreksi pembelian</Button>
                     )}
                   </td>
                 </tr>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { BookOpen, SearchX } from 'lucide-react'
 import { useKatalog } from '../shared/useKatalog'
 import { StockFilters } from './StockFilters'
@@ -10,6 +10,7 @@ import { toStokRows, filterStokRows, summarizeStokRows, EMPTY_STOK_FILTERS, type
 import { PageHeader } from '../../ui/PageHeader'
 import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
+import { Button, ButtonLink } from '../../ui/Button'
 
 export function Stok() {
   const katalog = useKatalog()
@@ -59,13 +60,7 @@ export function Stok() {
         title="Stok"
         subtitle={katalog !== undefined ? `${summary.totalBarang} barang` : undefined}
         action={
-          <button
-            type="button"
-            onClick={openTambahStok}
-            className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-          >
-            + Tambah stok
-          </button>
+          <Button variant="primary" onClick={openTambahStok}>+ Tambah stok</Button>
         }
       />
 
@@ -87,12 +82,7 @@ export function Stok() {
         <EmptyState
           icon={BookOpen}
           action={
-            <Link
-              to="/kamus"
-              className="inline-flex min-h-tap items-center rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
-            >
-              Buka Kamus Barang
-            </Link>
+            <ButtonLink to="/kamus" variant="secondary">Buka Kamus Barang</ButtonLink>
           }
         >
           Belum ada stok. Tambahkan barang di menu Kamus Barang.
