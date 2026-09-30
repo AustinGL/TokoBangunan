@@ -20,6 +20,19 @@ const VARIANT_POSITION: Record<NonNullable<Props['variant']>, string> = {
   center: 'inset-0 m-auto h-fit max-h-[85vh] w-[min(92vw,480px)] rounded-sheet',
 }
 
+const FIRST_FIELD =
+  '[data-sheet-body] input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]), [data-sheet-body] select:not([disabled]), [data-sheet-body] textarea:not([disabled]), [data-sheet-body] button[role="combobox"]:not([disabled])'
+
+/**
+ * showModal() focuses the first focusable element, which is the Tutup button
+ * in the header. A person opening a form wants to type, so focus goes to the
+ * first field instead (a sheet with no field, like a menu of links, keeps the
+ * browser's default).
+ */
+function focusFirstField(dialog: HTMLDialogElement): void {
+  dialog.querySelector<HTMLElement>(FIRST_FIELD)?.focus()
+}
+
 /**
  * A native <dialog> shown with showModal(): focus trapping, Escape-to-close
  * and returning focus to the trigger all come from the browser for free
@@ -35,9 +48,28 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
-    if (open && !dialog.open) { dialog.showModal(); pushOpenDialog(dialog) }
+    if (open && !dialog.open) { dialog.showModal(); pushOpenDialog(dialog); focusFirstField(dialog) }
     if (!open && dialog.open) { dialog.close(); popOpenDialog(dialog) }
   }, [open])
+
+  // After a submit that failed validation with a single error there is no
+  // error summary to receive focus, so focus would stay on the Simpan button
+  // while the message sits, unseen by a screen reader, under a field. Move it
+  // to the first invalid field. Skipped when a form already moved focus
+  // itself (its multi-error summary): then focus is no longer on a button.
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    const onSubmit = () => {
+      requestAnimationFrame(() => {
+        const active = document.activeElement
+        if (!dialog.contains(active) || active?.tagName !== 'BUTTON') return
+        dialog.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      })
+    }
+    dialog.addEventListener('submit', onSubmit)
+    return () => dialog.removeEventListener('submit', onSubmit)
+  }, [])
 
   // Separate from the effect above (which only reacts to `open` changing):
   // a Sheet that unmounts while still open (its own parent stops rendering
@@ -72,7 +104,7 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
       // Sheet.test.tsx.
       className={`fixed m-0 max-w-none border-0 bg-transparent p-0 backdrop:bg-[var(--scrim)] open:flex open:flex-col ${VARIANT_POSITION[variant]}`}
     >
-      <div className="glass-strong flex h-full flex-col overflow-hidden">
+      <div className="flex h-full flex-col overflow-hidden bg-surface shadow-panel">
         <div className="flex items-center justify-between gap-4 border-b border-border p-4">
           <h2 id={titleId} className="text-[15px] font-bold text-ink">{title}</h2>
           <button
@@ -84,7 +116,7 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
             <X aria-hidden="true" size={20} />
           </button>
         </div>
-        <div className="scroll-region flex-1 overflow-y-auto p-4">{children}</div>
+        <div data-sheet-body className="scroll-region flex-1 overflow-y-auto p-4">{children}</div>
       </div>
     </dialog>
   )

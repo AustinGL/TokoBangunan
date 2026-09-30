@@ -54,6 +54,12 @@ describe('KoreksiPembelianSheet', () => {
     expect(screen.getByLabelText(/jumlah/i)).toHaveValue(50)
   })
 
+  it('puts focus on the supplier field, the first field, when it opens', () => {
+    render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={batch} suppliers={suppliers} />)
+
+    expect(screen.getByLabelText(/supplier/i)).toHaveFocus()
+  })
+
   it('defaults the supplier field to "Tidak ada" when the batch has none', () => {
     render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={{ ...batch, supplierId: undefined }} suppliers={suppliers} />)
 
