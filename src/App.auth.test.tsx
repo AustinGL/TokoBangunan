@@ -81,4 +81,32 @@ describe('App: sync follows the owner signing in and out', () => {
 
     expect(h.unsubscribe).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps "Belum masuk" when a sync that started before sign-out finishes afterwards', async () => {
+    let finish: () => void = () => {}
+    h.runSync.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve }))
+    render(<App />)
+    await act(async () => { h.listener!('SIGNED_OUT') })
+    expect(await screen.findByText(/^Belum masuk/)).toBeInTheDocument()
+
+    await act(async () => { finish() })
+
+    expect(screen.getByText(/^Belum masuk/)).toBeInTheDocument()
+    expect(screen.queryByText('Tersinkron')).toBeNull()
+  })
+
+  it('ignores a failure from an older sync once a newer one (after sign-in) has succeeded', async () => {
+    let failOld: (error: Error) => void = () => {}
+    h.runSync.mockReturnValueOnce(new Promise<void>((_, reject) => { failOld = reject }))
+    h.runSync.mockResolvedValue(undefined)
+    render(<App />)
+
+    await act(async () => { h.listener!('SIGNED_IN') })
+    expect(await screen.findByText('Tersinkron')).toBeInTheDocument()
+
+    await act(async () => { failOld(new BelumMasukError()) })
+
+    expect(screen.getByText('Tersinkron')).toBeInTheDocument()
+    expect(screen.queryByText(/^Belum masuk/)).toBeNull()
+  })
 })

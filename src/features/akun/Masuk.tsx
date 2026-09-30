@@ -85,7 +85,7 @@ function FormMasuk() {
     setSubmitting(true)
     const result = await signIn(email, password)
     if (result.ok) {
-      showToast('Berhasil masuk. Data mulai dicadangkan.')
+      showToast('Berhasil masuk. Pencadangan dimulai.')
       navigate('/', { replace: true })
     } else {
       setSubmitError(result.message)
@@ -109,9 +109,10 @@ function FormMasuk() {
             id="masuk-email" ref={emailRef} type="email" inputMode="email" autoComplete="username" autoFocus
             value={email} onChange={e => setEmail(e.target.value)}
             aria-required="true" aria-invalid={errors.email ? true : undefined}
+            aria-describedby={errors.email ? 'masuk-email-error' : undefined}
             className={`${FIELD} ${errors.email ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {errors.email && <p className="text-[13px] text-danger">{errors.email}</p>}
+          {errors.email && <p id="masuk-email-error" className="text-[13px] text-danger">{errors.email}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -120,9 +121,10 @@ function FormMasuk() {
             id="masuk-password" ref={passwordRef} type="password" autoComplete="current-password"
             value={password} onChange={e => setPassword(e.target.value)}
             aria-required="true" aria-invalid={errors.password ? true : undefined}
+            aria-describedby={errors.password ? 'masuk-password-error' : undefined}
             className={`${FIELD} ${errors.password ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {errors.password && <p className="text-[13px] text-danger">{errors.password}</p>}
+          {errors.password && <p id="masuk-password-error" className="text-[13px] text-danger">{errors.password}</p>}
         </div>
 
         <button
@@ -177,7 +179,7 @@ function AkunMasuk({ email }: { email: string }) {
           {busy ? 'Memproses...' : 'Keluar'}
         </button>
         <p className="text-[13px] text-ink-muted">
-          Keluar tidak menghapus data. Perubahan yang belum tercadangkan tetap ada di perangkat ini.
+          Keluar tidak menghapus data. Semua data toko tetap ada dan terlihat di perangkat ini, dan perubahan yang belum tercadangkan tidak hilang.
         </p>
       </section>
     </main>

@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db'
-import { getDeviceId } from './supabase'
+import { getDeviceId, supabase } from './supabase'
 
 beforeEach(async () => {
   await db.delete()
@@ -28,5 +28,11 @@ describe('getDeviceId', () => {
     expect(b).toBe(a)
     expect(c).toBe(a)
     expect(await db.meta.count()).toBe(1)
+  })
+})
+
+describe('supabase client', () => {
+  it('does not sign in from tokens in the URL: the app has no magic-link or OAuth flow, so that path stays closed', () => {
+    expect(Reflect.get(supabase.auth, 'detectSessionInUrl')).toBe(false)
   })
 })

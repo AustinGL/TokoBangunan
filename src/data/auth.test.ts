@@ -1,3 +1,4 @@
+import { AuthRetryableFetchError } from '@supabase/supabase-js'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const auth = vi.hoisted(() => ({
@@ -65,9 +66,17 @@ describe('signOut', () => {
     expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 
-  it('reports a failure instead of throwing', async () => {
-    auth.signOut.mockResolvedValue({ error: { message: 'Failed to fetch', name: 'AuthRetryableFetchError' } })
+  it('counts an offline sign-out as done: the revoke request fails but this device session is cleared anyway', async () => {
+    auth.signOut.mockResolvedValue({ error: new AuthRetryableFetchError('Failed to fetch', 0) })
 
-    expect(await signOut()).toEqual({ ok: false, message: 'Tidak bisa terhubung. Periksa koneksi internet.' })
+    expect(await signOut()).toEqual({ ok: true })
+  })
+
+  it('reports any other failure as a sentence instead of throwing', async () => {
+    auth.signOut.mockResolvedValue({ error: { message: 'boom', name: 'AuthApiError', status: 500 } })
+    expect(await signOut()).toEqual({ ok: false, message: 'Gagal keluar. Coba lagi.' })
+
+    auth.signOut.mockRejectedValue(new Error('storage exploded'))
+    expect(await signOut()).toEqual({ ok: false, message: 'Gagal keluar. Coba lagi.' })
   })
 })

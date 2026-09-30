@@ -1,3 +1,4 @@
+import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
 /**
@@ -43,16 +44,24 @@ export async function signIn(email: string, password: string): Promise<AuthResul
   }
 }
 
+const SIGN_OUT_FAILED = 'Gagal keluar. Coba lagi.'
+
 /**
  * 'local' scope: ends this device's session only. The default ('global')
  * would sign the owner out of every other device too (the phone at the
  * counter, the laptop in the back).
+ *
+ * Offline, the request that revokes the token on the server fails, but auth-js
+ * still clears this device's session and announces SIGNED_OUT: the owner IS
+ * signed out here. Reporting that as a failure would contradict the screen
+ * that just switched back to the sign-in form, so a network failure counts as done.
  */
 export async function signOut(): Promise<AuthResult> {
   try {
     const { error } = await supabase.auth.signOut({ scope: 'local' })
-    return error ? { ok: false, message: authErrorMessage(error) } : { ok: true }
-  } catch (error) {
-    return { ok: false, message: authErrorMessage(error) }
+    if (error && !isAuthRetryableFetchError(error)) return { ok: false, message: SIGN_OUT_FAILED }
+    return { ok: true }
+  } catch {
+    return { ok: false, message: SIGN_OUT_FAILED }
   }
 }

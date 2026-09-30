@@ -91,17 +91,22 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured) return
     let cancelled = false
+    // Sign-in and sign-out start and end syncs while an earlier one may still be
+    // running. Only the newest run may report: an older one finishing late must
+    // not overwrite "Belum masuk" after a sign-out, or a newer success after a sign-in.
+    let latestRun = 0
 
     const sync = async () => {
+      const run = ++latestRun
       try {
         await runSync(supabaseTransport)
-        if (cancelled) return
+        if (cancelled || run !== latestRun) return
         setSyncStatus('tersinkron')
       } catch (error) {
         // Offline is an expected state, not an error the user must action.
         // Not being signed in is different: it never resolves by itself, and
         // until it does nothing is backed up, so it gets its own message.
-        if (cancelled) return
+        if (cancelled || run !== latestRun) return
         setSyncStatus(error instanceof BelumMasukError ? 'belum-masuk' : 'belum-tersinkron')
       }
     }
@@ -126,6 +131,7 @@ export default function App() {
         setSyncStatus(current => (current === 'tersinkron' ? current : 'menyimpan'))
         void sync()
       } else if (event === 'SIGNED_OUT') {
+        latestRun++ // whatever is still running was started as the signed-in owner
         setSyncStatus('belum-masuk')
       }
     })

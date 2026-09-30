@@ -32,10 +32,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+/**
+ * False when no cloud project is configured (no .env). The app is then
+ * deliberately local-only, which is a normal state, not a sync failure:
+ * App.tsx skips the network attempt and the sync indicator says so.
+ */
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+
 export const supabase = createClient(
   supabaseUrl || PLACEHOLDER_URL,
   supabaseAnonKey || PLACEHOLDER_ANON_KEY,
-  { auth: { persistSession: true, autoRefreshToken: true } },
+  // detectSessionInUrl off: the app has no magic-link or OAuth flow, so there is
+  // no legitimate way for a session to arrive in the URL, and a sign-in path
+  // that accepts tokens from the address bar is one we do not want open.
+  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } },
 )
 
 const DEVICE_KEY = 'deviceId'

@@ -58,6 +58,8 @@ describe('Masuk: signed out', () => {
     expect(screen.getByText('Email wajib diisi.')).toBeInTheDocument()
     expect(screen.getByText('Password wajib diisi.')).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Email')).toHaveAccessibleDescription('Email wajib diisi.')
+    expect(screen.getByLabelText('Password')).toHaveAccessibleDescription('Password wajib diisi.')
     expect(screen.getByLabelText('Email')).toHaveFocus()
     expect(auth.signIn).not.toHaveBeenCalled()
   })
@@ -73,7 +75,7 @@ describe('Masuk: signed out', () => {
 
     expect(auth.signIn).toHaveBeenCalledWith('pemilik@toko.id', 'rahasia')
     expect(await screen.findByText('Halaman beranda')).toBeInTheDocument()
-    expect(await screen.findByText('Berhasil masuk. Data mulai dicadangkan.')).toBeInTheDocument()
+    expect(await screen.findByText('Berhasil masuk. Pencadangan dimulai.')).toBeInTheDocument()
   })
 
   it('submits with Enter from the password field', async () => {
@@ -145,7 +147,7 @@ describe('Masuk: signed in', () => {
     const user = userEvent.setup()
     renderMasuk()
 
-    expect(screen.getByText(/keluar tidak menghapus data/i)).toBeInTheDocument()
+    expect(screen.getByText(/keluar tidak menghapus data/i)).toHaveTextContent(/tetap ada dan terlihat di perangkat ini/i)
     await user.click(screen.getByRole('button', { name: 'Keluar' }))
 
     expect(auth.signOut).toHaveBeenCalledTimes(1)
