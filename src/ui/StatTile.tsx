@@ -13,7 +13,7 @@ type Props = {
 }
 
 const BASE =
-  'flex min-h-tap min-w-0 flex-col items-start gap-2 rounded-card border p-3 text-left md:flex-row md:items-center md:gap-3 md:p-4'
+  'flex min-h-tap min-w-0 flex-col items-start gap-2 rounded-card border p-3 text-left xl:flex-row xl:items-center xl:gap-3 xl:p-4'
 
 /**
  * An icon, a big tabular number and a label. As a button it is a status
@@ -25,7 +25,7 @@ export function StatTile({ label, value, icon, tone = 'neutral', onClick, presse
     <>
       <IconTile icon={icon} tone={tone} size="sm" />
       <span className="flex min-w-0 flex-col">
-        <span className="break-words text-[22px] font-bold leading-7 tabular-nums text-ink">{value}</span>
+        <span className="whitespace-nowrap text-[22px] font-bold leading-7 tabular-nums text-ink">{value}</span>
         <span className="text-[13px] leading-4 text-ink-muted">{label}</span>
       </span>
     </>

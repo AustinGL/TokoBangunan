@@ -164,5 +164,7 @@ describe('SaleList: summary', () => {
     expect(tiles).toHaveTextContent('Dibatalkan')
     expect(tiles).toHaveTextContent('Penjualan')
     expect(tiles).toHaveTextContent('Rp 156.000')
+    // The money tile gets its own full row until lg, so its figure is never squeezed.
+    expect(tiles).toHaveClass('grid-cols-2', 'lg:grid-cols-3')
   })
 })

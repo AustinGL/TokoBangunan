@@ -175,10 +175,10 @@ export function SaleList() {
             {summary.count} transaksi · {formatRupiah(rupiah(summary.total))}
             {summary.batal > 0 && ` · ${summary.batal} batal`}
           </p>
-          <div aria-hidden="true" className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
+          <div aria-hidden="true" className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-3">
             <StatTile label="Transaksi" value={summary.count} icon={ReceiptText} />
             <StatTile label="Dibatalkan" value={summary.batal} icon={Ban} />
-            <StatTile label="Penjualan" value={formatRupiah(rupiah(summary.total))} icon={Wallet} className="col-span-2 md:col-span-1" />
+            <StatTile label="Penjualan" value={formatRupiah(rupiah(summary.total))} icon={Wallet} className="col-span-2 lg:col-span-1" />
           </div>
           <div className="overflow-x-auto rounded-card border border-border bg-surface">
             <SaleTable rows={sales} onSelect={setSelectedId} />

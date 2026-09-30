@@ -36,4 +36,14 @@ describe('StatTile', () => {
     const { container } = render(<StatTile label="Penjualan" value="Rp 1" icon={AlertCircle} className="col-span-2" />)
     expect(container.firstElementChild).toHaveClass('col-span-2')
   })
+
+  it('never splits a long figure across lines, and stacks icon over number until the wide breakpoint', () => {
+    const { container } = render(<StatTile label="Penjualan" value="Rp 123.456.789" icon={AlertCircle} />)
+    // Rp 123.456.789 must stay one piece: a money total broken mid-number is misread.
+    expect(screen.getByText('Rp 123.456.789')).toHaveClass('whitespace-nowrap')
+    expect(screen.getByText('Rp 123.456.789')).not.toHaveClass('break-words')
+    // Side-by-side icon and number only where a tile is wide enough for the figure (xl), never at md/lg.
+    expect(container.firstElementChild).toHaveClass('xl:flex-row')
+    expect(container.firstElementChild).not.toHaveClass('md:flex-row')
+  })
 })

@@ -36,16 +36,20 @@ export function KamusBarang() {
     return Array.from(distinct).sort()
   }, [rows])
 
+  // The chosen kategori can vanish (its last barang was edited): fall back to
+  // "semua" instead of filtering by a kategori no control can clear any more.
+  const activeKategori = categories.includes(kategori) ? kategori : 'semua'
+
   const visibleRows = useMemo(() => {
     if (!rows) return []
     const query = search.trim().toLowerCase()
     return rows.filter(row => {
       if (!showArsip && row.diarsipkan) return false
       if (query && !row.nama.toLowerCase().includes(query)) return false
-      if (kategori !== 'semua' && row.kategori !== kategori) return false
+      if (activeKategori !== 'semua' && row.kategori !== activeKategori) return false
       return true
     })
-  }, [rows, search, kategori, showArsip])
+  }, [rows, search, activeKategori, showArsip])
 
   const totals = useMemo(() => {
     const active = (rows ?? []).filter(r => !r.diarsipkan)
@@ -119,7 +123,7 @@ export function KamusBarang() {
             <Select
               variant="pill" id="kamus-kategori" label="Kategori" neutralValue="semua"
               options={[{ value: 'semua', label: 'Semua kategori' }, ...categories.map(k => ({ value: k, label: k }))]}
-              value={kategori} onChange={setKategori}
+              value={activeKategori} onChange={setKategori}
             />
           )}
         </div>

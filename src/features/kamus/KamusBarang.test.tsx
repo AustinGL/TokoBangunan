@@ -186,4 +186,30 @@ describe('KamusBarang: toolbar and summary', () => {
     expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument()
     expect(screen.queryByText('Cat Tembok Putih')).toBeNull()
   })
+
+  it('falls back to all kategori, instead of hiding every barang, when the chosen kategori disappears', async () => {
+    await db.barangProj.bulkPut([
+      { id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' },
+      { id: 'b2', nama: 'Cat Tembok Putih', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+    ])
+    const user = userEvent.setup()
+    render(<KamusBarang />)
+
+    await screen.findByText('Cat Tembok Putih')
+    await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    await user.click(screen.getByRole('option', { name: 'Cat' }))
+    expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
+
+    // Clear the kategori of the only barang that had one: the dropdown has nothing left to offer.
+    await user.click(screen.getByRole('button', { name: /cat tembok putih/i }))
+    const panel = await screen.findByTestId('barang-panel-b2')
+    await user.click(within(panel).getByRole('button', { name: /ubah barang/i }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await user.clear(dialog.getByLabelText(/kategori/i))
+    await user.click(dialog.getByRole('button', { name: /simpan/i }))
+
+    expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
+    expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
+    expect(screen.queryByText(/tidak ada barang yang cocok/i)).toBeNull()
+  })
 })
