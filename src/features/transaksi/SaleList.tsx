@@ -5,7 +5,13 @@ import type { Sale } from '../../domain/projections/sales'
 import { formatRupiah, rupiah } from '../../domain/money'
 import { TanggalFilter } from './TanggalFilter'
 import { SaleDetail } from './SaleDetail'
-import { formatTanggal } from '../shared/formatTanggal'
+import { formatTanggal, formatJam } from '../shared/formatTanggal'
+import { shortNota } from '../../domain/nota'
+import { StatusPill } from '../../ui/StatusPill'
+import { ReceiptText, Wallet, Ban } from 'lucide-react'
+import { PageHeader } from '../../ui/PageHeader'
+import { StatTile } from '../../ui/StatTile'
+import { EmptyState } from '../../ui/EmptyState'
 
 /**
  * Component breakdown table's exact row: "Transaksi list |
@@ -20,22 +26,10 @@ import { formatTanggal } from '../shared/formatTanggal'
  * /transaksi/:id route.
  */
 
-const STATUS_LABEL: Record<Sale['status'], string> = { aktif: 'Aktif', batal: 'Batal' }
-// batal is explicitly NEUTRAL, never danger: cancellation is a legitimate,
-// intentional business action per the plan's own reasoning, not a failure
-// state. aktif needs no special treatment (it is the normal case); success
-// is used at this component's discretion, not mandated by the plan.
-const STATUS_CLASS: Record<Sale['status'], string> = {
-  aktif: 'bg-success-bg text-success',
-  batal: 'bg-neutral-bg text-neutral',
-}
-
-function StatusPill({ status }: { status: Sale['status'] }) {
-  return (
-    <span className={`inline-flex items-center rounded-[var(--r-pill)] px-[10px] py-[4px] text-[12px] font-semibold ${STATUS_CLASS[status]}`}>
-      {STATUS_LABEL[status]}
-    </span>
-  )
+function SaleStatusPill({ status }: { status: Sale['status'] }) {
+  // batal is neutral, never danger: cancellation is a legitimate, intentional
+  // business action, not a failure state.
+  return <StatusPill tone={status === 'aktif' ? 'success' : 'neutral'}>{status === 'aktif' ? 'Aktif' : 'Batal'}</StatusPill>
 }
 
 function lineSummary(sale: Sale): string {
@@ -65,35 +59,40 @@ function SaleTable({ rows, onSelect }: { rows: Sale[]; onSelect: (saleId: string
           <th scope="col" className="p-3 text-[12px] font-semibold text-[var(--table-head-fg)]">Tanggal</th>
           <th scope="col" className="p-3 text-[12px] font-semibold text-[var(--table-head-fg)]">Barang</th>
           <th scope="col" className="p-3 text-right text-[12px] font-semibold text-[var(--table-head-fg)]">Total</th>
-          <th scope="col" className="p-3 text-[12px] font-semibold text-[var(--table-head-fg)]">Metode</th>
-          <th scope="col" className="p-3 text-[12px] font-semibold text-[var(--table-head-fg)]">Status</th>
+          <th scope="col" className="p-3 text-[12px] font-semibold text-[var(--table-head-fg)] max-md:hidden">Metode</th>
+          <th scope="col" className="p-3 text-[12px] font-semibold text-[var(--table-head-fg)] max-md:sr-only">Status</th>
         </tr>
       </thead>
       <tbody>
         {rows.map(sale => (
+          // The nota number in the first cell is the real control (a button,
+          // so a screen reader announces it and Enter/Space just work). The
+          // row click stays as a convenience for a mouse or finger, and is
+          // deliberately not focusable itself.
           <tr
             key={sale.id}
             onClick={() => onSelect(sale.id)}
-            onKeyDown={e => {
-              // The row opens SaleDetail on click; MASTER.md section 11's
-              // Keyboard rule ("visible focus everywhere ... no traps")
-              // still applies to a clickable table row, so Enter/Space
-              // reaches the same handler a mouse click does. tabIndex below
-              // makes the row focusable, and the app-wide :focus-visible
-              // rule (src/ui/tokens.css) supplies the visible ring.
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onSelect(sale.id)
-              }
-            }}
-            tabIndex={0}
             className="cursor-pointer border-b border-[var(--table-row-bd)] text-[14px] hover:bg-[var(--table-row-hover)]"
           >
-            <td className="p-3 text-ink">{formatTanggal(sale.occurredAt)}</td>
-            <td className="p-3 text-ink-muted">{lineSummary(sale)}</td>
-            <td className="p-3 text-right tabular-nums text-ink">{formatRupiah(rupiah(sale.total))}</td>
-            <td className="p-3 text-ink-muted">Tunai</td>
-            <td className="p-3"><StatusPill status={sale.status} /></td>
+            <td className="p-3 align-top text-ink">
+              <div>{formatTanggal(sale.occurredAt)}</div>
+              <div className="text-[12px] text-ink-muted">{formatJam(sale.occurredAt)}</div>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onSelect(sale.id) }}
+                aria-label={`Buka detail transaksi ${shortNota(sale.id)}`}
+                className="-ml-2 inline-flex min-h-tap items-center px-2 text-[12px] font-semibold tabular-nums text-primary underline"
+              >
+                {shortNota(sale.id)}
+              </button>
+            </td>
+            <td className="p-3 align-top text-ink-muted">{lineSummary(sale)}</td>
+            <td className="p-3 text-right align-top tabular-nums text-ink">{formatRupiah(rupiah(sale.total))}</td>
+            <td className="p-3 align-top text-ink-muted max-md:hidden">Tunai</td>
+            {/* On a phone only a cancelled sale gets a badge: "Aktif" on every row costs width the item name needs. */}
+            <td className={`p-3 align-top ${sale.status === 'aktif' ? 'max-md:p-0' : ''}`}>
+              <span className={sale.status === 'aktif' ? 'max-md:hidden' : ''}><SaleStatusPill status={sale.status} /></span>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -136,9 +135,16 @@ export function SaleList() {
     return db.salesProj.where('occurredAt').between(start, end, true, false).reverse().toArray()
   }, [dateFilter])
 
+  // Cancelled sales are listed but never counted toward the day's total.
+  const summary = {
+    count: (sales ?? []).filter(x => x.status === 'aktif').length,
+    total: (sales ?? []).filter(x => x.status === 'aktif').reduce((sum, x) => sum + x.total, 0),
+    batal: (sales ?? []).filter(x => x.status === 'batal').length,
+  }
+
   return (
-    <main className="flex flex-col gap-5 p-4 md:p-8">
-      <h1 className="text-[17px] font-bold text-ink">Transaksi</h1>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
+      <PageHeader title="Transaksi" />
 
       <TanggalFilter value={dateFilter} onChange={setDateFilter} />
 
@@ -158,17 +164,26 @@ export function SaleList() {
           </table>
         </div>
       ) : sales.length === 0 && dateFilter === null ? (
-        <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
-          Belum ada transaksi hari ini. Mulai transaksi.
-        </p>
+        <EmptyState icon={ReceiptText}>Belum ada transaksi hari ini. Mulai transaksi.</EmptyState>
       ) : sales.length === 0 ? (
-        <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
-          Tidak ada transaksi pada tanggal ini.
-        </p>
+        <EmptyState icon={ReceiptText}>Tidak ada transaksi pada tanggal ini.</EmptyState>
       ) : (
-        <div className="rounded-card border border-border bg-surface">
-          <SaleTable rows={sales} onSelect={setSelectedId} />
-        </div>
+        <>
+          {/* One summary for assistive tech (this line), one for the eye (the
+              tiles below, hidden from it): the same numbers, never announced twice. */}
+          <p className="sr-only" data-testid="sale-summary">
+            {summary.count} transaksi · {formatRupiah(rupiah(summary.total))}
+            {summary.batal > 0 && ` · ${summary.batal} batal`}
+          </p>
+          <div aria-hidden="true" className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
+            <StatTile label="Transaksi" value={summary.count} icon={ReceiptText} />
+            <StatTile label="Dibatalkan" value={summary.batal} icon={Ban} />
+            <StatTile label="Penjualan" value={formatRupiah(rupiah(summary.total))} icon={Wallet} className="col-span-2 md:col-span-1" />
+          </div>
+          <div className="overflow-x-auto rounded-card border border-border bg-surface">
+            <SaleTable rows={sales} onSelect={setSelectedId} />
+          </div>
+        </>
       )}
     </main>
   )
