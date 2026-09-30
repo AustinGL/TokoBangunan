@@ -1,3 +1,4 @@
+import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { EventEnvelope } from '../domain/events'
 import {
@@ -5,7 +6,8 @@ import {
   getCursor, setCursor, rebuildProjections, promoteQuarantined,
 } from './eventStore'
 
-export type SyncStatus = 'tersinkron' | 'menyimpan' | 'belum-tersinkron'
+/** 'lokal' means no server is configured at all (local-only by design), which is not the same as a sync that failed. */
+export type SyncStatus = 'tersinkron' | 'menyimpan' | 'belum-tersinkron' | 'lokal' | 'belum-masuk'
 
 export type SyncTransport = {
   push(events: EventEnvelope[]): Promise<Array<{ id: string; serverSeq: number }>>
@@ -123,11 +125,30 @@ const canonicalTimestamp = (field: string, value: unknown): string => {
   return parsed.toISOString()
 }
 
+/**
+ * No signed-in owner, so the server (whose rules only accept an owner's own
+ * rows) will refuse everything. Its own class, not just a message, so the UI
+ * can say "not signed in, nothing is backed up" rather than the vaguer
+ * "not synced", which is what an ordinary network failure looks like.
+ */
+export class BelumMasukError extends Error {
+  constructor() {
+    super('Tidak bisa sinkron: belum masuk.')
+    this.name = 'BelumMasukError'
+  }
+}
+
 const requireOwnerId = async (): Promise<string> => {
-  const { data: userData } = await supabase.auth.getUser()
+  const { data: userData, error } = await supabase.auth.getUser()
   const ownerId = userData.user?.id
-  if (!ownerId) throw new Error('Tidak bisa sinkron: belum masuk.')
-  return ownerId
+  if (ownerId) return ownerId
+  // getUser() always asks the server, and when the network is down it returns an
+  // error rather than throwing. A signed-in owner who is merely offline must read
+  // as an ordinary failed sync ("belum tersinkron"), never as "not signed in":
+  // that would send them to re-enter a password that was never the problem.
+  // A missing or rejected (expired, revoked) session is a real "belum masuk".
+  if (error && isAuthRetryableFetchError(error)) throw error
+  throw new BelumMasukError()
 }
 
 export const supabaseTransport: SyncTransport = {

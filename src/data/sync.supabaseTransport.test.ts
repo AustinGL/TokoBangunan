@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from '@supabase/supabase-js'
 import { parseEvent } from '../domain/events'
 
 /**
@@ -27,6 +28,8 @@ const { state, spies, fromSpy, getUserSpy } = vi.hoisted(() => {
   const state = {
     result: { data: [], error: null } as Result,
     user: { id: 'owner-1' } as { id: string } | null,
+    // What getUser() reports next to a null user: a missing session, a rejected one, or a network failure.
+    authError: null as unknown,
   }
   const spies = {
     select: vi.fn(),
@@ -46,7 +49,7 @@ const { state, spies, fromSpy, getUserSpy } = vi.hoisted(() => {
     then: (resolve: (value: Result) => unknown) => Promise.resolve(state.result).then(resolve),
   }
   const fromSpy = vi.fn(() => builder)
-  const getUserSpy = vi.fn(async () => ({ data: { user: state.user } }))
+  const getUserSpy = vi.fn(async () => ({ data: { user: state.user }, error: state.authError }))
   return { state, spies, fromSpy, getUserSpy }
 })
 
@@ -54,7 +57,7 @@ vi.mock('./supabase', () => ({
   supabase: { from: fromSpy, auth: { getUser: getUserSpy } },
 }))
 
-const { supabaseTransport, CURSOR_OVERLAP, PAGE_SIZE } = await import('./sync')
+const { supabaseTransport, CURSOR_OVERLAP, PAGE_SIZE, BelumMasukError } = await import('./sync')
 
 const itemPayload = {
   id: 'semen-tiga-roda',
@@ -223,5 +226,34 @@ describe('supabaseTransport.push', () => {
     state.result = { data: null, error: new Error('rls denied') }
 
     await expect(supabaseTransport.push([localEvent])).rejects.toThrow('rls denied')
+  })
+})
+
+describe('supabaseTransport: telling "not signed in" from "offline"', () => {
+  beforeEach(() => {
+    state.user = null
+    state.authError = null
+  })
+
+  it('says "belum masuk" when there is no session at all', async () => {
+    state.authError = new AuthSessionMissingError()
+
+    await expect(supabaseTransport.pull(0)).rejects.toBeInstanceOf(BelumMasukError)
+    await expect(supabaseTransport.push([])).rejects.toBeInstanceOf(BelumMasukError)
+  })
+
+  it('says "belum masuk" when the stored session is rejected (expired or revoked)', async () => {
+    state.authError = new AuthApiError('invalid JWT', 401, 'bad_jwt')
+
+    await expect(supabaseTransport.pull(0)).rejects.toBeInstanceOf(BelumMasukError)
+  })
+
+  it('does not say "belum masuk" when the check itself failed for lack of network: a signed-in owner who is offline has an ordinary failed sync', async () => {
+    const offline = new AuthRetryableFetchError('Failed to fetch', 0)
+    state.authError = offline
+
+    await expect(supabaseTransport.pull(0)).rejects.toBe(offline)
+    await expect(supabaseTransport.push([])).rejects.toBe(offline)
+    await expect(supabaseTransport.pull(0)).rejects.not.toBeInstanceOf(BelumMasukError)
   })
 })
