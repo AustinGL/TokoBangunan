@@ -1,16 +1,21 @@
 // src/features/kasir/CartPanel.tsx
 import { useEffect, useRef, useState } from 'react'
-import { Pencil, ChevronDown } from 'lucide-react'
+import { Pencil, ChevronDown, Minus, Plus } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { fromBase, qty } from '../../domain/quantity'
 import { formatRupiah, rupiah, subtract, type Rupiah } from '../../domain/money'
+import { shortNota } from '../../domain/nota'
 import { recordSale, type RecordSaleInput } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { useBatches } from '../shared/useBatches'
 import { useSuppliers } from '../shared/useSuppliers'
 import { formatTanggal } from '../shared/formatTanggal'
+import { RupiahInput } from '../../ui/RupiahInput'
+import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
+import { Icon } from '../../ui/Icon'
 import { legacyRemainder, availableForLine, planSplit } from '../../domain/batchPick'
 import type { Supplier } from '../../domain/projections/suppliers'
 import type { Batch } from '../../domain/projections/batches'
@@ -28,12 +33,39 @@ import { movedHargaSatuan, type CartLine, type UseCartResult, type SplitLineInpu
 type Props = {
   cart: UseCartResult
   onSaveAndNew?: () => void
+  /**
+   * True when the panel is rendered inside the phone cart sheet: the sheet
+   * supplies the title, the panel drops its own card chrome and height cap,
+   * and its action buttons stick to the bottom of the sheet's scroller.
+   */
+  embedded?: boolean
+  /** Called when the owner dismisses the receipt ("Transaksi baru"). The phone sheet uses it to close itself. */
+  onDone?: () => void
 }
 
-const TOAST_DURATION_MS = 3000
+type Receipt = { saleId: string; total: number; uangDiterima?: number; kembalian?: number }
 
-function lineKeySuffix(line: CartLine): string {
-  return line.batchId === undefined ? 'Stok lama' : `batch ${line.batchId}`
+/**
+ * A human name for where a cart line's stock comes from, used in accessible
+ * names only: "Stok lama", or "batch 2, 29 Sep 2026" (the batch's position in
+ * that item's oldest-first order plus its purchase date). Never the raw batch
+ * id, which is a 36-character UUID a screen reader would read out.
+ */
+function useSourceLabel(line: CartLine): string {
+  const batches = useBatches(line.itemId)
+  if (line.batchId === undefined) return 'Stok lama'
+  const index = batches?.findIndex(b => b.batchId === line.batchId) ?? -1
+  // A batch this device has not folded yet: fall back to the id's last four characters, only so two such lines still get distinct names.
+  if (batches === undefined || index < 0) return `batch ${line.batchId.slice(-4)}`
+  return `batch ${index + 1}, ${formatTanggal(batches[index].tanggalBeli)}`
+}
+
+/** Cash a customer is likely to hand over, for the quick-amount buttons: the exact total, then the next two common notes above it. */
+const NOTES = [10_000, 20_000, 50_000, 100_000, 200_000, 500_000]
+function quickAmounts(total: number): number[] {
+  if (total <= 0) return []
+  const above = NOTES.filter(n => n > total).slice(0, 2)
+  return [total, ...above]
 }
 
 function stockWarningFor(line: CartLine, stockRows: { itemId: string; quantity: number }[] | undefined): string | undefined {
@@ -45,7 +77,7 @@ function stockWarningFor(line: CartLine, stockRows: { itemId: string; quantity: 
   return `Stok ${line.nama} tinggal ${stockWhole} ${line.unit}. Lanjutkan?`
 }
 
-function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: number) => void }) {
+function QtyStepper({ line, sourceLabel, onChange }: { line: CartLine; sourceLabel: string; onChange: (qtyWhole: number) => void }) {
   const inputId = `kasir-qty-${line.itemId}-${line.batchId ?? 'legacy'}`
   const [draft, setDraft] = useState(String(line.qtyWhole))
   const [lastQtyWhole, setLastQtyWhole] = useState(line.qtyWhole)
@@ -67,17 +99,11 @@ function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: n
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        aria-label="Kurangi jumlah"
-        onClick={() => onChange(line.qtyWhole - 1)}
-        className="flex min-h-tap min-w-tap items-center justify-center rounded-tile border border-border-input text-[16px] font-bold text-ink"
-      >
-        -
-      </button>
-      <div className="flex flex-col items-center gap-0.5">
-        <label htmlFor={inputId} className="text-[12px] font-medium text-ink-faint">
-          Jumlah<span className="sr-only"> {line.nama} ({lineKeySuffix(line)})</span>
+      <IconButton icon={Minus} label="Kurangi jumlah" shape="field" onClick={() => onChange(line.qtyWhole - 1)} />
+      <div className="flex flex-col items-center">
+        {/* The - and + buttons already say what this is for; a visible "Jumlah" above the box only cost a row of height. */}
+        <label htmlFor={inputId} className="sr-only">
+          Jumlah {line.nama} ({sourceLabel})
         </label>
         <input
           id={inputId}
@@ -88,22 +114,15 @@ function QtyStepper({ line, onChange }: { line: CartLine; onChange: (qtyWhole: n
           value={draft}
           onChange={e => handleChange(e.target.value)}
           onBlur={handleBlur}
-          className="h-[var(--field-h)] w-16 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-center text-[14px] text-ink"
+          className="h-control w-16 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-center text-[14px] text-ink"
         />
       </div>
-      <button
-        type="button"
-        aria-label="Tambah jumlah"
-        onClick={() => onChange(line.qtyWhole + 1)}
-        className="flex min-h-tap min-w-tap items-center justify-center rounded-tile border border-border-input text-[16px] font-bold text-ink"
-      >
-        +
-      </button>
+      <IconButton icon={Plus} label="Tambah jumlah" shape="field" onClick={() => onChange(line.qtyWhole + 1)} />
     </div>
   )
 }
 
-function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: number | null) => void }) {
+function PriceEdit({ line, sourceLabel, onChange }: { line: CartLine; sourceLabel: string; onChange: (value: number | null) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(line.hargaSatuan === null ? '' : String(line.hargaSatuan))
   const inputId = `kasir-harga-${line.itemId}-${line.batchId ?? 'legacy'}`
@@ -113,19 +132,19 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
     // No aria-label: it would replace the visible price / "Isi harga" /
     // "(diubah, ...)" text in the accessible name entirely (WCAG 2.5.3,
     // label in name). A visually-hidden prefix instead adds the line's
-    // context - unique per (item, batch) line, the same lineKeySuffix shape
+    // context - unique per (item, batch) line, the same source label QtyStepper own label uses
     // QtyStepper's own label uses - ahead of the visible content, so
     // assistive tech hears both.
     return (
       <button
         type="button"
         onClick={() => { setDraft(line.hargaSatuan === null ? '' : String(line.hargaSatuan)); setEditing(true) }}
-        className="flex min-h-tap min-w-tap items-center gap-1 text-[12px] tabular-nums text-ink-faint"
+        className="flex min-h-control min-w-control items-center gap-1 text-[12px] tabular-nums text-ink-faint"
       >
         {/* The separating spaces sit OUTSIDE the spans on purpose: accessible-name computation trims each element's own text, and a whitespace-only text node renders nothing inside this flex button. */}
-        <span className="sr-only">Ubah harga {line.nama} ({lineKeySuffix(line)}):</span>{' '}
+        <span className="sr-only">Ubah harga {line.nama} ({sourceLabel}):</span>{' '}
         {line.hargaSatuan === null ? 'Isi harga' : `${formatRupiah(rupiah(line.hargaSatuan))} / ${line.unit}`}
-        <Pencil aria-hidden="true" size={12} />
+        <Icon icon={Pencil} size="micro" />
         {diubah && (
           <>{' '}<span className="text-warning">(diubah, normal {formatRupiah(rupiah(line.hargaNormal))})</span></>
         )}
@@ -141,7 +160,7 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
 
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor={inputId} className="sr-only">Harga {line.nama} ({lineKeySuffix(line)})</label>
+      <label htmlFor={inputId} className="sr-only">Harga {line.nama} ({sourceLabel})</label>
       <input
         id={inputId}
         inputMode="numeric"
@@ -150,7 +169,7 @@ function PriceEdit({ line, onChange }: { line: CartLine; onChange: (value: numbe
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
-        className="h-[var(--field-h)] w-28 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-[13px] text-ink"
+        className="h-control w-28 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-[13px] text-ink"
       />
     </div>
   )
@@ -243,10 +262,10 @@ function BatchChip({
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
         aria-label={`Ubah batch untuk ${line.nama}, saat ini ${label}`}
-        className="flex min-h-tap items-center gap-1 text-[12px] text-ink-faint"
+        className="flex min-h-control items-center gap-1 text-[12px] text-ink-faint"
       >
         {label}
-        <ChevronDown aria-hidden="true" size={14} />
+        <Icon icon={ChevronDown} size="inline" />
       </button>
 
       {canSplit && (
@@ -258,19 +277,16 @@ function BatchChip({
         // visible at once.
         <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-warning">
           <span>Ambil {wholeOf(movableQty)} {line.unit} dari batch berikutnya?</span>
-          <button
-            type="button" onClick={handleSplit}
-            className="min-h-tap rounded-tile border border-warning px-2 text-[12px] font-semibold text-warning"
-          >
+          <Button variant="secondary" size="sm" onClick={handleSplit}>
             Bagi otomatis
-          </button>
+          </Button>
         </div>
       )}
 
       {expanded && (
         <div role="radiogroup" aria-label={`Pilih batch untuk ${line.nama}`} className="flex flex-col gap-1 rounded-tile border border-border-input p-2">
           {legacyAvailableRaw > 0 && (
-            <label className="flex min-h-tap items-center gap-2 text-[13px] text-ink">
+            <label className="flex min-h-control items-center gap-2 text-[13px] text-ink">
               <input
                 type="radio" name={`batch-${line.itemId}-${line.batchId ?? 'legacy'}`} checked={line.batchId === undefined}
                 onChange={() => { onChangeBatch(undefined, itemHargaEceran); setExpanded(false) }}
@@ -279,7 +295,7 @@ function BatchChip({
             </label>
           )}
           {batches.map(b => (
-            <label key={b.batchId} className="flex min-h-tap items-center gap-2 text-[13px] text-ink">
+            <label key={b.batchId} className="flex min-h-control items-center gap-2 text-[13px] text-ink">
               <input
                 type="radio" name={`batch-${line.itemId}-${line.batchId ?? 'legacy'}`} checked={line.batchId === b.batchId}
                 onChange={() => { onChangeBatch(b.batchId, b.hargaJual); setExpanded(false) }}
@@ -308,13 +324,14 @@ function CartLineRow({
 }) {
   const warning = stockWarningFor(line, stockRows)
   const otherLines = allLines.filter(l => l !== line)
+  const sourceLabel = useSourceLabel(line)
 
   return (
     <li className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[14px] font-semibold text-ink">{line.nama}</p>
-          <PriceEdit line={line} onChange={onHargaChange} />
+          <PriceEdit line={line} sourceLabel={sourceLabel} onChange={onHargaChange} />
         </div>
         <p className="text-[15px] font-bold tabular-nums text-ink">
           {line.subtotal === null ? '—' : formatRupiah(rupiah(line.subtotal))}
@@ -324,74 +341,24 @@ function CartLineRow({
         line={line} otherLines={otherLines} itemHargaEceran={itemHargaEceran} suppliers={suppliers}
         onChangeBatch={onChangeBatch} onSplit={onSplit}
       />
-      <QtyStepper line={line} onChange={onQtyChange} />
+      <QtyStepper line={line} sourceLabel={sourceLabel} onChange={onQtyChange} />
       {warning && <p className="text-[13px] font-medium text-warning">{warning}</p>}
     </li>
   )
 }
 
-/** Real, permanently-disabled radio options: Decision 2, forward-compatible with Phase 4. */
-function PaymentMethodPills() {
-  const options: { value: string; label: string; disabled: boolean }[] = [
-    { value: 'tunai', label: 'Tunai', disabled: false },
-    { value: 'transfer', label: 'Transfer', disabled: true },
-    { value: 'qris', label: 'QRIS', disabled: true },
-    { value: 'bon', label: 'Bon', disabled: true },
-  ]
-  return (
-    <div role="radiogroup" aria-label="Metode pembayaran" className="flex flex-wrap gap-2">
-      {options.map(option => {
-        const checked = option.value === 'tunai'
-        return (
-          <label
-            key={option.value}
-            className={`min-h-tap inline-flex items-center rounded-[var(--r-pill)] border px-4 text-[13px] font-medium ${
-              checked ? 'border-transparent bg-mint-soft text-primary' : 'border-border-input bg-surface text-ink-disabled'
-            } ${option.disabled ? 'cursor-not-allowed opacity-70' : ''}`}
-          >
-            <input type="radio" name="kasir-metode-bayar" value={option.value} checked={checked} disabled={option.disabled} onChange={() => {}} className="sr-only" />
-            {option.label}
-          </label>
-        )
-      })}
-    </div>
-  )
-}
-
-/** Dibawa enabled and permanent, Kirim really-disabled (Decision 4). */
-function DeliveryToggle() {
-  const options = [
-    { value: 'dibawa', label: 'Dibawa sekarang', disabled: false },
-    { value: 'kirim', label: 'Kirim', disabled: true },
-  ]
-  return (
-    <div role="radiogroup" aria-label="Pengiriman" className="flex flex-wrap gap-2">
-      {options.map(option => {
-        const checked = option.value === 'dibawa'
-        return (
-          <label
-            key={option.value}
-            className={`min-h-tap inline-flex items-center rounded-[var(--r-pill)] border px-4 text-[13px] font-medium ${
-              checked ? 'border-transparent bg-mint-soft text-primary' : 'border-border-input bg-surface text-ink-disabled'
-            } ${option.disabled ? 'cursor-not-allowed opacity-70' : ''}`}
-          >
-            <input type="radio" name="kasir-pengiriman" value={option.value} checked={checked} disabled={option.disabled} onChange={() => {}} className="sr-only" />
-            {option.label}
-          </label>
-        )
-      })}
-    </div>
-  )
-}
-
-export function CartPanel({ cart, onSaveAndNew }: Props) {
+export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Props) {
   const { lines, subtotal } = cart
-  const [uangDiterima, setUangDiterima] = useState('')
+  const [uangDiterima, setUangDiterima] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [toastVisible, setToastVisible] = useState(false)
+  const [receipt, setReceipt] = useState<Receipt | null>(null)
   const errorRef = useRef<HTMLDivElement>(null)
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // The receipt stays until the owner dismisses it or starts the next sale:
+  // the cashier still has to tell the customer their change AFTER saving, so
+  // it must not time out the way a toast would. Adding a line ends it.
+  if (receipt && lines.length > 0) setReceipt(null)
 
   const stockRows = useLiveQuery(() => db.stokProj.toArray(), [])
   const itemsProjRows = useLiveQuery(() => db.itemsProj.toArray(), [])
@@ -399,23 +366,16 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
   const suppliers = useSuppliers()
 
   useEffect(() => { if (saveError) errorRef.current?.focus() }, [saveError])
-  useEffect(() => () => { if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current) }, [])
 
+  // No discount feature exists yet, so the total is the subtotal. (A
+  // permanent "Diskon Rp 0" row, in danger red, only spent height and
+  // signalled a problem that was not there.)
   const diskon: Rupiah = rupiah(0)
   const total = subtract(rupiah(subtotal), diskon)
 
-  const uangDiterimaTrimmed = uangDiterima.trim()
-  const uangDiterimaValue =
-    uangDiterimaTrimmed === '' || !Number.isInteger(Number(uangDiterimaTrimmed)) ? undefined : Number(uangDiterimaTrimmed)
-  const kembalian = uangDiterimaValue === undefined ? undefined : subtract(rupiah(uangDiterimaValue), total)
+  const kembalian = uangDiterima === null ? undefined : subtract(rupiah(uangDiterima), total)
 
   const unpricedNames = lines.filter(l => l.hargaSatuan === null).map(l => l.nama)
-
-  const showToast = () => {
-    setToastVisible(true)
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-    toastTimeoutRef.current = setTimeout(() => setToastVisible(false), TOAST_DURATION_MS)
-  }
 
   const handleSave = async (andNew: boolean) => {
     setSaveError(null)
@@ -435,13 +395,13 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
           hargaNormal: line.hargaNormal,
         })),
         metodeBayar: 'tunai',
-        uangDiterima: uangDiterimaValue,
+        uangDiterima: uangDiterima ?? undefined,
         customerId: undefined,
       }
-      await recordSale(input, { clock: systemClock, deviceId: getDeviceId() })
+      const saleId = await recordSale(input, { clock: systemClock, deviceId: getDeviceId() })
       cart.clear()
-      setUangDiterima('')
-      showToast()
+      setReceipt({ saleId, total, uangDiterima: uangDiterima ?? undefined, kembalian })
+      setUangDiterima(null)
       if (andNew) onSaveAndNew?.()
     } catch {
       setSaveError('Transaksi gagal disimpan. Coba lagi.')
@@ -452,31 +412,70 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
 
   const saveDisabled = lines.length === 0 || saving || unpricedNames.length > 0
 
-  return (
-    <div className="flex h-full flex-col rounded-card border border-border bg-surface shadow-card">
-      <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-        <h2 className="text-[15px] font-bold text-ink">Keranjang</h2>
-        <span className="inline-flex min-h-[24px] items-center rounded-[var(--r-pill)] bg-mint-soft px-[10px] text-[12px] font-semibold text-primary">
-          {lines.length}
-        </span>
-      </div>
+  const dismissReceipt = () => {
+    setReceipt(null)
+    onDone?.()
+  }
 
-      {toastVisible && (
-        <div role="status" aria-live="polite" className="mx-4 mt-3 rounded-field bg-success-bg px-4 py-2 text-[13px] font-medium text-success">
-          Transaksi tersimpan
+  const amounts = quickAmounts(total)
+
+  return (
+    <div
+      className={`flex flex-col bg-surface ${
+        embedded ? '' : 'rounded-card border border-border shadow-card lg:max-h-[calc(100dvh-2rem)]'
+      }`}
+    >
+      {!embedded && (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border p-4">
+          <h2 className="text-[15px] font-bold text-ink">Keranjang</h2>
+          <span className="inline-flex min-h-[24px] items-center rounded-[var(--r-pill)] bg-accent-100 px-[10px] text-[12px] font-semibold text-primary">
+            {lines.length}
+          </span>
+        </div>
+      )}
+
+      {receipt && (
+        <div role="status" aria-live="polite" className="mx-4 mt-3 flex shrink-0 flex-col gap-2 rounded-inner bg-success-bg p-4">
+          <p className="text-[13px] font-semibold text-success">
+            <span>Transaksi tersimpan</span> <span className="tabular-nums">{shortNota(receipt.saleId)}</span>
+          </p>
+          <p className="flex items-baseline justify-between text-[14px] text-ink">
+            <span>Total</span>
+            <span className="font-semibold tabular-nums">{formatRupiah(rupiah(receipt.total))}</span>
+          </p>
+          {receipt.uangDiterima !== undefined && (
+            <p className="flex items-baseline justify-between text-[14px] text-ink">
+              <span>Uang diterima</span>
+              <span className="tabular-nums">{formatRupiah(rupiah(receipt.uangDiterima))}</span>
+            </p>
+          )}
+          {receipt.kembalian !== undefined && (
+            <div className="flex flex-col rounded-tile bg-surface px-3 py-2">
+              <span className="text-[12px] font-medium text-ink-muted">{receipt.kembalian < 0 ? 'Kurang' : 'Kembalian'}</span>
+              <span className="text-[28px] font-extrabold leading-8 tabular-nums text-ink">
+                {formatRupiah(rupiah(Math.abs(receipt.kembalian)))}
+              </span>
+            </div>
+          )}
+          <Button variant="primary" onClick={dismissReceipt}>
+            Transaksi baru
+          </Button>
         </div>
       )}
 
       {saveError && (
-        <div ref={errorRef} role="alert" tabIndex={-1} className="mx-4 mt-3 rounded-field border border-danger bg-danger-bg p-3 text-[13px] font-semibold text-danger focus-visible:outline-none">
+        <div ref={errorRef} role="alert" tabIndex={-1} className="mx-4 mt-3 shrink-0 rounded-field border border-danger bg-danger-bg p-3 text-[13px] font-semibold text-danger focus-visible:outline-none">
           {saveError}
         </div>
       )}
 
-      <ul className="scroll-region flex-1 overflow-y-auto px-4">
+      {/* min-h-0 + overflow: this is the only part of the card that scrolls, so
+          the payment block and the save button below it never leave the screen.
+          Inside the phone sheet the sheet's own body scrolls instead. */}
+      <ul className={`min-h-[96px] flex-1 px-4 ${embedded ? '' : 'overflow-y-auto'}`}>
         {lines.length === 0 ? (
-          <li className="py-8 text-center text-[14px] text-ink-muted">
-            Keranjang kosong. Tambahkan barang untuk mulai.
+          <li className="py-6 text-center text-[14px] text-ink-muted">
+            {receipt ? 'Siap untuk transaksi berikutnya.' : 'Keranjang kosong. Tambahkan barang untuk mulai.'}
           </li>
         ) : (
           lines.map(line => (
@@ -497,63 +496,59 @@ export function CartPanel({ cart, onSaveAndNew }: Props) {
       </ul>
 
       {unpricedNames.length > 0 && (
-        <p role="alert" className="mx-4 mt-2 text-[13px] font-medium text-danger">
+        <p role="alert" className="mx-4 mt-2 shrink-0 text-[13px] font-medium text-danger">
           Isi harga untuk {unpricedNames.join(', ')}.
         </p>
       )}
 
-      <div className="sticky bottom-0 z-sticky flex flex-col gap-3 rounded-b-card border-t border-border bg-surface-sunken p-4">
-        <div className="flex items-center justify-between text-[14px] text-ink-muted">
-          <span>Subtotal</span>
-          <span className="tabular-nums">{formatRupiah(rupiah(subtotal))}</span>
-        </div>
-        <div className="flex items-center justify-between text-[14px] text-danger">
-          <span>Diskon</span>
-          <span className="tabular-nums">{formatRupiah(diskon)}</span>
-        </div>
-        <div data-testid="kasir-total" aria-live="polite" role="status" className="flex items-center justify-between border-t border-dashed border-border-strong pt-3">
-          <span className="text-[14px] font-semibold text-ink">Total</span>
-          <span className="text-[26px] font-extrabold tabular-nums text-ink">{formatRupiah(total)}</span>
-        </div>
+      {/* Right after a sale the receipt above is the whole story: an empty total and two disabled buttons would only push it up the screen. */}
+      {!(receipt && lines.length === 0) && (
+        <div className="flex shrink-0 flex-col gap-3 rounded-b-card border-t border-border bg-surface-sunken p-4">
+          <div data-testid="kasir-total" aria-live="polite" role="status" className="flex items-center justify-between">
+            <span className="text-[14px] font-semibold text-ink">Total</span>
+            <span className="text-[26px] font-extrabold tabular-nums text-ink">{formatRupiah(total)}</span>
+          </div>
 
-        <PaymentMethodPills />
+          <div className="flex flex-col gap-2">
+            <RupiahInput id="kasir-uang-diterima" label="Uang diterima" value={uangDiterima} onChange={setUangDiterima} />
+            {amounts.length > 0 && (
+              <div role="group" aria-label="Jumlah uang cepat" className="flex flex-wrap gap-2">
+                {amounts.map((amount, i) => (
+                  <Button
+                    key={amount} variant="secondary" size="sm" onClick={() => setUangDiterima(amount)}
+                    className="tabular-nums"
+                  >
+                    {i === 0 ? 'Uang pas' : formatRupiah(rupiah(amount))}
+                  </Button>
+                ))}
+              </div>
+            )}
+            {kembalian !== undefined && (
+              <p className={`text-[20px] font-bold tabular-nums ${kembalian < 0 ? 'text-danger' : 'text-ink'}`}>
+                Kembalian: {formatRupiah(kembalian)}
+              </p>
+            )}
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="kasir-uang-diterima" className="text-[13px] font-medium text-ink">Uang diterima</label>
-          <input
-            id="kasir-uang-diterima" type="number" min={0} step={1} inputMode="numeric"
-            value={uangDiterima} onChange={e => setUangDiterima(e.target.value)}
-            className="h-[var(--field-h)] rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
-          />
-          {kembalian !== undefined && (
-            <p className={`text-[13px] font-medium tabular-nums ${kembalian < 0 ? 'text-danger' : 'text-ink-muted'}`}>
-              Kembalian: {formatRupiah(kembalian)}
-            </p>
-          )}
+          {/* Payment methods, delivery and customer are not built yet. They used
+              to render as faint, permanently disabled options that looked
+              tappable; one honest line takes less room and cannot be mistaken
+              for a control. */}
+          <div className="text-[13px] text-ink-muted">
+            <p><span className="sr-only">Pembayaran: </span>Tunai · Dibawa sekarang · Tanpa pelanggan</p>
+            <p>Transfer, QRIS, Bon, dan Kirim segera hadir.</p>
+          </div>
+
+          <div className={`flex flex-col gap-2 ${embedded ? 'sticky bottom-0 z-sticky -mx-4 -mb-4 border-t border-border bg-surface-sunken p-4' : ''}`}>
+            <Button variant="primary" fullWidth onClick={() => handleSave(false)} disabled={saveDisabled}>
+              Simpan transaksi
+            </Button>
+            <Button variant="secondary" fullWidth onClick={() => handleSave(true)} disabled={saveDisabled}>
+              Simpan &amp; buat baru
+            </Button>
+          </div>
         </div>
-
-        <div className="flex items-center justify-between gap-3 text-[14px]">
-          <span className="text-ink-muted">Pelanggan</span>
-          <span className="font-medium text-ink">Tanpa pelanggan</span>
-        </div>
-
-        <DeliveryToggle />
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button" onClick={() => handleSave(true)} disabled={saveDisabled}
-            className="min-h-tap flex-1 rounded-field border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)] disabled:cursor-not-allowed disabled:text-ink-disabled"
-          >
-            Simpan &amp; buat baru
-          </button>
-          <button
-            type="button" onClick={() => handleSave(false)} disabled={saveDisabled}
-            className="min-h-tap flex-1 rounded-field bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)] disabled:cursor-not-allowed disabled:text-ink-disabled"
-          >
-            Simpan transaksi
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

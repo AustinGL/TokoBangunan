@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { SearchScanField } from './SearchScanField'
 import { ProductGrid } from './ProductGrid'
 import { CartPanel } from './CartPanel'
+import { Button } from '../../ui/Button'
 import { useCart } from './useCart'
 import { useKatalog, type UkuranRow } from '../shared/useKatalog'
 import { filterBarangRows, purchasableBarangRows } from './filterBarangRows'
@@ -118,13 +119,13 @@ export function Kasir() {
         <section className="rounded-card border border-border bg-surface p-6 shadow-card">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h2 className="text-[14px] font-bold text-ink">Tambah barang baru</h2>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => { setInlineCreate(null); setInlineBarangId(null) }}
-              className="min-h-tap rounded-tile px-3 text-[13px] font-medium text-ink-muted"
             >
               Tutup
-            </button>
+            </Button>
           </div>
           {inlineCreate.source === 'barcode' && (
             <p className="mb-3 text-[13px] text-ink-muted">
@@ -156,13 +157,12 @@ export function Kasir() {
           <p className="text-[14px] text-ink-muted">
             Barang &quot;{trimmedSearch}&quot; tidak ditemukan.
           </p>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={() => setInlineCreate({ source: 'nama', value: trimmedSearch })}
-            className="min-h-tap rounded-tile bg-[var(--btn-primary-bg)] px-4 text-[13px] font-semibold text-[var(--btn-primary-fg)]"
           >
             Tambah barang baru
-          </button>
+          </Button>
         </div>
       )}
 

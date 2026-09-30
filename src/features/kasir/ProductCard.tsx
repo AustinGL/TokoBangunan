@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react'
+import { IconButton } from '../../ui/IconButton'
 import { formatRupiah, rupiah } from '../../domain/money'
 import type { BarangRow, UkuranRow } from '../shared/useKatalog'
 import type { StokStatus } from '../../domain/stokStatus'
@@ -44,14 +45,12 @@ export function ProductCard({ barang, onAdd }: Props) {
               </p>
               <p className="text-[13px] font-bold tabular-nums text-ink">{formatRupiah(rupiah(u.hargaEceran))}</p>
             </div>
-            <button
-              type="button"
+            <IconButton
+              icon={Plus}
+              variant="primary"
+              label={`Tambah ${barang.nama} ${u.ukuran} ke keranjang`}
               onClick={() => onAdd(u)}
-              aria-label={`Tambah ${barang.nama} ${u.ukuran} ke keranjang`}
-              className="flex min-h-tap min-w-tap items-center justify-center rounded-tile bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)]"
-            >
-              <Plus aria-hidden="true" size={20} />
-            </button>
+            />
           </li>
         ))}
       </ul>

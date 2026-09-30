@@ -1,10 +1,12 @@
 import { useRef, type ChangeEvent, type KeyboardEvent } from 'react'
 import { Search } from 'lucide-react'
+import { Button } from '../../ui/Button'
+import { Icon } from '../../ui/Icon'
 
 /**
  * MASTER.md section 8, verbatim:
  * "Wrapped in a real, visible <label> (never placeholder-as-label),
- * --field-bg, 1px --field-bd, radius --r-field, height --field-h, a leading
+ * --field-bg, 1px --field-bd, pill radius, the shared control height, a leading
  * search icon marked aria-hidden="true", and a placeholder in
  * --field-placeholder. An adjacent 'Scan' secondary button for barcode
  * input. The field keeps focus after a scan so the next scan lands in the
@@ -146,10 +148,10 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
       </label>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search
-            aria-hidden="true"
-            size={18}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+          <Icon
+            icon={Search}
+            size="button"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint"
           />
           <input
             id="kasir-search"
@@ -160,16 +162,12 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
             onKeyDown={handleKeyDown}
             autoFocus={autoFocus}
             placeholder="Cari nama barang atau scan barcode"
-            className="h-[var(--field-h)] w-full rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] pl-9 pr-3 text-[14px] text-ink placeholder:text-[var(--field-placeholder)]"
+            className="h-control w-full rounded-pill border border-[var(--field-bd)] bg-[var(--field-bg)] pl-11 pr-4 text-[14px] text-ink placeholder:text-[var(--field-placeholder)]"
           />
         </div>
-        <button
-          type="button"
-          onClick={handleScanButtonClick}
-          className="min-h-tap min-w-tap rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] px-4 text-[14px] font-semibold text-[var(--btn-secondary-fg)]"
-        >
+        <Button variant="secondary" onClick={handleScanButtonClick}>
           Scan
-        </button>
+        </Button>
       </div>
     </div>
   )

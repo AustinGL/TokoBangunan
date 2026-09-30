@@ -26,11 +26,11 @@ describe('ProductCard', () => {
     expect(screen.queryByText('40 kg')).toBeNull()
   })
 
-  it('gives every add button the 44px touch-target classes', () => {
+  it('gives every add button the shared control size', () => {
     render(<ProductCard barang={barang} onAdd={vi.fn()} />)
 
     const button = screen.getByRole('button', { name: 'Tambah Semen Tiga Roda 50 kg ke keranjang' })
-    expect(button).toHaveClass('min-h-tap', 'min-w-tap')
+    expect(button).toHaveClass('h-control', 'w-control')
   })
 
   it('clicking an ukuran row\'s add button calls onAdd with that exact ukuran row', async () => {

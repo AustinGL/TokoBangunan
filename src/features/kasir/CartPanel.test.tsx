@@ -59,7 +59,7 @@ describe('CartPanel: line rendering and qty stepper', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen' })) // batch-1
     await user.click(screen.getByRole('button', { name: 'Add unpriced semen' })) // legacy pool, same itemId
 
-    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch ch-1)')).toBeInTheDocument()
     expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (Stok lama)')).toBeInTheDocument()
   })
 
@@ -74,61 +74,26 @@ describe('CartPanel: line rendering and qty stepper', () => {
   })
 })
 
-describe('CartPanel: payment method, delivery, diskon and customer are real but inert', () => {
-  it('Transfer, QRIS and Bon payment pills are real disabled controls, and clicking has no effect', async () => {
-    const user = userEvent.setup()
+describe('CartPanel: what is not built yet is stated, not faked', () => {
+  // These used to be four permanently disabled radio pills (Transfer, QRIS,
+  // Bon, Kirim) plus a red "Diskon Rp 0" row. They looked tappable, cost a
+  // third of the panel's height and made the quantity stepper scroll off
+  // screen, so a single honest line replaced them (docs/UX-AUDIT.md #1, #11, #13).
+  it('offers no payment-method or delivery controls, only a line saying what is used and what is coming', () => {
     render(<Harness />)
-
-    const transfer = screen.getByRole('radio', { name: 'Transfer' })
-    const qris = screen.getByRole('radio', { name: 'QRIS' })
-    const bon = screen.getByRole('radio', { name: 'Bon' })
-    expect(transfer).toBeDisabled()
-    expect(qris).toBeDisabled()
-    expect(bon).toBeDisabled()
-
-    await user.click(transfer)
-    expect(transfer).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Tunai' })).toBeChecked()
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.getByText(/Tunai · Dibawa sekarang · Tanpa pelanggan/)).toBeInTheDocument()
+    expect(screen.getByText('Transfer, QRIS, Bon, dan Kirim segera hadir.')).toBeInTheDocument()
   })
 
-  it('Tunai is enabled and permanently checked', () => {
-    render(<Harness />)
-    const tunai = screen.getByRole('radio', { name: 'Tunai' })
-    expect(tunai).toBeEnabled()
-    expect(tunai).toBeChecked()
-  })
-
-  it('the Kirim delivery option is a real disabled control; Dibawa sekarang is enabled and checked', () => {
-    render(<Harness />)
-    const kirim = screen.getByRole('radio', { name: 'Kirim' })
-    const dibawa = screen.getByRole('radio', { name: 'Dibawa sekarang' })
-    expect(kirim).toBeDisabled()
-    expect(dibawa).toBeEnabled()
-    expect(dibawa).toBeChecked()
-  })
-
-  it('Diskon always shows Rp 0 with no interactive control nearby', async () => {
-    // A line is added so Subtotal/Total move off Rp 0, leaving "Rp 0"
-    // uniquely identifying the Diskon row.
+  it('shows no Diskon or Subtotal row, only the Total', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
 
-    const diskonLabel = screen.getByText('Diskon')
-    const diskonRow = diskonLabel.closest('div')
-    expect(diskonRow).not.toBeNull()
-    expect(within(diskonRow!).getByText('Rp 0')).toBeInTheDocument()
-    expect(within(diskonRow!).queryByRole('button')).toBeNull()
-    expect(within(diskonRow!).queryByRole('textbox')).toBeNull()
-    expect(within(diskonRow!).queryByRole('spinbutton')).toBeNull()
-  })
-
-  it('the customer row always shows "Tanpa pelanggan" with no picker control', () => {
-    render(<Harness />)
-    expect(screen.getByText('Pelanggan')).toBeInTheDocument()
-    expect(screen.getByText('Tanpa pelanggan')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /pelanggan/i })).toBeNull()
-    expect(screen.queryByRole('combobox', { name: /pelanggan/i })).toBeNull()
+    expect(screen.queryByText('Diskon')).toBeNull()
+    expect(screen.queryByText('Subtotal')).toBeNull()
+    expect(within(screen.getByTestId('kasir-total')).getByText('Rp 65.000')).toBeInTheDocument()
   })
 
   it('renders no "Simpan sementara" control anywhere', () => {
@@ -139,13 +104,13 @@ describe('CartPanel: payment method, delivery, diskon and customer are real but 
 })
 
 describe('CartPanel: manual price editing', () => {
-  it('gives the price toggle button the 44px touch-target utility classes', async () => {
+  it('gives the price toggle button the control-size hit area', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
 
     const toggle = screen.getByRole('button', { name: /Ubah harga Semen Tiga Roda/ })
-    expect(toggle).toHaveClass('min-h-tap', 'min-w-tap')
+    expect(toggle).toHaveClass('min-h-control', 'min-w-control')
   })
 
   it('shows the current price and lets it be edited inline, flagging "diubah" once it diverges', async () => {
@@ -154,7 +119,7 @@ describe('CartPanel: manual price editing', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
 
     await user.click(screen.getByRole('button', { name: /Ubah harga Semen Tiga Roda/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch ch-1)')
     await user.clear(priceInput)
     await user.type(priceInput, '60000')
     await user.tab()
@@ -187,16 +152,16 @@ describe('CartPanel: manual price editing', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen' })) // batch-1
     await user.click(screen.getByRole('button', { name: 'Add legacy semen' })) // legacy pool, same itemId
 
-    const batchToggle = screen.getByRole('button', { name: /^Ubah harga Semen Tiga Roda · 50 kg \(batch batch-1\)/ })
+    const batchToggle = screen.getByRole('button', { name: /^Ubah harga Semen Tiga Roda · 50 kg \(batch ch-1\)/ })
     const legacyToggle = screen.getByRole('button', { name: /^Ubah harga Semen Tiga Roda · 50 kg \(Stok lama\)/ })
     expect(batchToggle).not.toBe(legacyToggle)
     // Label in name (WCAG 2.5.3): the visible price is part of the name,
     // not thrown away by an aria-label.
-    expect(batchToggle).toHaveAccessibleName('Ubah harga Semen Tiga Roda · 50 kg (batch batch-1): Rp 65.000 / 50 kg')
+    expect(batchToggle).toHaveAccessibleName('Ubah harga Semen Tiga Roda · 50 kg (batch ch-1): Rp 65.000 / 50 kg')
 
     await user.click(legacyToggle)
     expect(screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (Stok lama)')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')).toBeNull()
+    expect(screen.queryByLabelText('Harga Semen Tiga Roda · 50 kg (batch ch-1)')).toBeNull()
   })
 
   it('the "(diubah, normal ...)" flag is part of the price-edit control\'s accessible name', async () => {
@@ -204,13 +169,13 @@ describe('CartPanel: manual price editing', () => {
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
     await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch ch-1)')
     await user.clear(priceInput)
     await user.type(priceInput, '60000')
     await user.tab()
 
     expect(await screen.findByRole('button', { name: /Ubah harga/ })).toHaveAccessibleName(
-      'Ubah harga Semen Tiga Roda · 50 kg (batch batch-1): Rp 60.000 / 50 kg (diubah, normal Rp 65.000)',
+      'Ubah harga Semen Tiga Roda · 50 kg (batch ch-1): Rp 60.000 / 50 kg (diubah, normal Rp 65.000)',
     )
   })
 })
@@ -257,6 +222,153 @@ describe('CartPanel: uang diterima and kembalian', () => {
     await user.type(screen.getByLabelText('Uang diterima'), '70000')
 
     expect(await screen.findByText('Kembalian: Rp 5.000')).toBeInTheDocument()
+  })
+
+  it('formats the typed amount with thousand separators, like every other Rupiah field', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+
+    await user.type(screen.getByLabelText('Uang diterima'), '100000')
+
+    expect(screen.getByLabelText('Uang diterima')).toHaveValue('100.000')
+  })
+
+  it('offers "Uang pas" plus the next two common notes above the total, and a tap fills the field', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' })) // total Rp 65.000
+
+    const group = screen.getByRole('group', { name: 'Jumlah uang cepat' })
+    expect(within(group).getAllByRole('button').map(b => b.textContent)).toEqual(['Uang pas', 'Rp 100.000', 'Rp 200.000'])
+
+    await user.click(within(group).getByRole('button', { name: 'Rp 100.000' }))
+    expect(screen.getByLabelText('Uang diterima')).toHaveValue('100.000')
+    expect(screen.getByText('Kembalian: Rp 35.000')).toBeInTheDocument()
+  })
+
+  it('offers no quick amounts for an empty cart', () => {
+    render(<Harness />)
+    expect(screen.queryByRole('group', { name: 'Jumlah uang cepat' })).toBeNull()
+  })
+})
+
+describe('CartPanel: the receipt after saving', () => {
+  const saveWithCash = async (user: ReturnType<typeof userEvent.setup>, cash: string) => {
+    await user.click(screen.getByRole('button', { name: 'Add semen' })) // Rp 65.000
+    await user.type(screen.getByLabelText('Uang diterima'), cash)
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+  }
+
+  it('keeps the change on screen after saving, with the nota number, total and cash received', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await saveWithCash(user, '100000')
+
+    const receipt = (await screen.findByText('Transaksi tersimpan')).closest('[role="status"]') as HTMLElement
+    expect(within(receipt).getByText(/^#[0-9A-F]{6}$/)).toBeInTheDocument()
+    expect(within(receipt).getByText('Rp 65.000')).toBeInTheDocument()
+    expect(within(receipt).getByText('Rp 100.000')).toBeInTheDocument()
+    expect(within(receipt).getByText('Kembalian')).toBeInTheDocument()
+    expect(within(receipt).getByText('Rp 35.000')).toBeInTheDocument()
+  })
+
+  it('does not time out: the change is still there well after the old 3-second toast would have gone', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await saveWithCash(user, '100000')
+    await screen.findByText('Transaksi tersimpan')
+
+    // The old toast hid itself after 3000ms. The receipt has no timer at all,
+    // so nothing here can remove it; a short real wait proves no short timer
+    // does, and the assertion below would fail if one were reintroduced.
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    expect(screen.getByText('Transaksi tersimpan')).toBeInTheDocument()
+    expect(screen.getByText('Rp 35.000')).toBeInTheDocument()
+  })
+
+  it('shows no change block when no cash amount was entered', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    const receipt = (await screen.findByText('Transaksi tersimpan')).closest('[role="status"]') as HTMLElement
+    expect(within(receipt).queryByText('Kembalian')).toBeNull()
+    expect(within(receipt).queryByText('Uang diterima')).toBeNull()
+  })
+
+  it('shows "Kurang" instead of a negative change when the customer paid too little', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await saveWithCash(user, '50000')
+
+    const receipt = (await screen.findByText('Transaksi tersimpan')).closest('[role="status"]') as HTMLElement
+    expect(within(receipt).getByText('Kurang')).toBeInTheDocument()
+    expect(within(receipt).getByText('Rp 15.000')).toBeInTheDocument()
+  })
+
+  it('"Transaksi baru" dismisses the receipt and calls onDone', async () => {
+    const user = userEvent.setup()
+    const onDone = vi.fn()
+    function WithDone() {
+      const cart = useCart()
+      return (
+        <div>
+          <button onClick={() => cart.addItem(semen, 'batch-1', 65000)}>Add semen</button>
+          <CartPanel cart={cart} onDone={onDone} />
+        </div>
+      )
+    }
+    render(<WithDone />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+
+    await user.click(screen.getByRole('button', { name: 'Transaksi baru' }))
+
+    expect(screen.queryByText('Transaksi tersimpan')).toBeNull()
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('adding an item for the next customer ends the receipt', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await saveWithCash(user, '100000')
+    await screen.findByText('Transaksi tersimpan')
+
+    await user.click(screen.getByRole('button', { name: 'Add pasir' }))
+
+    expect(screen.queryByText('Transaksi tersimpan')).toBeNull()
+  })
+})
+
+describe('CartPanel: accessible names never expose a raw batch id', () => {
+  it('names a line by its batch position and purchase date, not the UUID', async () => {
+    const id = '01a0ec64-4b79-7f4d-afb5-3abde989dad6'
+    function UuidHarness() {
+      const cart = useCart()
+      return (
+        <div>
+          <button onClick={() => cart.addItem(semen, id, 65000)}>Add</button>
+          <CartPanel cart={cart} />
+        </div>
+      )
+    }
+    await db.batchesProj.put({
+      batchId: id, itemId: 'semen', hargaJual: 65000, tanggalBeli: '2026-09-29', diterima: 40000, sisa: 40000,
+      metaUpdatedAt: '2026-09-29T07:00:00.000Z', metaUpdatedByEventId: 'e1',
+      lastMovementAt: '2026-09-29T07:00:00.000Z', lastMovementEventId: 'e1',
+    })
+    const user = userEvent.setup()
+    render(<UuidHarness />)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    const qty = await screen.findByLabelText(/^Jumlah Semen Tiga Roda/)
+    expect(qty).toHaveAccessibleName('Jumlah Semen Tiga Roda · 50 kg (batch 1, 29 Sep 2026)')
+    const everyName = screen.getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent ?? '')
+    expect(everyName.join(' ')).not.toContain('01a0ec64')
   })
 })
 
@@ -382,7 +494,7 @@ describe('CartPanel: batch chip', () => {
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
     await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     await user.clear(priceInput)
     await user.type(priceInput, '63000')
     await user.tab()
@@ -420,8 +532,8 @@ describe('CartPanel: batch chip', () => {
     await user.click(screen.getByRole('button', { name: 'Bagi otomatis' }))
 
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
-    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toHaveValue(3)
-    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-2)')).toHaveValue(2)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')).toHaveValue(3)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 2, 15 Sep 2026)')).toHaveValue(2)
   })
 
   it('single-batch over-sell: offers no split (there is nowhere else to draw from), keeps the full qty, and shows only the plain stock warning', async () => {
@@ -432,14 +544,14 @@ describe('CartPanel: batch chip', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
     await screen.findByRole('button', { name: /Ubah batch/ })
 
-    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     await user.clear(qtyInput)
     await user.type(qtyInput, '5')
 
     expect(await screen.findByText(/Stok Semen Tiga Roda · 50 kg tinggal 3 50 kg\. Lanjutkan\?/)).toBeInTheDocument()
     expect(screen.queryByText(/dari batch berikutnya/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Bagi otomatis' })).toBeNull()
-    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toHaveValue(5)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')).toHaveValue(5)
     expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeEnabled()
   })
 
@@ -479,7 +591,7 @@ describe('CartPanel: batch chip', () => {
 
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
     const legacyQty = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (Stok lama)')
-    const batchQty = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-a)')
+    const batchQty = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     expect(legacyQty).toHaveValue(4)
     expect(batchQty).toHaveValue(1)
     // Nothing else left to draw from: the offer is gone, the over-sell
@@ -497,23 +609,23 @@ describe('CartPanel: batch chip', () => {
     await user.click(screen.getByRole('button', { name: 'Add semen batch-2' })) // its own line, at 67.000
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
 
-    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     await user.clear(qtyInput)
     await user.type(qtyInput, '5')
     // Unedited batch-1 price: moved units would re-price to batch-2's own
     // 67.000, exactly what batch-2's line already carries - a safe merge.
     expect(await screen.findByText(/Ambil 2 50 kg dari batch berikutnya\?/)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Ubah harga .*\(batch batch-1\)/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    await user.click(screen.getByRole('button', { name: /Ubah harga .*\((batch 1, 2 Sep 2026)\)/ }))
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     await user.clear(priceInput)
     await user.type(priceInput, '60000')
     await user.tab()
 
     // Now the moved units would carry 60.000 into a 67.000 line: no offer.
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Bagi otomatis' })).toBeNull())
-    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')).toHaveValue(5)
-    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-2)')).toHaveValue(1)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')).toHaveValue(5)
+    expect(screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 2, 15 Sep 2026)')).toHaveValue(1)
   })
 
   it('a split carries a manually-negotiated price onto every resulting line, and saving records one RecordSaleLine per batch', async () => {
@@ -523,19 +635,19 @@ describe('CartPanel: batch chip', () => {
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Add semen' }))
     await user.click(screen.getByRole('button', { name: /Ubah harga/ }))
-    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch batch-1)')
+    const priceInput = screen.getByLabelText('Harga Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     await user.clear(priceInput)
     await user.type(priceInput, '60000')
     await user.tab()
 
-    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-1)')
+    const qtyInput = screen.getByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')
     await user.clear(qtyInput)
     await user.type(qtyInput, '5')
     await user.click(await screen.findByRole('button', { name: 'Bagi otomatis' }))
 
     await waitFor(() => expect(screen.getAllByRole('button', { name: /Ubah batch/ })).toHaveLength(2))
-    expect(screen.getByRole('button', { name: /Ubah harga .*\(batch batch-1\)/ })).toHaveTextContent(/Rp 60\.000 \/ 50 kg/)
-    expect(screen.getByRole('button', { name: /Ubah harga .*\(batch batch-2\)/ })).toHaveTextContent(/Rp 60\.000 \/ 50 kg/)
+    expect(screen.getByRole('button', { name: /Ubah harga .*\((batch 1, 2 Sep 2026)\)/ })).toHaveTextContent(/Rp 60\.000 \/ 50 kg/)
+    expect(screen.getByRole('button', { name: /Ubah harga .*\((batch 2, 15 Sep 2026)\)/ })).toHaveTextContent(/Rp 60\.000 \/ 50 kg/)
 
     await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
 

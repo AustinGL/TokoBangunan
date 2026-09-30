@@ -14,8 +14,6 @@ const SRC = fileURLToPath(new URL('..', import.meta.url))
 const PENDING: string[] = [
   'features/akun/Masuk.tsx', 'features/beranda/Beranda.tsx',
   'features/kamus/BarangSheet.tsx', 'features/kamus/KamusBarang.tsx', 'features/kamus/UkuranSheet.tsx',
-  'features/kasir/CartBar.tsx', 'features/kasir/CartPanel.tsx', 'features/kasir/Kasir.tsx',
-  'features/kasir/ProductCard.tsx', 'features/kasir/SearchScanField.tsx',
   'features/shared/BarangPicker.tsx', 'features/shared/UkuranChip.tsx', 'features/shared/UkuranPicker.tsx',
   'features/stok/AturUkuranSheet.tsx', 'features/stok/BarangDetail.tsx', 'features/stok/KoreksiPembelianSheet.tsx',
   'features/stok/StockFilters.tsx', 'features/stok/Stok.tsx', 'features/stok/StokRow.tsx', 'features/stok/TambahStokSheet.tsx',
