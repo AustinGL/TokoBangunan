@@ -84,3 +84,28 @@ test.describe('reaching the sign-in screen', () => {
     await expect(page).toHaveURL(/\/masuk$/)
   })
 })
+
+test.describe('the reminder to sign in', () => {
+  test('appears on an ordinary screen, leads to the sign-in screen, and stays off Kasir', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name.endsWith('-dark'), 'behaviour does not depend on colour scheme')
+    await page.goto('/masuk')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    test.skip(await page.getByText(/cadangan cloud belum diatur/i).isVisible(), 'no cloud project configured for this build')
+
+    await page.goto('/stok')
+    const reminder = page.getByRole('region', { name: 'Belum masuk' })
+    await expect(reminder).toBeVisible()
+    await expect(reminder).toContainText('Masuk dulu agar data toko aman')
+
+    // Client-side to Kasir (a full load would reset the sync status and prove nothing).
+    await page.getByRole('button', { name: /transaksi baru/i }).first().click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Kasir' })).toBeVisible()
+    await expect(reminder).toHaveCount(0)
+
+    await page.goto('/stok')
+    await page.getByRole('region', { name: 'Belum masuk' }).getByRole('link', { name: 'Masuk' }).click()
+    await expect(page).toHaveURL(/\/masuk$/)
+    await expect(page.getByRole('region', { name: 'Belum masuk' })).toHaveCount(0)
+  })
+})
+
