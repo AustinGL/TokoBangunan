@@ -3,10 +3,13 @@ import { BrowserRouter, useNavigate } from 'react-router-dom'
 import { Sidebar } from './app/shell/Sidebar'
 import { BottomNav } from './app/shell/BottomNav'
 import { AppRoutes } from './app/routes'
-import { runSync, supabaseTransport, type SyncStatus } from './data/sync'
-import { getUnsyncedEvents } from './data/eventStore'
+import { runSync, supabaseTransport, BelumMasukError, type SyncStatus } from './data/sync'
+import { db } from './data/db'
+import { isSupabaseConfigured, supabase } from './data/supabase'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useSupplierPerluDilengkapiCount } from './features/shared/useSupplierPerluDilengkapiCount'
 import { ToastProvider } from './ui/Toast'
+import { RouteAnnouncer } from './app/RouteAnnouncer'
 
 type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
 
@@ -43,15 +46,24 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
 
   return (
     <>
+      {/* First tab stop on every page: without it a keyboard user tabs through
+          the eight sidebar controls before reaching the content (WCAG 2.4.1). */}
+      <a
+        href="#konten"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-toast focus:rounded-pill focus:bg-focal focus:px-5 focus:py-3 focus:text-[14px] focus:font-semibold focus:text-focal-fg"
+      >
+        Lewati ke konten
+      </a>
       <Sidebar
         syncStatus={syncStatus}
         pendingCount={pendingCount}
         onNewTransaction={openKasir}
         supplierAlertCount={supplierAlertCount}
       />
-      <div className="pb-24 md:pb-0 md:pl-[248px]">
+      <div id="konten" tabIndex={-1} className="pb-24 outline-none md:pb-0 md:pl-[248px]">
         <AppRoutes />
       </div>
+      <RouteAnnouncer />
       <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} />
     </>
   )
@@ -61,8 +73,12 @@ export default function App() {
   // Starts at 'menyimpan' (not 'tersinkron') because the effect below kicks
   // off a sync on mount: setting it here, rather than synchronously inside
   // the effect, keeps the effect itself free of a same-tick setState call.
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('menyimpan')
-  const [pendingCount, setPendingCount] = useState(0)
+  // With no server configured the app is local-only by design: say so once,
+  // neutrally, instead of an endless warning about a sync nobody set up.
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(isSupabaseConfigured ? 'menyimpan' : 'lokal')
+  // Live, straight from the outbox, so the count moves the moment a sale is
+  // saved instead of only after the next sync attempt.
+  const pendingCount = useLiveQuery(() => db.outbox.count(), [], 0)
 
   // One effect owns every sync trigger, so there is exactly one listener to
   // register and exactly one place that can leak it. The effect body itself
@@ -73,20 +89,20 @@ export default function App() {
   // reload. runSync pages the pull internally, so one trigger is enough to
   // drain an arbitrarily long backlog.
   useEffect(() => {
+    if (!isSupabaseConfigured) return
     let cancelled = false
 
     const sync = async () => {
       try {
         await runSync(supabaseTransport)
         if (cancelled) return
-        setPendingCount(0)
         setSyncStatus('tersinkron')
-      } catch {
+      } catch (error) {
         // Offline is an expected state, not an error the user must action.
-        const pending = await getUnsyncedEvents()
+        // Not being signed in is different: it never resolves by itself, and
+        // until it does nothing is backed up, so it gets its own message.
         if (cancelled) return
-        setPendingCount(pending.length)
-        setSyncStatus('belum-tersinkron')
+        setSyncStatus(error instanceof BelumMasukError ? 'belum-masuk' : 'belum-tersinkron')
       }
     }
 
@@ -98,9 +114,26 @@ export default function App() {
     }
     window.addEventListener('online', onOnline)
 
+    // Signing in (or out) on /masuk changes what the server will accept, so
+    // sync must react at once instead of waiting for the next reload or
+    // reconnect. Only these two events: INITIAL_SESSION and TOKEN_REFRESHED
+    // are session housekeeping, not a change of who is signed in. Supabase also
+    // re-emits SIGNED_IN when a tab regains focus with a valid session: the
+    // sync is idempotent, so that is just a free catch-up, and an already
+    // 'tersinkron' status is left alone rather than flickering to 'menyimpan'.
+    const { data: authListener } = supabase.auth.onAuthStateChange(event => {
+      if (event === 'SIGNED_IN') {
+        setSyncStatus(current => (current === 'tersinkron' ? current : 'menyimpan'))
+        void sync()
+      } else if (event === 'SIGNED_OUT') {
+        setSyncStatus('belum-masuk')
+      }
+    })
+
     return () => {
       cancelled = true
       window.removeEventListener('online', onOnline)
+      authListener.subscription.unsubscribe()
     }
   }, [])
 
