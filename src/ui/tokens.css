@@ -269,3 +269,23 @@ body {
 .listbox-up {
   --listbox-from: 4px;
 }
+
+/* 1.11 Native date fields
+   The picker itself stays native (the best one on a phone). Only the calendar
+   glyph gets a comfortable hit area and a calmer tone, so the three date
+   fields sit with the text fields. */
+input[type='date']::-webkit-calendar-picker-indicator {
+  box-sizing: content-box;
+  width: 20px;
+  height: 20px;
+  padding: 8px;
+  margin-right: -8px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  opacity: .65;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: var(--surface-card);
+}
