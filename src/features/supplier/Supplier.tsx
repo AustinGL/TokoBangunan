@@ -5,6 +5,12 @@ import { recordSupplier, updateSupplier } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { db } from '../../data/db'
+import { StatusPill } from '../../ui/StatusPill'
+import { AlertTriangle, Truck } from 'lucide-react'
+import { PageHeader } from '../../ui/PageHeader'
+import { IconTile } from '../../ui/IconTile'
+import { EmptyState } from '../../ui/EmptyState'
+import { ListSkeleton } from '../../ui/ListSkeleton'
 import type { Supplier as SupplierRow } from '../../domain/projections/suppliers'
 
 function ctx() {
@@ -69,28 +75,32 @@ export function Supplier() {
   }
 
   return (
-    <main className="flex flex-col gap-5 p-4 md:p-8">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-[17px] font-bold text-ink">Supplier</h1>
-        <button
-          type="button"
-          onClick={() => setSheet({ mode: 'create' })}
-          className="min-h-tap rounded-tile bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
-        >
-          + Supplier baru
-        </button>
-      </div>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
+      <PageHeader
+        title="Supplier"
+        subtitle={suppliers !== undefined ? `${suppliers.length} supplier` : undefined}
+        action={
+          <button
+            type="button"
+            onClick={() => setSheet({ mode: 'create' })}
+            className="min-h-tap rounded-pill bg-[var(--btn-primary-bg)] px-4 text-[14px] font-bold text-[var(--btn-primary-fg)]"
+          >
+            + Supplier baru
+          </button>
+        }
+      />
 
       {perluDilengkapiCount > 0 && (
         <div className="flex items-center justify-between gap-4 rounded-card border border-warning bg-warning-bg p-4">
-          <p className="text-[14px] font-medium text-warning">
-            {perluDilengkapiCount} supplier baru perlu dilengkapi
+          <p className="flex items-center gap-3 text-[14px] font-medium text-warning">
+            <AlertTriangle aria-hidden="true" size={20} className="shrink-0" />
+            <span>{perluDilengkapiCount} supplier baru perlu dilengkapi</span>
           </p>
           <button
             type="button"
             aria-pressed={reviewFilterActive}
             onClick={() => setReviewOnly(on => !on)}
-            className="min-h-tap rounded-tile bg-surface px-3 text-[13px] font-semibold text-warning"
+            className="min-h-tap shrink-0 rounded-pill bg-surface px-4 text-[13px] font-semibold text-warning"
           >
             {reviewFilterActive ? 'Tampilkan semua' : 'Tinjau'}
           </button>
@@ -98,31 +108,24 @@ export function Supplier() {
       )}
 
       {suppliers === undefined ? (
-        <div aria-busy="true" role="status" className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
-          Memuat daftar supplier...
-        </div>
+        <ListSkeleton label="Memuat daftar supplier..." />
       ) : suppliers.length === 0 ? (
-        <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
-          Belum ada supplier. Mulai tambahkan supplier.
-        </p>
+        <EmptyState icon={Truck}>Belum ada supplier. Mulai tambahkan supplier.</EmptyState>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid gap-3 lg:grid-cols-2">
           {visible.map(row => (
             <li key={row.id}>
               <button
                 type="button"
                 onClick={() => openEdit(row)}
-                className="flex min-h-tap w-full items-center justify-between gap-4 rounded-card border border-border bg-surface p-4 text-left"
+                className="flex min-h-tap w-full items-center gap-3 rounded-card border border-border bg-surface p-4 text-left shadow-card transition-colors duration-instant hover:bg-[var(--table-row-hover)]"
               >
-                <div className="flex flex-col">
-                  <span className="text-[14px] font-semibold text-ink">{row.nama}</span>
-                  {row.telepon && <span className="text-[13px] text-ink-muted">{row.telepon}</span>}
-                </div>
-                {row.perluDilengkapi && (
-                  <span className="inline-flex items-center rounded-[var(--r-pill)] bg-warning-bg px-[10px] py-[4px] text-[12px] font-semibold text-warning">
-                    Perlu dilengkapi
-                  </span>
-                )}
+                <IconTile icon={Truck} tone={row.perluDilengkapi ? 'warning' : 'neutral'} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-[15px] font-semibold text-ink">{row.nama}</span>
+                  {row.telepon && <span className="truncate text-[13px] text-ink-muted">{row.telepon}</span>}
+                </span>
+                {row.perluDilengkapi && <StatusPill tone="warning">Perlu dilengkapi</StatusPill>}
               </button>
             </li>
           ))}

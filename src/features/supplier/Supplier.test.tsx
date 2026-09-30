@@ -162,3 +162,23 @@ describe('Supplier: create and edit clear the flag', () => {
     expect(screen.getByText('UD Baru')).toBeInTheDocument()
   })
 })
+
+describe('Supplier: header', () => {
+  it('summarises the number of suppliers under the title', async () => {
+    await db.suppliersProj.bulkPut([
+      { id: 's1', nama: 'CV Maju', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+      { id: 's2', nama: 'UD Baru', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2' },
+    ])
+    render(<Supplier />)
+
+    expect(await screen.findByText('2 supplier')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Supplier' })).toBeInTheDocument()
+  })
+
+  it('shows the phone number of a supplier under its name', async () => {
+    await db.suppliersProj.put({ id: 's1', nama: 'CV Maju', telepon: '0812-555-0101', perluDilengkapi: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    render(<Supplier />)
+
+    expect(await screen.findByText('0812-555-0101')).toBeInTheDocument()
+  })
+})
