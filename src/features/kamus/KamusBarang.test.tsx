@@ -136,3 +136,54 @@ describe('KamusBarang: archive filter', () => {
     expect(await screen.findByText('Semen Lama')).toBeInTheDocument()
   })
 })
+
+describe('KamusBarang: toolbar and summary', () => {
+  const seed = async () => {
+    await db.barangProj.bulkPut([
+      { id: 'b1', nama: 'Semen Tiga Roda', kategori: 'Semen', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' },
+      { id: 'b2', nama: 'Cat Tembok Putih', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+    ])
+    await db.itemsProj.bulkPut([
+      {
+        id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+        hargaEceran: 65000, stokMinimum: 10, diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2',
+      },
+      {
+        id: 'u2', barangId: 'b2', nama: 'Cat Tembok Putih', baseUnit: '5 kg', units: [{ unit: '5 kg', factor: 1 }],
+        hargaEceran: 95000, stokMinimum: 5, diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e3',
+      },
+    ])
+  }
+
+  it('summarises the active barang and ukuran in the header', async () => {
+    await seed()
+    render(<KamusBarang />)
+
+    expect(await screen.findByText('2 barang, 2 ukuran')).toBeInTheDocument()
+  })
+
+  it('filters by the Kategori dropdown', async () => {
+    await seed()
+    const user = userEvent.setup()
+    render(<KamusBarang />)
+
+    await screen.findByText('Cat Tembok Putih')
+    await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    await user.click(screen.getByRole('option', { name: 'Cat' }))
+
+    expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
+    expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
+  })
+
+  it('narrows by the search field, whose label stays "Cari barang"', async () => {
+    await seed()
+    const user = userEvent.setup()
+    render(<KamusBarang />)
+
+    await screen.findByText('Cat Tembok Putih')
+    await user.type(screen.getByLabelText('Cari barang'), 'semen')
+
+    expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument()
+    expect(screen.queryByText('Cat Tembok Putih')).toBeNull()
+  })
+})
