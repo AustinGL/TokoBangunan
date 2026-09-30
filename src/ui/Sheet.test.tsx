@@ -17,6 +17,11 @@ describe('Sheet', () => {
     expect(screen.getByText('Isi sheet')).toBeInTheDocument()
   })
 
+  it('draws its close button as a control-sized ghost icon button', () => {
+    render(<Sheet open title="Menu lainnya" onClose={vi.fn()}>Isi</Sheet>)
+    expect(screen.getByRole('button', { name: 'Tutup' })).toHaveClass('h-control', 'w-control')
+  })
+
   it('calls onClose when the header close button is activated', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()

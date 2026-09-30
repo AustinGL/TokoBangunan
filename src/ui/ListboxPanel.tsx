@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Check, Plus, SearchX } from 'lucide-react'
+import { Icon } from './Icon'
 import { optionId, type ListboxRow } from './listbox'
 import type { PanelPlacement } from './panelPlacement'
 
@@ -61,7 +62,7 @@ export function ListboxPanel({
     >
       {rows.length === 0 ? (
         <li role="presentation" className="flex items-center gap-2 px-3 py-3 text-[13px] text-ink-muted">
-          <SearchX aria-hidden="true" size={16} className="shrink-0" />
+          <Icon icon={SearchX} size="inline" className="shrink-0" />
           {emptyText}
         </li>
       ) : (
@@ -88,11 +89,11 @@ export function ListboxPanel({
                 e.preventDefault()
                 if (!row.disabled) onPick(row)
               }}
-              className={`flex min-h-tap items-center gap-2 rounded-tile px-3 py-2 text-[14px] ${
+              className={`flex min-h-control items-center gap-2 rounded-tile px-3 py-2 text-[14px] ${
                 row.disabled ? 'cursor-not-allowed text-ink-disabled' : 'cursor-pointer'
               } ${create ? 'font-semibold text-primary' : row.disabled ? '' : 'text-ink'} ${active ? 'bg-accent-50' : ''}`}
             >
-              {create && <Plus aria-hidden="true" size={16} className="shrink-0" />}
+              {create && <Icon icon={Plus} size="inline" className="shrink-0" />}
               <span className="flex min-w-0 flex-1 flex-col">
                 <span id={labelId} className={`break-words ${selected ? 'font-semibold' : ''}`}>
                   {create ? row.label : <Emphasised text={row.label} needle={needle} />}
@@ -101,7 +102,7 @@ export function ListboxPanel({
                   <span id={hintId} className="text-[12px] text-ink-muted">{row.hint}</span>
                 )}
               </span>
-              {selected && <Check aria-hidden="true" size={16} className="shrink-0 text-primary" />}
+              {selected && <Icon icon={Check} size="inline" className="shrink-0 text-primary" />}
             </li>
           )
         })

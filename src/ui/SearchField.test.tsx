@@ -16,6 +16,11 @@ describe('SearchField', () => {
     expect(screen.getByText('Cari barang')).toHaveClass('sr-only')
   })
 
+  it('shares the control height', () => {
+    render(<Harness />)
+    expect(screen.getByLabelText('Cari barang')).toHaveClass('h-control')
+  })
+
   it('reports what is typed', async () => {
     const user = userEvent.setup()
     render(<Harness />)

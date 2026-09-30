@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { Icon } from './Icon'
 import { ListboxPanel } from './ListboxPanel'
 import { optionId, type ListboxRow } from './listbox'
 import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
@@ -8,7 +9,7 @@ export type SelectOption = { value: string; label: string; hint?: string; disabl
 
 type Props = {
   id: string
-  /** `field`: the visible label above the trigger. `pill`: the muted prefix inside the pill ("Kategori"). */
+  /** `field`: the visible label above the trigger. `pill`: the prefix that names the pill for assistive tech ("Kategori"); it is not drawn, the value says what it filters. */
   label: string
   options: SelectOption[]
   value: string | null
@@ -137,10 +138,10 @@ export function Select({
 
   const triggerClass =
     variant === 'pill'
-      ? `flex min-h-tap items-center gap-2 rounded-pill border px-4 text-[13px] font-semibold transition-colors duration-quick disabled:text-ink-disabled ${
+      ? `flex h-control items-center gap-2 rounded-pill border px-4 text-[13px] font-semibold transition-colors duration-quick disabled:text-ink-disabled ${
           tinted ? 'border-primary bg-accent-50 text-primary' : 'border-border-input bg-surface text-ink'
         }`
-      : `flex h-[var(--field-h)] w-full items-center justify-between gap-2 rounded-field border bg-[var(--field-bg)] px-3 text-left text-[14px] text-ink disabled:text-ink-disabled ${
+      : `flex h-control w-full items-center justify-between gap-2 rounded-field border bg-[var(--field-bg)] px-3 text-left text-[14px] text-ink disabled:text-ink-disabled ${
           error ? 'border-danger' : 'border-[var(--field-bd)]'
         }`
 
@@ -179,7 +180,7 @@ export function Select({
           className={triggerClass}
         >
           {variant === 'pill' && (
-            <span id={`${id}-prefix`} className={tinted ? '' : 'text-ink-muted'}>{label}</span>
+            <span id={`${id}-prefix`} className="sr-only">{label}</span>
           )}
           <span
             id={`${id}-value`}
@@ -189,9 +190,9 @@ export function Select({
           >
             {valueText}
           </span>
-          <ChevronDown
-            aria-hidden="true"
-            size={18}
+          <Icon
+            icon={ChevronDown}
+            size="button"
             className={`shrink-0 transition-transform duration-quick ${open ? 'rotate-180' : ''}`}
           />
         </button>

@@ -29,7 +29,7 @@ export function RupiahInput({ id, label, value, onChange, required, error }: Pro
         value={formatDisplay(value)}
         onChange={e => handleChange(e.target.value)}
         aria-invalid={error ? true : undefined}
-        className={`h-[var(--field-h)] rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+        className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
       />
       {error && <p className="text-[13px] text-danger">{error}</p>}
     </div>

@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { Icon } from './Icon'
 import { ListboxPanel } from './ListboxPanel'
 import { optionId, type ListboxRow } from './listbox'
 import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
@@ -170,7 +171,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
               setQuery(null)
             }, 150)
           }}
-          className={`h-[var(--field-h)] w-full rounded-field border bg-[var(--field-bg)] pl-3 pr-11 text-[14px] text-ink disabled:text-ink-disabled ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+          className={`h-control w-full rounded-field border bg-[var(--field-bg)] pl-3 pr-11 text-[14px] text-ink disabled:text-ink-disabled ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
         />
         {!disabled && (
           // Mouse and touch only: the input is the one focusable control, and
@@ -181,9 +182,9 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
             tabIndex={-1}
             aria-hidden="true"
             onMouseDown={e => { e.preventDefault(); toggleList() }}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-muted"
+            className="absolute inset-y-0 right-0 flex w-control items-center justify-center text-ink-muted"
           >
-            <ChevronDown size={18} className={`transition-transform duration-quick ${open ? 'rotate-180' : ''}`} />
+            <Icon icon={ChevronDown} size="button" className={`transition-transform duration-quick ${open ? 'rotate-180' : ''}`} />
           </button>
         )}
         {open && (

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { popOpenDialog, pushOpenDialog } from './dialogStack'
+import { IconButton } from './IconButton'
 
 type Props = {
   open: boolean
@@ -120,14 +121,7 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
       <div className="flex h-full flex-col overflow-hidden bg-surface shadow-panel">
         <div className="flex items-center justify-between gap-4 border-b border-border p-4">
           <h2 id={titleId} className="text-[15px] font-bold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Tutup"
-            className="flex min-h-tap min-w-tap items-center justify-center rounded-tile text-ink-muted"
-          >
-            <X aria-hidden="true" size={20} />
-          </button>
+          <IconButton icon={X} label="Tutup" variant="ghost" onClick={onClose} />
         </div>
         <div data-sheet-body className="scroll-region flex-1 overflow-y-auto p-4">{children}</div>
       </div>

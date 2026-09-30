@@ -223,6 +223,21 @@ describe('Select: pill variant', () => {
     )
     expect(screen.getByRole('combobox', { name: 'Kategori Semen' })).toHaveClass('bg-accent-50')
   })
+
+  it('hides its prefix visually but keeps it in the accessible name', () => {
+    render(
+      <Select id="k" variant="pill" label="Kategori" options={pillOptions} value="semua" neutralValue="semua" onChange={vi.fn()} />,
+    )
+    expect(screen.getByText('Kategori')).toHaveClass('sr-only')
+    expect(screen.getByRole('combobox', { name: 'Kategori Semua kategori' })).toBeInTheDocument()
+  })
+
+  it('shares the control height', () => {
+    render(
+      <Select id="k" variant="pill" label="Kategori" options={pillOptions} value="semua" neutralValue="semua" onChange={vi.fn()} />,
+    )
+    expect(screen.getByRole('combobox')).toHaveClass('h-control')
+  })
 })
 
 describe('Select: placement', () => {

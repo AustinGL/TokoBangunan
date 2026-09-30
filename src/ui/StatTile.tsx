@@ -13,7 +13,7 @@ type Props = {
 }
 
 const BASE =
-  'flex min-h-tap min-w-0 flex-col items-start gap-2 rounded-card border p-3 text-left xl:flex-row xl:items-center xl:gap-3 xl:p-4'
+  'flex min-h-control min-w-0 flex-col items-start gap-2 rounded-card border p-3 text-left xl:flex-row xl:items-center xl:gap-3 xl:p-4'
 
 /**
  * An icon, a big tabular number and a label. As a button it is a status

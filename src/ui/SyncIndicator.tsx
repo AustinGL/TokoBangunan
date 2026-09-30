@@ -1,5 +1,6 @@
 import { CheckCircle2, RefreshCw, AlertCircle } from 'lucide-react'
 import type { SyncStatus } from '../data/sync'
+import { Icon as AppIcon } from './Icon'
 
 type Props = { status: SyncStatus; pendingCount: number }
 
@@ -21,7 +22,7 @@ export function SyncIndicator({ status, pendingCount }: Props) {
     : status === 'menyimpan' ? 'Menyimpan'
     : `Belum tersinkron (${pendingCount})`
 
-  const Icon = ICON[status]
+  const Glyph = ICON[status]
 
   return (
     <div
@@ -29,7 +30,7 @@ export function SyncIndicator({ status, pendingCount }: Props) {
       aria-live="polite"
       className={`flex items-center gap-2 text-[12px] font-medium ${TONE[status]}`}
     >
-      <Icon aria-hidden="true" size={14} />
+      <AppIcon icon={Glyph} size="inline" />
       <span>{label}</span>
     </div>
   )

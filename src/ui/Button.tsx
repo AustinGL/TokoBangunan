@@ -7,16 +7,16 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link
 export type ButtonSize = 'md' | 'sm'
 
 const BASE =
-  'relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap font-semibold transition-colors duration-quick ' +
+  'relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors duration-quick ' +
   'disabled:cursor-not-allowed disabled:opacity-50 ' +
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]'
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'rounded-pill bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] font-bold',
-  secondary: 'rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-fg)]',
+  secondary: 'rounded-pill border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-fg)] font-semibold',
   ghost: 'rounded-pill text-ink-muted font-medium',
-  danger: 'rounded-pill border border-danger bg-danger-bg text-danger',
-  link: 'rounded-tile text-ink underline',
+  danger: 'rounded-pill border border-danger bg-danger-bg text-danger font-semibold',
+  link: 'rounded-tile text-ink underline font-semibold',
 }
 
 // sm is visually 36px but its ::before extends the hit area to 44px.

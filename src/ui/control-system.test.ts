@@ -22,9 +22,6 @@ const PENDING: string[] = [
   'features/stok/StockFilters.tsx', 'features/stok/Stok.tsx', 'features/stok/StokRow.tsx', 'features/stok/TambahStokSheet.tsx',
   'features/supplier/Supplier.tsx', 'features/supplier/SupplierSheet.tsx',
   'features/transaksi/SaleDetail.tsx', 'features/transaksi/SaleList.tsx', 'features/transaksi/TanggalFilter.tsx',
-  'ui/CategoryPills.tsx', 'ui/Combobox.tsx', 'ui/DeltaBadge.tsx', 'ui/IconTile.tsx', 'ui/ListboxPanel.tsx',
-  'ui/RupiahInput.tsx', 'ui/SearchField.tsx', 'ui/Select.tsx', 'ui/Sheet.tsx', 'ui/StatTile.tsx',
-  'ui/StatusPill.tsx', 'ui/SyncIndicator.tsx',
 ]
 
 /** Only these may spell the tap-size classes: they own the 44px hit area. */

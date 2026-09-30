@@ -44,6 +44,13 @@ describe('Combobox: selection', () => {
   })
 })
 
+describe('Combobox: control size', () => {
+  it('shares the control height', () => {
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />)
+    expect(screen.getByRole('combobox')).toHaveClass('h-control')
+  })
+})
+
 describe('Combobox: display sync', () => {
   it('displays the selected option\'s label once options arrive after mount, without needing value itself to change', () => {
     const { rerender } = render(<Combobox id="test" label="Nama barang" options={[]} value="b1" onChange={vi.fn()} />)

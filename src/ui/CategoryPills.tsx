@@ -34,7 +34,7 @@ export function CategoryPills({ name, options, value, onChange, ...rest }: Props
         return (
           <label
             key={option.value}
-            className={`min-h-tap inline-flex cursor-pointer items-center rounded-[var(--r-pill)] border px-4 text-[13px] font-medium transition-colors duration-quick has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus-ring)] ${
+            className={`min-h-control inline-flex cursor-pointer items-center rounded-[var(--r-pill)] border px-4 text-[13px] font-medium transition-colors duration-quick has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus-ring)] ${
               active
                 ? 'border-transparent bg-primary text-ink-on-primary'
                 : 'border-border-input bg-surface text-ink-muted'
