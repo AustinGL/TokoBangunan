@@ -75,4 +75,33 @@ test.describe('list pages', () => {
       expect(box!.height).toBeGreaterThanOrEqual(43.5)
     }
   })
+
+  // Regression: the sheets a picker opens from inside the Tambah stok <form>
+  // used to be nested in that form at the DOM level. In Chrome a submit event
+  // from a nested form never bubbles to React, so Simpan navigated the page to
+  // "/stok?" and saved nothing (jsdom hides this). Sheets now render outside
+  // the caller's form.
+  test('creating a barang and an ukuran inline from Tambah stok saves them and keeps the sheet open', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name.endsWith('-dark'), 'behaviour does not depend on colour scheme')
+    await page.goto('/stok?tambah=1')
+    const tambahStok = page.getByRole('dialog', { name: 'Tambah stok' })
+
+    await page.getByRole('button', { name: 'Tambah barang baru' }).click()
+    const barang = page.getByRole('dialog', { name: 'Barang baru' })
+    await barang.getByLabel('Nama barang').fill('E2E Inline')
+    await barang.getByRole('button', { name: 'Simpan' }).click()
+    await expect(barang).toBeHidden()
+    await expect(page).toHaveURL(/\/stok\?tambah=1$/)
+    await expect(tambahStok.getByRole('combobox', { name: /nama barang/i })).toHaveValue('E2E Inline')
+
+    await page.getByRole('button', { name: 'Tambah ukuran baru' }).click()
+    const ukuran = page.getByRole('dialog', { name: 'Ukuran baru' })
+    await ukuran.getByLabel('Ukuran').fill('50 kg')
+    await ukuran.getByLabel('Harga eceran').fill('65000')
+    await ukuran.getByLabel('Stok minimum').fill('10')
+    await ukuran.getByRole('button', { name: 'Simpan' }).click()
+    await expect(ukuran).toBeHidden()
+    await expect(page).toHaveURL(/\/stok\?tambah=1$/)
+    await expect(tambahStok.getByRole('combobox', { name: /^ukuran/i })).toHaveValue('50 kg')
+  })
 })

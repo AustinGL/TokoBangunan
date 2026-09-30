@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { popOpenDialog, pushOpenDialog } from './dialogStack'
 
@@ -81,9 +82,21 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
     return () => { if (dialog) popOpenDialog(dialog) }
   }, [])
 
-  return (
+  // Rendered through a portal into document.body, never in place. A picker's
+  // inline "Tambah ..." opens a Sheet from inside a caller's <form> (Tambah
+  // stok); left in place, the sheet's own <form> would be nested in that one at
+  // the DOM level, and Chrome never bubbles a submit event from a nested form
+  // up to React's root listener. The sheet's onSubmit would not run, the
+  // browser would submit the form natively and navigate away ("/stok?"),
+  // saving nothing. jsdom does not reproduce that; e2e/list-pages.spec.ts does.
+  return createPortal(
     <dialog
       ref={ref}
+      // React events still bubble through the component tree across a portal,
+      // so a submit inside the sheet would reach the caller's <form> onSubmit
+      // (its validation over fields the user is not editing). The sheet is a
+      // modal boundary: submits stay inside it.
+      onSubmit={e => e.stopPropagation()}
       // dialog.close() above (a parent-driven close, e.g. after the header
       // button already called onClose once) fires this same native `close`
       // event that Escape triggers, so onClose can run a second time for one
@@ -118,6 +131,7 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
         </div>
         <div data-sheet-body className="scroll-region flex-1 overflow-y-auto p-4">{children}</div>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   )
 }

@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState, type FormEvent } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { Sheet } from './Sheet'
 
@@ -79,5 +80,71 @@ describe('Sheet', () => {
       hasUnprefixedNone && hasUnprefixedCap,
       `dialog className carries both an unprefixed max-h-none and a max-h-[...] cap, so the cap never applies: "${className}"`,
     ).toBe(false)
+  })
+
+  describe('focus (WCAG 2.4.3)', () => {
+    it('puts focus on the first field when a form opens, not on the Tutup button', () => {
+      render(
+        <Sheet open title="Barang baru" onClose={vi.fn()}>
+          <form><label htmlFor="n">Nama</label><input id="n" /><button type="submit">Simpan</button></form>
+        </Sheet>,
+      )
+      expect(screen.getByLabelText('Nama')).toHaveFocus()
+    })
+
+    it('moves focus to the invalid field after a submit that failed with a single error', async () => {
+      const user = userEvent.setup()
+      function Form() {
+        const [error, setError] = useState(false)
+        return (
+          <Sheet open title="Barang baru" onClose={vi.fn()}>
+            <form noValidate onSubmit={e => { e.preventDefault(); setError(true) }}>
+              <label htmlFor="n">Nama</label>
+              <input id="n" aria-invalid={error ? true : undefined} />
+              <label htmlFor="k">Kategori</label>
+              <input id="k" />
+              <button type="submit">Simpan</button>
+            </form>
+          </Sheet>
+        )
+      }
+      render(<Form />)
+      await user.click(screen.getByLabelText('Kategori'))
+      await user.click(screen.getByRole('button', { name: 'Simpan' }))
+
+      await waitFor(() => expect(screen.getByLabelText('Nama')).toHaveFocus())
+    })
+  })
+})
+
+describe('Sheet opened from inside a caller form', () => {
+  // A picker's inline "Tambah ..." opens a Sheet from inside a <form> (Tambah
+  // stok). If the sheet's own <form> were nested in that one at the DOM level,
+  // Chrome would never bubble its submit event up to React's root listener:
+  // the inner onSubmit would not run and the browser would navigate away
+  // ("/stok?"), saving nothing. jsdom cannot show that, so these pin the
+  // structure and the event boundary that prevent it.
+  it('renders its dialog outside the form that renders it', () => {
+    render(<form><Sheet open title="Isi" onClose={vi.fn()}>x</Sheet></form>)
+
+    expect(screen.getByRole('dialog').closest('form')).toBeNull()
+  })
+
+  it('keeps a submit from inside the sheet from reaching the caller form onSubmit', async () => {
+    const outer = vi.fn((e: FormEvent) => e.preventDefault())
+    const inner = vi.fn((e: FormEvent) => e.preventDefault())
+    const user = userEvent.setup()
+    render(
+      <form onSubmit={outer}>
+        <Sheet open title="Isi" onClose={vi.fn()}>
+          <form onSubmit={inner}><button type="submit">Simpan</button></form>
+        </Sheet>
+      </form>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Simpan' }))
+
+    expect(inner).toHaveBeenCalledTimes(1)
+    expect(outer).not.toHaveBeenCalled()
   })
 })
