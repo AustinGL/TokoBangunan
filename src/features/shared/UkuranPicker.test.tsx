@@ -192,3 +192,26 @@ describe('UkuranPicker', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 })
+
+describe('UkuranPicker: near-duplicate confirm footer', () => {
+  it('keeps both actions inside a sticky footer', async () => {
+    await db.barangProj.put({ id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' })
+    await db.itemsProj.put({
+      id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', units: [{ unit: '50 kg', factor: 1 }],
+      hargaEceran: 65000, stokMinimum: 10, diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e2',
+    })
+    const user = userEvent.setup()
+    render(<UkuranPicker barangId="b1" value={null} onChange={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: /tambah ukuran baru/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.type(dialog.getByLabelText(/^ukuran$/i), '50kg')
+    await user.type(dialog.getByLabelText(/harga eceran/i), '65000')
+    await user.type(dialog.getByLabelText(/stok minimum/i), '10')
+    await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
+
+    const pakai = await screen.findByRole('button', { name: /pakai yang ada/i })
+    expect(pakai.parentElement).toHaveClass('sticky', 'bottom-0')
+    expect(screen.getByRole('button', { name: /tetap buat baru/i }).parentElement).toBe(pakai.parentElement)
+  })
+})

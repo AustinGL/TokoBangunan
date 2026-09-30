@@ -92,3 +92,10 @@ describe('AturUkuranSheet', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 })
+
+describe('AturUkuranSheet: footer', () => {
+  it('keeps the save button inside a sticky footer', () => {
+    render(<AturUkuranSheet open onClose={vi.fn()} item={item} />)
+    expect(screen.getByRole('button', { name: 'Simpan' }).parentElement).toHaveClass('sticky', 'bottom-0')
+  })
+})

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
+import { SheetFooter } from '../../ui/SheetFooter'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { BarangPicker } from '../shared/BarangPicker'
 import { UkuranPicker } from '../shared/UkuranPicker'
@@ -195,7 +196,7 @@ export function TambahStokSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Tambah stok">
-      <form onSubmit={handleFormSubmit} noValidate className="flex flex-col gap-4">
+      <form onSubmit={handleFormSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {showSummary && (
           <div
             ref={summaryRef}
@@ -263,14 +264,14 @@ export function TambahStokSheet({
           error={errors.hargaJual}
         />
 
-        <div className="flex items-center justify-between gap-3">
+        <SheetFooter>
           <Button variant="secondary" disabled={submitting} onClick={() => void submit(true)}>
             Simpan & tambah lagi
           </Button>
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Menyimpan...' : 'Simpan stok'}
           </Button>
-        </div>
+        </SheetFooter>
       </form>
     </Sheet>
   )

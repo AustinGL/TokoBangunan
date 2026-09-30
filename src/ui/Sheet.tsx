@@ -123,7 +123,7 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
           <h2 id={titleId} className="text-[15px] font-bold text-ink">{title}</h2>
           <IconButton icon={X} label="Tutup" variant="ghost" onClick={onClose} />
         </div>
-        <div data-sheet-body className="scroll-region flex-1 overflow-y-auto p-4">{children}</div>
+        <div data-sheet-body className="flex flex-1 flex-col overflow-y-auto p-4 scroll-pb-24">{children}</div>
       </div>
     </dialog>,
     document.body,

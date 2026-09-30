@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Combobox } from '../../ui/Combobox'
 import { Sheet } from '../../ui/Sheet'
+import { SheetFooter } from '../../ui/SheetFooter'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
 import { useKatalog } from './useKatalog'
@@ -104,19 +105,19 @@ export function UkuranPicker({ barangId, value, onChange, error, required }: Pro
       )}
       {pendingDuplicate && (
         <Sheet open onClose={() => setPendingDuplicate(null)} title="Ukuran mirip ditemukan" variant="center">
-          <div className="flex flex-col gap-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
             <p className="text-[14px] text-ink">
               Ukuran &quot;{pendingDuplicate.values.ukuran}&quot; mirip dengan &quot;{pendingDuplicate.existingLabel}&quot; yang sudah ada.
             </p>
             {createError && <p role="alert" className="text-[13px] text-danger">{createError}</p>}
-            <div className="flex flex-col gap-2">
-              <Button variant="primary" onClick={() => { onChange(pendingDuplicate.existingValue); setPendingDuplicate(null) }}>
+            <SheetFooter>
+              <Button variant="primary" className="flex-1" onClick={() => { onChange(pendingDuplicate.existingValue); setPendingDuplicate(null) }}>
                 Pakai yang ada
               </Button>
-              <Button variant="secondary" onClick={handleTetapBuatBaru}>
+              <Button variant="secondary" className="flex-1" onClick={handleTetapBuatBaru}>
                 Tetap buat baru
               </Button>
-            </div>
+            </SheetFooter>
           </div>
         </Sheet>
       )}

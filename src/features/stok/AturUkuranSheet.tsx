@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
+import { SheetFooter } from '../../ui/SheetFooter'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { updateUkuran } from '../../data/commands'
 import { getDeviceId } from '../../data/deviceId'
@@ -62,7 +63,7 @@ export function AturUkuranSheet({ open, onClose, item }: Props) {
 
   return (
     <Sheet open={open} onClose={onClose} title={`Atur ${item.ukuran}`} variant="center">
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
           <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
             {submitError}
@@ -85,9 +86,11 @@ export function AturUkuranSheet({ open, onClose, item }: Props) {
           {stokError && <p className="text-[13px] text-danger">{stokError}</p>}
         </div>
 
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? 'Menyimpan...' : 'Simpan'}
-        </Button>
+        <SheetFooter>
+          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
+            {submitting ? 'Menyimpan...' : 'Simpan'}
+          </Button>
+        </SheetFooter>
       </form>
     </Sheet>
   )

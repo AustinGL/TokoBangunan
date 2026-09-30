@@ -186,3 +186,10 @@ describe('KoreksiPembelianSheet', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 })
+
+describe('KoreksiPembelianSheet: footer', () => {
+  it('keeps the save button inside a sticky footer', () => {
+    render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={batch} suppliers={suppliers} />)
+    expect(screen.getByRole('button', { name: 'Simpan' }).parentElement).toHaveClass('sticky', 'bottom-0')
+  })
+})

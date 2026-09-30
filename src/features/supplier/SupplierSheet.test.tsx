@@ -62,3 +62,21 @@ describe('SupplierSheet: edit', () => {
     expect(screen.getByText(/semen tiga roda · 50 kg/i)).toBeInTheDocument()
   })
 })
+
+describe('SupplierSheet: footer', () => {
+  it('keeps the save button inside a sticky footer', () => {
+    render(<SupplierSheet open onClose={vi.fn()} onSubmit={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Simpan' }).parentElement).toHaveClass('sticky', 'bottom-0')
+  })
+
+  it('keeps the save button as the last thing in the form, below the purchase history', () => {
+    render(
+      <SupplierSheet
+        open onClose={vi.fn()} onSubmit={vi.fn()} initialValues={{ nama: 'CV Maju' }}
+        riwayat={[{ batchId: 'b1', tanggalBeli: '2026-09-15T05:00:00.000Z', nama: 'Semen 50 kg' }]}
+      />,
+    )
+    const footer = screen.getByRole('button', { name: 'Simpan' }).parentElement!
+    expect(footer.parentElement!.lastElementChild).toBe(footer)
+  })
+})

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
+import { SheetFooter } from '../../ui/SheetFooter'
 
 export type BarangSheetValues = { nama: string; kategori: string | null; diarsipkan: boolean }
 
@@ -51,7 +52,7 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
 
   return (
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah barang' : 'Barang baru'} variant="center">
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
           <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
             {submitError}
@@ -80,9 +81,11 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
           Arsipkan
         </label>
 
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? 'Menyimpan...' : 'Simpan'}
-        </Button>
+        <SheetFooter>
+          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
+            {submitting ? 'Menyimpan...' : 'Simpan'}
+          </Button>
+        </SheetFooter>
       </form>
     </Sheet>
   )

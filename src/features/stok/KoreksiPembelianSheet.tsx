@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
+import { SheetFooter } from '../../ui/SheetFooter'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { Select } from '../../ui/Select'
 import { correctBatch } from '../../data/commands'
@@ -129,7 +130,7 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
 
   return (
     <Sheet open={open} onClose={onClose} title="Koreksi pembelian" variant="center">
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
           <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
             {submitError}
@@ -171,9 +172,11 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
           error={hargaJualError ?? undefined}
         />
 
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? 'Menyimpan...' : 'Simpan'}
-        </Button>
+        <SheetFooter>
+          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
+            {submitting ? 'Menyimpan...' : 'Simpan'}
+          </Button>
+        </SheetFooter>
       </form>
     </Sheet>
   )

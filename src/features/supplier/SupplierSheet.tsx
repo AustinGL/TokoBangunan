@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
+import { SheetFooter } from '../../ui/SheetFooter'
 import { formatTanggal } from '../shared/formatTanggal'
 
 export type SupplierSheetValues = { nama: string; telepon: string | null; alamat: string | null; kontak: string | null; catatan: string | null }
@@ -64,7 +65,7 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
 
   return (
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah supplier' : 'Supplier baru'}>
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
           <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
             {submitError}
@@ -104,10 +105,6 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
             className="rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] p-3 text-[14px] text-ink" />
         </div>
 
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? 'Menyimpan...' : 'Simpan'}
-        </Button>
-
         {riwayat && (
           <div className="flex flex-col gap-2 border-t border-border pt-4">
             <h3 className="text-[13px] font-semibold text-ink">Riwayat pembelian</h3>
@@ -124,6 +121,12 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
             )}
           </div>
         )}
+
+        <SheetFooter>
+          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
+            {submitting ? 'Menyimpan...' : 'Simpan'}
+          </Button>
+        </SheetFooter>
       </form>
     </Sheet>
   )

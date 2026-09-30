@@ -145,3 +145,10 @@ describe('UkuranSheet: number validation', () => {
     expect(screen.getByLabelText(/harga eceran/i)).toHaveAttribute('aria-required', 'true')
   })
 })
+
+describe('UkuranSheet: footer', () => {
+  it('keeps the save button inside a sticky footer', () => {
+    render(<UkuranSheet open onClose={vi.fn()} onSubmit={vi.fn()} barangOptions={barangOptions} currentBarangId="b1" />)
+    expect(screen.getByRole('button', { name: 'Simpan' }).parentElement).toHaveClass('sticky', 'bottom-0')
+  })
+})

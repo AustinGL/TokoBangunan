@@ -266,3 +266,12 @@ describe('TambahStokSheet', () => {
     expect(screen.getByLabelText(/harga jual/i)).toHaveValue('')
   })
 })
+
+describe('TambahStokSheet: footer', () => {
+  it('keeps both save buttons inside a sticky footer', async () => {
+    render(<ToastProvider><TambahStokSheet open onClose={vi.fn()} /></ToastProvider>)
+    const save = await screen.findByRole('button', { name: 'Simpan stok' })
+    expect(save.parentElement).toHaveClass('sticky', 'bottom-0')
+    expect(screen.getByRole('button', { name: 'Simpan & tambah lagi' }).parentElement).toBe(save.parentElement)
+  })
+})

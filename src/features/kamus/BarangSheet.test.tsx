@@ -84,3 +84,10 @@ describe('BarangSheet: submit failure', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/gagal disimpan/i)
   })
 })
+
+describe('BarangSheet: footer', () => {
+  it('keeps the save button inside a sticky footer', () => {
+    render(<BarangSheet open onClose={vi.fn()} onSubmit={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Simpan' }).parentElement).toHaveClass('sticky', 'bottom-0')
+  })
+})
