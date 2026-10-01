@@ -36,6 +36,7 @@ describe('BarangPicker', () => {
   })
 
   it('creates a new barang via the + button, and selects it', async () => {
+    await db.kategoriProj.put({ id: 'kat_pas', nama: 'Pasir', diarsipkan: false, updatedAt: '2026-09-30T00:00:00.000Z', updatedByEventId: 'e' })
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(<BarangPicker value={null} onChange={onChange} />)
@@ -46,6 +47,8 @@ describe('BarangPicker', () => {
     // unscoped getByLabelText matches both.
     const dialog = within(screen.getByRole('dialog'))
     await user.type(dialog.getByLabelText(/nama barang/i), 'Pasir Halus')
+    await user.click(dialog.getByRole('combobox', { name: 'Kategori' }))
+    await user.click(dialog.getByRole('option', { name: 'Pasir' }))
     await user.click(dialog.getByRole('button', { name: /^simpan$/i }))
 
     // recordBarang's IndexedDB write resolves after user.click()'s own
@@ -53,7 +56,7 @@ describe('BarangPicker', () => {
     // synchronously - same convention as Supplier.test.tsx's own create flow.
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.any(String)))
     const newBarang = await db.barangProj.toArray()
-    expect(newBarang.map(b => b.nama)).toContain('Pasir Halus')
+    expect(newBarang).toEqual(expect.arrayContaining([expect.objectContaining({ nama: 'Pasir Halus', kategoriId: 'kat_pas' })]))
   })
 
   it('does not submit a surrounding form when the + quick-add sheet is saved', async () => {

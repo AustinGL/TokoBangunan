@@ -17,6 +17,7 @@ import { ListSkeleton } from '../../ui/ListSkeleton'
 import { formatRupiah, rupiah } from '../../domain/money'
 import { StatusPill } from '../../ui/StatusPill'
 import { STOK_TONE, STOK_LABEL } from '../shared/stokTone'
+import { useKategori } from '../shared/useKategori'
 
 
 function ctx() {
@@ -25,6 +26,7 @@ function ctx() {
 
 export function KamusBarang() {
   const rows = useKatalog()
+  const kategoriEntries = useKategori()
   const [search, setSearch] = useState('')
   const [kategori, setKategori] = useState('semua')
   const [showArsip, setShowArsip] = useState(false)
@@ -32,15 +34,10 @@ export function KamusBarang() {
   const [barangSheet, setBarangSheet] = useState<{ mode: 'create' } | { mode: 'edit'; row: BarangRow } | null>(null)
   const [ukuranSheet, setUkuranSheet] = useState<{ barangId: string; row?: BarangRow['ukuran'][number] } | null>(null)
 
-  const categories = useMemo(() => {
-    if (!rows) return []
-    const distinct = new Set(rows.map(r => r.kategori).filter((k): k is string => Boolean(k)))
-    return Array.from(distinct).sort()
-  }, [rows])
-
-  // The chosen kategori can vanish (its last barang was edited): fall back to
-  // "semua" instead of filtering by a kategori no control can clear any more.
-  const activeKategori = categories.includes(kategori) ? kategori : 'semua'
+  const activeEntries = useMemo(() => (kategoriEntries ?? []).filter(entry => !entry.diarsipkan), [kategoriEntries])
+  // The chosen kategori can vanish (archived or renamed away): fall back to
+  // "semua" instead of filtering by something no control can clear any more.
+  const activeKategori = activeEntries.some(entry => entry.id === kategori) ? kategori : 'semua'
 
   const visibleRows = useMemo(() => {
     if (!rows) return []
@@ -48,7 +45,7 @@ export function KamusBarang() {
     return rows.filter(row => {
       if (!showArsip && row.diarsipkan) return false
       if (query && !row.nama.toLowerCase().includes(query)) return false
-      if (activeKategori !== 'semua' && row.kategori !== activeKategori) return false
+      if (activeKategori !== 'semua' && row.kategoriId !== activeKategori) return false
       return true
     })
   }, [rows, search, activeKategori, showArsip])
@@ -69,13 +66,9 @@ export function KamusBarang() {
 
   const handleBarangSubmit = async (values: BarangSheetValues) => {
     if (barangSheet?.mode === 'edit') {
-      // Stopgap until Task 18: BarangSheet still submits kategori text, which
-      // updateBarang no longer accepts (it takes kategoriId), so it is not
-      // persisted for now. Task 18 replaces this with the kategori picker.
-      await updateBarang({ id: barangSheet.row.barangId, nama: values.nama, diarsipkan: values.diarsipkan }, ctx())
+      await updateBarang({ id: barangSheet.row.barangId, nama: values.nama, kategoriId: values.kategoriId, diarsipkan: values.diarsipkan }, ctx())
     } else {
-      // Stopgap until Task 18: kategori text from BarangSheet is not persisted (recordBarang takes kategoriId).
-      const id = await recordBarang({ nama: values.nama }, ctx())
+      const id = await recordBarang({ nama: values.nama, kategoriId: values.kategoriId ?? undefined }, ctx())
       // A barang with no ukuran cannot be sold or stocked, so the next thing
       // the owner needs is its first ukuran: open the row and that sheet
       // straight away instead of leaving them a "0 ukuran" line to find.
@@ -119,10 +112,10 @@ export function KamusBarang() {
           <div className="min-w-0 flex-1">
             <SearchField id="kamus-search" label="Cari barang" value={search} onChange={setSearch} placeholder="Cari nama barang" />
           </div>
-          {categories.length > 0 && (
+          {activeEntries.length > 0 && (
             <Select
               variant="pill" id="kamus-kategori" label="Kategori" neutralValue="semua"
-              options={[{ value: 'semua', label: 'Semua kategori' }, ...categories.map(k => ({ value: k, label: k }))]}
+              options={[{ value: 'semua', label: 'Semua kategori' }, ...activeEntries.map(entry => ({ value: entry.id, label: entry.nama }))]}
               value={activeKategori} onChange={setKategori}
             />
           )}
@@ -211,7 +204,7 @@ export function KamusBarang() {
       {barangSheet && (
         <BarangSheet
           open onClose={() => setBarangSheet(null)} onSubmit={handleBarangSubmit}
-          initialValues={barangSheet.mode === 'edit' ? { nama: barangSheet.row.nama, kategori: barangSheet.row.kategori, diarsipkan: barangSheet.row.diarsipkan } : undefined}
+          initialValues={barangSheet.mode === 'edit' ? { nama: barangSheet.row.nama, kategoriId: barangSheet.row.kategoriId, diarsipkan: barangSheet.row.diarsipkan } : undefined}
         />
       )}
 

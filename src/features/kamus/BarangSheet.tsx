@@ -2,22 +2,22 @@ import { useState, type FormEvent } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
 import { SheetFooter } from '../../ui/SheetFooter'
+import { KategoriPicker } from '../shared/KategoriPicker'
 
-export type BarangSheetValues = { nama: string; kategori: string | null; diarsipkan: boolean }
+export type BarangSheetValues = { nama: string; kategoriId: string | null; diarsipkan: boolean }
 
 type Props = {
   open: boolean
   onClose: () => void
   onSubmit: (values: BarangSheetValues) => void | Promise<void>
-  /** Read-model shape (string | undefined), distinct from the onSubmit payload - see this file's own plan task. */
-  initialValues?: { nama: string; kategori?: string; diarsipkan: boolean }
+  initialValues?: { nama: string; kategoriId?: string; diarsipkan: boolean }
   /** Prefills nama for a fresh create only (e.g. a typed search with no catalog match) - ignored once initialValues (an edit) is set. */
   initialNama?: string
 }
 
 export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNama }: Props) {
   const [nama, setNama] = useState(initialValues?.nama ?? initialNama ?? '')
-  const [kategori, setKategori] = useState(initialValues?.kategori ?? '')
+  const [kategoriId, setKategoriId] = useState<string | null>(initialValues?.kategoriId ?? null)
   const [diarsipkan, setDiarsipkan] = useState(initialValues?.diarsipkan ?? false)
   const [error, setError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -39,7 +39,7 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
     setSubmitError(null)
     setSubmitting(true)
     try {
-      await onSubmit({ nama: nama.trim(), kategori: kategori.trim() === '' ? null : kategori.trim(), diarsipkan })
+      await onSubmit({ nama: nama.trim(), kategoriId, diarsipkan })
     } catch {
       // A rejected onSubmit (an IndexedDB write failure, quota exceeded, a
       // legacy virtual barang, and so on) must surface, not vanish - see
@@ -59,7 +59,7 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
           </p>
         )}
         <div className="flex flex-col gap-1">
-          <label htmlFor="barang-nama" className="text-[14px] font-medium text-ink">Nama barang</label>
+          <label htmlFor="barang-nama" className="req text-[14px] font-medium text-ink">Nama barang</label>
           <input
             id="barang-nama" value={nama} onChange={e => setNama(e.target.value)}
             aria-invalid={error ? true : undefined}
@@ -68,18 +68,15 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
           {error && <p className="text-[13px] text-danger">{error}</p>}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="barang-kategori" className="text-[14px] font-medium text-ink">Kategori</label>
-          <input
-            id="barang-kategori" value={kategori} onChange={e => setKategori(e.target.value)}
-            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink"
-          />
-        </div>
+        <KategoriPicker value={kategoriId} onChange={setKategoriId} />
 
-        <label className="flex min-h-control items-center gap-2 text-[14px] text-ink">
-          <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
-          Arsipkan
-        </label>
+        {/* Archiving something that does not exist yet makes no sense: edit only. */}
+        {initialValues && (
+          <label className="flex min-h-control items-center gap-2 text-[14px] text-ink">
+            <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
+            Arsipkan
+          </label>
+        )}
 
         <SheetFooter>
           <Button type="submit" variant="primary" fullWidth disabled={submitting}>

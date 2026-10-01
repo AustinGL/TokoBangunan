@@ -139,9 +139,14 @@ describe('KamusBarang: archive filter', () => {
 
 describe('KamusBarang: toolbar and summary', () => {
   const seed = async () => {
+    await db.kategoriProj.bulkPut([
+      { id: 'kat_semen', nama: 'Semen', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'k0' },
+      { id: 'kat_cat', nama: 'Cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'k1' },
+      { id: 'kat_lama', nama: 'Kategori Lama', diarsipkan: true, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'k2' },
+    ])
     await db.barangProj.bulkPut([
-      { id: 'b1', nama: 'Semen Tiga Roda', kategori: 'Semen', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' },
-      { id: 'b2', nama: 'Cat Tembok Putih', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+      { id: 'b1', nama: 'Semen Tiga Roda', kategoriId: 'kat_semen', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' },
+      { id: 'b2', nama: 'Cat Tembok Putih', kategoriId: 'kat_cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
     ])
     await db.itemsProj.bulkPut([
       {
@@ -169,6 +174,9 @@ describe('KamusBarang: toolbar and summary', () => {
 
     await screen.findByText('Cat Tembok Putih')
     await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    expect(screen.getByRole('option', { name: 'Semua kategori' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Semen' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Kategori Lama' })).toBeNull()
     await user.click(screen.getByRole('option', { name: 'Cat' }))
 
     expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()
@@ -188,9 +196,10 @@ describe('KamusBarang: toolbar and summary', () => {
   })
 
   it('falls back to all kategori, instead of hiding every barang, when the chosen kategori disappears', async () => {
+    await db.kategoriProj.put({ id: 'kat_cat', nama: 'Cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'k0' })
     await db.barangProj.bulkPut([
       { id: 'b1', nama: 'Semen Tiga Roda', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e0' },
-      { id: 'b2', nama: 'Cat Tembok Putih', kategori: 'Cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
+      { id: 'b2', nama: 'Cat Tembok Putih', kategoriId: 'kat_cat', diarsipkan: false, updatedAt: '2026-09-18T07:00:00.000Z', updatedByEventId: 'e1' },
     ])
     const user = userEvent.setup()
     render(<KamusBarang />)
@@ -200,11 +209,9 @@ describe('KamusBarang: toolbar and summary', () => {
     await user.click(screen.getByRole('option', { name: 'Cat' }))
     expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
 
-    // Clear the kategori of the only barang that had one: the dropdown has nothing left to offer.
-    // Done straight on the projection for now: BarangSheet's kategori text is no
-    // longer persisted (Task 15 stopgap), so clearing it through the sheet does
-    // nothing. Restored in Task 18: clear it through the sheet's kategori picker again.
-    await db.barangProj.update('b2', { kategori: undefined })
+    // Archiving removes the chosen entry from the filter control, while the
+    // barang keeps displaying its real archived kategori.
+    await db.kategoriProj.update('kat_cat', { diarsipkan: true })
 
     expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
     expect(screen.getByText('Cat Tembok Putih')).toBeInTheDocument()

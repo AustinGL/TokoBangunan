@@ -14,7 +14,9 @@ async function createBarangViaKamus(page: Page, opts: { nama: string; kategori: 
 
   const barang = page.getByRole('dialog', { name: 'Barang baru' })
   await barang.getByLabel('Nama barang').fill(opts.nama)
-  await barang.getByLabel('Kategori').fill(opts.kategori)
+  const kategori = barang.getByRole('combobox', { name: 'Kategori' })
+  await kategori.fill(opts.kategori)
+  await barang.getByText(new RegExp(`tambah.*${opts.kategori}`, 'i')).click()
   await barang.getByRole('button', { name: 'Simpan' }).click()
 
   const ukuran = page.getByRole('dialog', { name: 'Ukuran baru' })
@@ -38,9 +40,7 @@ test.describe('list pages', () => {
     }
   })
 
-  // Skipped until Task 18 (restored in Task 18): the Kamus Barang sheet's free-text
-  // kategori is no longer persisted (Task 15 stopgap), so no kategori option exists to filter by.
-  test.skip('the Kategori dropdown on Stok opens, filters the list and resets', async ({ page }, testInfo) => {
+  test('the Kategori dropdown on Stok opens, filters the list and resets', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name.endsWith('-dark'), 'behaviour does not depend on colour scheme')
     await createBarangViaKamus(page, { nama: 'E2E Semen', kategori: 'Semen', ukuran: '50 kg' })
     await createBarangViaKamus(page, { nama: 'E2E Cat', kategori: 'Cat', ukuran: '5 kg' })
@@ -70,8 +70,7 @@ test.describe('list pages', () => {
       page.getByRole('button', { name: /^Semua barang:/ }),
       page.getByRole('button', { name: /^Menipis:/ }),
       page.getByRole('button', { name: /^Habis:/ }),
-      // kategori combobox restored in Task 18: StockFilters only renders it when a
-      // saved kategori exists, and nothing persists one until Task 18 (Task 15 stopgap).
+      page.getByRole('combobox', { name: /kategori/i }),
       page.getByLabel('Cari barang'),
     ]) {
       const box = await control.boundingBox()
