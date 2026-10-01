@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Home, Receipt, Package, Wallet, BarChart3, BookOpen, Truck } from 'lucide-react'
+import { Home, Receipt, Package, Wallet, BarChart3, BookOpen, Tags, Truck } from 'lucide-react'
 
 export type IconType = LucideIcon
 
@@ -27,6 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
  */
 export const DATA_MASTER_ITEMS: NavItem[] = [
   { label: 'Kamus Barang', path: '/kamus',    icon: BookOpen },
+  { label: 'Kategori',     path: '/kategori', icon: Tags },
   { label: 'Supplier',     path: '/supplier', icon: Truck },
 ]
 
@@ -53,6 +54,7 @@ export const PHONE_ITEMS: PhoneNavItems = [
 export const LAINNYA_ITEMS: NavItem[] = [
   { label: 'Transaksi',    path: '/transaksi', icon: Receipt },
   { label: 'Kamus Barang', path: '/kamus',     icon: BookOpen },
+  { label: 'Kategori',     path: '/kategori',  icon: Tags },
   { label: 'Supplier',     path: '/supplier',  icon: Truck },
   { label: 'Laporan',      path: '/laporan',   icon: BarChart3 },
 ]

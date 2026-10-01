@@ -15,14 +15,14 @@ beforeEach(async () => {
 // 6). Task 6b wires the real screen in, so this now asserts the live Kasir
 // UI mounts, not the "dibangun di fase berikutnya" placeholder copy.
 describe('AppRoutes: the /kasir route and the catch-all', () => {
-  it('renders the real Kasir screen for /kasir, not the placeholder', () => {
+  it('renders the real Kasir screen for /kasir, not the placeholder', async () => {
     render(
       <MemoryRouter initialEntries={['/kasir']}>
         <AppRoutes />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Kasir' })).toBeInTheDocument()
-    expect(screen.getByLabelText(/cari barang/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Kasir' })).toBeInTheDocument()
+    expect(await screen.findByLabelText(/cari barang/i)).toBeInTheDocument()
     expect(screen.queryByText('Layar ini dibangun di fase berikutnya.')).toBeNull()
   })
 
@@ -43,13 +43,13 @@ describe('AppRoutes: the /kasir route and the catch-all', () => {
 })
 
 describe('AppRoutes: the /stok route', () => {
-  it('renders the new Stok list screen for /stok, not the legacy ItemList', () => {
+  it('renders the new Stok list screen for /stok, not the legacy ItemList', async () => {
     render(
       <MemoryRouter initialEntries={['/stok']}>
         <AppRoutes />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Stok' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Stok' })).toBeInTheDocument()
     // The legacy ItemList screen's own "+ Tambah barang" inline-form button
     // has no equivalent in the new Stok screen, which renders a disabled
     // "+ Tambah stok" instead - this is a straightforward, honest way to
@@ -58,14 +58,25 @@ describe('AppRoutes: the /stok route', () => {
   })
 })
 
+describe('AppRoutes: the /kategori route', () => {
+  it('renders the Kategori master screen', async () => {
+    render(
+      <MemoryRouter initialEntries={['/kategori']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { level: 1, name: 'Kategori' })).toBeInTheDocument()
+  })
+})
+
 describe('AppRoutes: /lainnya redirects home (the sheet replaces the old route)', () => {
-  it('redirects a legacy /lainnya bookmark to Beranda rather than 404ing it', () => {
+  it('redirects a legacy /lainnya bookmark to Beranda rather than 404ing it', async () => {
     render(
       <MemoryRouter initialEntries={['/lainnya']}>
         <AppRoutes />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Beranda' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Beranda' })).toBeInTheDocument()
     expect(screen.queryByText('Halaman tidak ditemukan')).toBeNull()
   })
 })

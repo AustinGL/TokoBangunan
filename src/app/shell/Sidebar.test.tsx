@@ -12,9 +12,9 @@ const renderSidebar = (path = '/', supplierAlertCount = 0) =>
   )
 
 describe('Sidebar', () => {
-  it('renders all seven destinations (five primary plus two data-master)', () => {
+  it('renders all eight destinations (five primary plus three data-master)', () => {
     renderSidebar()
-    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Supplier']) {
+    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Kategori', 'Supplier']) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
@@ -38,9 +38,14 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('link', { name: 'Kasir' })).toBeNull()
   })
 
+  it('marks the primary action current while the Kasir workspace is open', () => {
+    renderSidebar('/kasir')
+    expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('gives every destination link and the primary button the minimum tap-target class', () => {
     renderSidebar()
-    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Supplier']) {
+    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Kategori', 'Supplier']) {
       expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-control')
     }
     expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toHaveClass('h-control')
