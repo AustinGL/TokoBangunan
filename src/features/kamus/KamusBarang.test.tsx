@@ -173,7 +173,7 @@ describe('KamusBarang: toolbar and summary', () => {
     render(<KamusBarang />)
 
     await screen.findByText('Cat Tembok Putih')
-    await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    await user.click(await screen.findByRole('combobox', { name: /kategori/i }))
     expect(screen.getByRole('option', { name: 'Semua kategori' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Semen' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Kategori Lama' })).toBeNull()
@@ -205,7 +205,7 @@ describe('KamusBarang: toolbar and summary', () => {
     render(<KamusBarang />)
 
     await screen.findByText('Cat Tembok Putih')
-    await user.click(screen.getByRole('combobox', { name: /kategori/i }))
+    await user.click(await screen.findByRole('combobox', { name: /kategori/i }))
     await user.click(screen.getByRole('option', { name: 'Cat' }))
     expect(screen.queryByText('Semen Tiga Roda')).toBeNull()
 
