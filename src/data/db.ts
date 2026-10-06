@@ -7,10 +7,16 @@ import type { Barang } from '../domain/projections/barang'
 import type { Supplier } from '../domain/projections/suppliers'
 import type { Batch } from '../domain/projections/batches'
 import type { Kategori } from '../domain/projections/kategori'
+import type { Customer } from '../domain/projections/customers'
+import type { Payment } from '../domain/projections/payments'
+import type { Toko } from '../domain/projections/toko'
+import type { Expense } from '../domain/projections/expenses'
 import { projectBarang } from '../domain/projections/barang'
 import { projectSuppliers } from '../domain/projections/suppliers'
 import { projectBatches } from '../domain/projections/batches'
 import { projectSales } from '../domain/projections/sales'
+import { projectCustomers } from '../domain/projections/customers'
+import { projectPayments } from '../domain/projections/payments'
 import { compareCausal } from './eventOrder'
 
 export type MetaRow = { key: string; value: unknown }
@@ -52,6 +58,10 @@ class TokoDb extends Dexie {
   suppliersProj!: Table<Supplier, string>
   batchesProj!: Table<Batch, string>
   kategoriProj!: Table<Kategori, string>
+  customersProj!: Table<Customer, string>
+  paymentsProj!: Table<Payment, string>
+  tokoProj!: Table<Toko, string>
+  expensesProj!: Table<Expense, string>
 
   constructor() {
     super('toko-bahan-bangunan')
@@ -137,6 +147,36 @@ class TokoDb extends Dexie {
       kategoriProj: 'id, nama',
     }).upgrade(async tx => {
       await tx.table('meta').put({ key: 'syncCursor', value: 0 })
+    })
+    // customersProj and paymentsProj are new tables. CustomerUpserted existed
+    // as an event type before it had a table, so the backfill is the same
+    // full rebuild every earlier new table used, run once inside the upgrade
+    // transaction. The cursor reset is the same defensive re-pull as
+    // version(4) and version(6): SaleRecorded gained optional fields
+    // (jatuhTempo, dibayarAwal) and a new 'bon' enum value in this release.
+    this.version(7).stores({
+      customersProj: 'id, nama',
+      paymentsProj: 'id, saleId, occurredAt',
+    }).upgrade(async tx => {
+      const events = (await tx.table('events').toArray()) as EventEnvelope[]
+      const sorted = [...events].sort(compareCausal)
+      await tx.table('customersProj').bulkPut(Object.values(projectCustomers(sorted)))
+      await tx.table('paymentsProj').bulkPut(Object.values(projectPayments(sorted)))
+      await tx.table('meta').put({ key: 'syncCursor', value: 0 })
+    })
+    // tokoProj is a new table with no TokoDiatur events behind it, so it needs
+    // no backfill, and nothing existing changes shape, so no cursor reset. A
+    // TokoDiatur that reaches a device still on version 7 is quarantined and
+    // promoted by promoteQuarantined once the device upgrades.
+    this.version(8).stores({
+      tokoProj: 'id',
+    })
+    // expensesProj is a new table with no ExpenseRecorded events behind it, so
+    // it needs no backfill and nothing existing changes shape (no cursor
+    // reset). An expense event that reaches a device still on version 8 is
+    // quarantined and re-parsed by promoteQuarantined, like every earlier new type.
+    this.version(9).stores({
+      expensesProj: 'id, occurredAt',
     })
   }
 }

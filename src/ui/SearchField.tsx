@@ -8,21 +8,23 @@ type Props = {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  disabled?: boolean
 }
 
-/** Pill search input (docs/REDESIGN.md section 7). */
-export function SearchField({ id, label, value, onChange, placeholder }: Props) {
+/** Compact search input used by dense operational lists. */
+export function SearchField({ id, label, value, onChange, placeholder, disabled }: Props) {
   return (
     <div className="relative">
       <label htmlFor={id} className="sr-only">{label}</label>
-      <Icon icon={Search} size="button" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />
+      <Icon icon={Search} size="button" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-faint" />
       <input
         id={id}
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-control w-full rounded-pill border border-[var(--field-bd)] bg-[var(--field-bg)] pl-11 pr-4 text-[14px] text-ink placeholder:text-[var(--field-placeholder)]"
+        disabled={disabled}
+        className="h-control w-full rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] pl-10 pr-4 text-base text-ink md:text-sm placeholder:text-[var(--field-placeholder)] disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ink-disabled"
       />
     </div>
   )

@@ -4,6 +4,7 @@ import { Icon } from './Icon'
 import { ListboxPanel } from './ListboxPanel'
 import { optionId, type ListboxRow } from './listbox'
 import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
+import { usePresence } from './usePresence'
 
 export type ComboboxOption = { value: string; label: string; hint?: string }
 
@@ -133,11 +134,12 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
     }
   }
 
+  const { mounted, closing } = usePresence(open)
   const activeId = open && rows[activeIndex] ? optionId(listboxId, activeIndex) : undefined
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className={`text-[14px] font-medium text-ink ${required ? 'req' : ''}`}>{label}</label>
+      <label htmlFor={id} className={`text-sm font-medium text-ink ${required ? 'req' : ''}`}>{label}</label>
       <div ref={wrapperRef} className="relative">
         <input
           id={id}
@@ -148,6 +150,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
           aria-activedescendant={activeId}
           aria-autocomplete="list"
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           aria-required={required ? true : undefined}
           disabled={disabled}
           value={text}
@@ -171,7 +174,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
               setQuery(null)
             }, 150)
           }}
-          className={`h-control w-full rounded-field border bg-[var(--field-bg)] pl-3 pr-11 text-[14px] text-ink disabled:text-ink-disabled ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+          className={`h-control w-full rounded-field border bg-[var(--field-bg)] pl-3 pr-11 text-base text-ink md:text-sm transition-[border-color,background-color] duration-quick enabled:hover:border-ink-muted disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ink-disabled ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
         />
         {!disabled && (
           // Mouse and touch only: the input is the one focusable control, and
@@ -184,11 +187,12 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
             onMouseDown={e => { e.preventDefault(); toggleList() }}
             className="absolute inset-y-0 right-0 flex w-control items-center justify-center text-ink-muted"
           >
-            <Icon icon={ChevronDown} size="button" className={`transition-transform duration-quick ${open ? 'rotate-180' : ''}`} />
+            <Icon icon={ChevronDown} size="button" className={`transition-transform duration-panel ease-spring ${open ? 'rotate-180' : ''}`} />
           </button>
         )}
-        {open && (
+        {mounted && (
           <ListboxPanel
+            closing={closing}
             id={listboxId}
             rows={rows}
             activeIndex={activeIndex}
@@ -200,7 +204,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
           />
         )}
       </div>
-      {error && <p className="text-[13px] text-danger">{error}</p>}
+      {error && <p id={`${id}-error`} className="text-sm text-danger">{error}</p>}
     </div>
   )
 }

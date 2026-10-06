@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { DatePicker } from '../../ui/DatePicker'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
 import { SheetFooter } from '../../ui/SheetFooter'
@@ -132,7 +133,7 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
     <Sheet open={open} onClose={onClose} title="Koreksi pembelian" variant="center">
       <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
-          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger">
             {submitError}
           </p>
         )}
@@ -142,28 +143,22 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
           options={[{ value: '', label: 'Tidak ada' }, ...suppliers.map(s => ({ value: s.id, label: s.nama }))]}
         />
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="koreksi-tanggal" className="text-[14px] font-medium text-ink">
-            Tanggal beli<span aria-hidden="true"> *</span>
-          </label>
-          <input
-            id="koreksi-tanggal" type="date" value={tanggalBeli} max={todayIsoDate(systemClock)}
-            onChange={e => setTanggalBeli(e.target.value)}
-            aria-invalid={tanggalError ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${tanggalError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
-          />
-          {tanggalError && <p className="text-[13px] text-danger">{tanggalError}</p>}
-        </div>
+        <DatePicker
+          id="koreksi-tanggal" label="Tanggal beli" required
+          value={tanggalBeli} onChange={setTanggalBeli} max={todayIsoDate(systemClock)}
+          error={tanggalError ?? undefined}
+        />
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="koreksi-jumlah" className="text-[14px] font-medium text-ink">Jumlah</label>
+          <label htmlFor="koreksi-jumlah" className="text-sm font-medium text-ink">Jumlah</label>
           <input
             id="koreksi-jumlah" type="number" inputMode="numeric" min={0} step={1}
             value={jumlah} onChange={e => setJumlah(e.target.value)}
             aria-invalid={jumlahError ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${jumlahError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            aria-describedby={jumlahError ? 'koreksi-jumlah-error' : undefined}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm ${jumlahError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {jumlahError && <p className="text-[13px] text-danger">{jumlahError}</p>}
+          {jumlahError && <p id="koreksi-jumlah-error" className="text-sm text-danger">{jumlahError}</p>}
         </div>
 
         <RupiahInput id="koreksi-harga-beli" label="Harga beli" value={hargaBeli} onChange={setHargaBeli} />
@@ -173,8 +168,8 @@ export function KoreksiPembelianSheet({ open, onClose, batch, suppliers }: Props
         />
 
         <SheetFooter>
-          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
-            {submitting ? 'Menyimpan...' : 'Simpan'}
+          <Button type="submit" variant="primary" fullWidth loading={submitting} loadingLabel="Menyimpan...">
+            Simpan
           </Button>
         </SheetFooter>
       </form>

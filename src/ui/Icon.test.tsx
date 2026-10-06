@@ -9,7 +9,7 @@ describe('Icon', () => {
     const svg = container.querySelector('svg')!
     expect(svg).toHaveAttribute('width', String(ICON_SIZE.button))
     expect(svg).toHaveAttribute('height', String(ICON_SIZE.button))
-    expect(svg).toHaveAttribute('stroke-width', '2')
+    expect(svg).toHaveAttribute('stroke-width', '1.75')
     expect(svg).toHaveAttribute('aria-hidden', 'true')
   })
 

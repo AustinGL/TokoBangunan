@@ -4,14 +4,21 @@ import { test, expect } from '@playwright/test'
 // save button must be reachable without scrolling the sheet.
 test.use({ viewport: { width: 390, height: 520 } })
 
-test('Tambah stok: the save buttons are visible without scrolling', async ({ page }, testInfo) => {
+test('Tambah stok: the save row is flush with the sheet bottom and visible without scrolling', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.endsWith('-dark'), 'layout does not depend on colour scheme')
   await page.goto('/stok')
   await page.getByRole('button', { name: /tambah stok/i }).first().click()
   const sheet = page.getByRole('dialog', { name: 'Tambah stok' })
   await expect(sheet).toBeVisible()
-  await expect(sheet.getByRole('button', { name: 'Simpan stok' })).toBeInViewport({ ratio: 1 })
+  const save = sheet.getByRole('button', { name: 'Simpan stok' })
+  await expect(save).toBeInViewport({ ratio: 1 })
   await expect(sheet.getByRole('button', { name: 'Simpan & tambah lagi' })).toBeInViewport({ ratio: 1 })
+
+  const [sheetBox, footerBox] = [await sheet.boundingBox(), await save.locator('..').boundingBox()]
+  expect(sheetBox && footerBox).toBeTruthy()
+  // The shared body has 16px padding. SheetFooter consumes that padding so
+  // the action surface reaches the panel edge instead of floating above it.
+  expect(Math.abs((sheetBox!.y + sheetBox!.height) - (footerBox!.y + footerBox!.height))).toBeLessThanOrEqual(2)
 })
 
 test('Supplier baru: the save button is visible without scrolling', async ({ page }, testInfo) => {

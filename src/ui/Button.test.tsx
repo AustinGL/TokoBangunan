@@ -26,10 +26,10 @@ describe('Button', () => {
 
   it.each([
     ['primary', 'bg-[var(--btn-primary-bg)]'],
-    ['secondary', 'border-[var(--btn-secondary-bd)]'],
+    ['secondary', 'bg-[var(--btn-secondary-bg)]'],
     ['ghost', 'text-ink-muted'],
     ['danger', 'text-danger'],
-    ['link', 'underline'],
+    ['link', 'text-primary-ink'],
   ] as const)('the %s variant carries its own look', (variant, cls) => {
     render(<Button variant={variant}>X</Button>)
     expect(screen.getByRole('button', { name: 'X' })).toHaveClass(cls)
@@ -43,6 +43,14 @@ describe('Button', () => {
     expect(button).toHaveClass('disabled:opacity-50', 'disabled:cursor-not-allowed')
     await userEvent.setup().click(button)
     expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('exposes a busy disabled state while loading', () => {
+    render(<Button loading loadingLabel="Menyimpan...">Simpan</Button>)
+    const button = screen.getByRole('button', { name: 'Menyimpan...' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('renders an optional leading icon, decorative', () => {

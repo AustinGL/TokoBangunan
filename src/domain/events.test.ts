@@ -406,3 +406,159 @@ describe('BatchCorrected', () => {
     expect(() => createEvent('BatchCorrected', { ...payload, tanggalBeli: 'kemarin' }, opts)).toThrow()
   })
 })
+
+describe('SaleRecorded Bon', () => {
+  const line = { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000 }
+  const base = { lines: [line], subtotal: 63000, diskon: 0, total: 63000 }
+  const bon = { ...base, metodeBayar: 'bon' as const, customerId: 'cust-budi', jatuhTempo: '2026-10-17' }
+
+  it('accepts a Bon with a customer and a due date', () => {
+    const e = createEvent('SaleRecorded', bon, opts)
+    expect(e.payload).toMatchObject({ metodeBayar: 'bon', customerId: 'cust-budi', jatuhTempo: '2026-10-17' })
+  })
+
+  it('accepts a Bon with a down payment below the total', () => {
+    const e = createEvent('SaleRecorded', { ...bon, dibayarAwal: 20000 }, opts)
+    expect(e.payload).toMatchObject({ dibayarAwal: 20000 })
+  })
+
+  it('rejects a Bon without a customer', () => {
+    expect(() => createEvent('SaleRecorded', { ...bon, customerId: undefined }, opts)).toThrow(/customerId/)
+  })
+
+  it('rejects a Bon without a due date', () => {
+    expect(() => createEvent('SaleRecorded', { ...bon, jatuhTempo: undefined }, opts)).toThrow(/jatuhTempo/)
+  })
+
+  it('rejects a Bon whose down payment equals the total, or exceeds it', () => {
+    expect(() => createEvent('SaleRecorded', { ...bon, dibayarAwal: 63000 }, opts)).toThrow(/dibayarAwal/)
+    expect(() => createEvent('SaleRecorded', { ...bon, dibayarAwal: 70000 }, opts)).toThrow(/dibayarAwal/)
+  })
+
+  it('rejects a negative or fractional down payment', () => {
+    expect(() => createEvent('SaleRecorded', { ...bon, dibayarAwal: -1 }, opts)).toThrow()
+    expect(() => createEvent('SaleRecorded', { ...bon, dibayarAwal: 100.5 }, opts)).toThrow()
+  })
+
+  it('rejects a malformed due date', () => {
+    expect(() => createEvent('SaleRecorded', { ...bon, jatuhTempo: '17/10/2026' }, opts)).toThrow(/jatuhTempo/)
+  })
+
+  it('rejects a due date or a down payment on a tunai sale', () => {
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'tunai', jatuhTempo: '2026-10-17' }, opts)).toThrow(/jatuhTempo/)
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'tunai', dibayarAwal: 5000 }, opts)).toThrow(/dibayarAwal/)
+  })
+
+  it('still parses a legacy tunai payload and adds no new keys to it', () => {
+    const e = createEvent('SaleRecorded', { ...base, metodeBayar: 'tunai', uangDiterima: 70000 }, opts)
+    const payload = e.payload as Record<string, unknown>
+    expect('jatuhTempo' in payload).toBe(false)
+    expect('dibayarAwal' in payload).toBe(false)
+    expect(payload).toMatchObject({ metodeBayar: 'tunai', uangDiterima: 70000 })
+  })
+
+  it('a pulled Bon event missing its customer is classified invalid, not valid', () => {
+    const raw = { ...createEvent('SaleRecorded', bon, opts), payload: { ...bon, customerId: undefined } }
+    expect(classifyEvent(raw).status).toBe('invalid')
+  })
+})
+
+describe('PaymentReceived', () => {
+  it('accepts a payment against a sale', () => {
+    const e = createEvent('PaymentReceived', { saleId: 'sale-1', jumlah: 50000, catatan: 'cicilan 1' }, opts)
+    expect(e.type).toBe('PaymentReceived')
+    expect(e.payload).toMatchObject({ saleId: 'sale-1', jumlah: 50000, catatan: 'cicilan 1' })
+  })
+
+  it('rejects a zero, negative or fractional jumlah and an empty saleId', () => {
+    expect(() => createEvent('PaymentReceived', { saleId: 'sale-1', jumlah: 0 }, opts)).toThrow(/jumlah/)
+    expect(() => createEvent('PaymentReceived', { saleId: 'sale-1', jumlah: -5 }, opts)).toThrow(/jumlah/)
+    expect(() => createEvent('PaymentReceived', { saleId: 'sale-1', jumlah: 10.5 }, opts)).toThrow()
+    expect(() => createEvent('PaymentReceived', { saleId: '', jumlah: 100 }, opts)).toThrow(/saleId/)
+  })
+})
+
+describe('TokoDiatur', () => {
+  it('accepts a shop name and trims it', () => {
+    const e = createEvent('TokoDiatur', { nama: '  Toko Maju  ' }, opts)
+    expect(e.type).toBe('TokoDiatur')
+    expect(e.payload).toEqual({ nama: 'Toko Maju' })
+  })
+
+  it('accepts an empty name: that is how a name is cleared', () => {
+    expect(createEvent('TokoDiatur', { nama: '' }, opts).payload).toEqual({ nama: '' })
+    expect(createEvent('TokoDiatur', { nama: '   ' }, opts).payload).toEqual({ nama: '' })
+  })
+
+  it('accepts exactly 60 characters and rejects 61', () => {
+    expect(() => createEvent('TokoDiatur', { nama: 'x'.repeat(60) }, opts)).not.toThrow()
+    expect(() => createEvent('TokoDiatur', { nama: 'x'.repeat(61) }, opts)).toThrow(/nama/)
+  })
+
+  it('rejects a missing or non-string name', () => {
+    expect(() => createEvent('TokoDiatur', {}, opts)).toThrow(/nama/)
+    expect(() => createEvent('TokoDiatur', { nama: 5 }, opts)).toThrow(/nama/)
+  })
+})
+
+describe('ExpenseRecorded', () => {
+  it('accepts an expense with a kategori and an optional note', () => {
+    const e = createEvent('ExpenseRecorded', { jumlah: 1_500_000, kategori: 'gaji', catatan: 'Agus, Oktober' }, opts)
+    expect(e.type).toBe('ExpenseRecorded')
+    expect(e.payload).toMatchObject({ jumlah: 1_500_000, kategori: 'gaji', catatan: 'Agus, Oktober' })
+  })
+
+  it('rejects a zero, negative or fractional jumlah', () => {
+    expect(() => createEvent('ExpenseRecorded', { jumlah: 0, kategori: 'sewa' }, opts)).toThrow(/jumlah/)
+    expect(() => createEvent('ExpenseRecorded', { jumlah: -5, kategori: 'sewa' }, opts)).toThrow(/jumlah/)
+    expect(() => createEvent('ExpenseRecorded', { jumlah: 10.5, kategori: 'sewa' }, opts)).toThrow()
+  })
+
+  it('rejects an unknown kategori', () => {
+    expect(() => createEvent('ExpenseRecorded', { jumlah: 100, kategori: 'judi' }, opts)).toThrow(/kategori/)
+  })
+})
+
+describe('ExpenseVoided', () => {
+  it('names the expense it cancels', () => {
+    expect(createEvent('ExpenseVoided', { expenseId: 'e1' }, opts).payload).toEqual({ expenseId: 'e1' })
+  })
+  it('rejects an empty expenseId', () => {
+    expect(() => createEvent('ExpenseVoided', { expenseId: '' }, opts)).toThrow(/expenseId/)
+  })
+})
+
+describe('ReminderSent', () => {
+  it('names the customer who was reminded', () => {
+    const e = createEvent('ReminderSent', { customerId: 'c1' }, opts)
+    expect(e.type).toBe('ReminderSent')
+    expect(e.payload).toEqual({ customerId: 'c1' })
+  })
+  it('rejects an empty customerId', () => {
+    expect(() => createEvent('ReminderSent', { customerId: '' }, opts)).toThrow(/customerId/)
+  })
+})
+
+describe('SaleRecorded Transfer and QRIS', () => {
+  const line = { itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 1000, hargaSatuan: 63000, subtotal: 63000 }
+  const base = { lines: [line], subtotal: 63000, diskon: 0, total: 63000 }
+
+  it('accepts a sale paid in full by transfer or QRIS', () => {
+    expect(createEvent('SaleRecorded', { ...base, metodeBayar: 'transfer' }, opts).payload).toMatchObject({ metodeBayar: 'transfer' })
+    expect(createEvent('SaleRecorded', { ...base, metodeBayar: 'qris' }, opts).payload).toMatchObject({ metodeBayar: 'qris' })
+  })
+
+  it('may carry a customer, like a cash sale', () => {
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'qris', customerId: 'c1' }, opts)).not.toThrow()
+  })
+
+  it('rejects cash tendered, a due date or a down payment: only Tunai tenders, only Bon is due', () => {
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'transfer', uangDiterima: 70000 }, opts)).toThrow(/uangDiterima/)
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'qris', jatuhTempo: '2026-10-17' }, opts)).toThrow(/jatuhTempo/)
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'qris', dibayarAwal: 1000 }, opts)).toThrow(/dibayarAwal/)
+  })
+
+  it('still rejects an unknown method', () => {
+    expect(() => createEvent('SaleRecorded', { ...base, metodeBayar: 'kredit' }, opts)).toThrow(/metodeBayar/)
+  })
+})

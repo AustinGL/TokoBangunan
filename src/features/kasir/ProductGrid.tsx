@@ -47,19 +47,19 @@ export function ProductGrid({ searchQuery, onAdd }: Props) {
       )}
 
       {rows === undefined ? (
-        <div aria-busy="true" role="status" className="rounded-card border border-border bg-surface p-6">
+        <div aria-busy="true" role="status" className="skeleton h-40 rounded-card">
           <span className="sr-only">Memuat katalog barang...</span>
         </div>
       ) : purchasable.length === 0 ? (
-        <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
+        <p className="rounded-card bg-surface p-6 text-sm text-ink-muted shadow-card">
           Belum ada barang.
         </p>
       ) : visibleRows.length === 0 ? (
-        <p className="rounded-card border border-border bg-surface p-6 text-[14px] text-ink-muted">
+        <p className="rounded-card bg-surface p-6 text-sm text-ink-muted shadow-card">
           Tidak ada barang yang cocok dengan pencarian.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {visibleRows.map(row => (
             <ProductCard key={row.barangId} barang={row} onAdd={ukuran => onAdd(ukuran, row.nama)} />
           ))}

@@ -1,4 +1,5 @@
 import { fireEvent, act } from '@testing-library/react'
+import { vi } from 'vitest'
 
 /**
  * SearchScanField distinguishes a scan from human typing by inter-key
@@ -18,14 +19,26 @@ import { fireEvent, act } from '@testing-library/react'
  * already holds slow-typed text, this lets the component's own run-start
  * tracking strip that leftover prefix the same way it would for a real scan
  * that follows typed input.
+ *
+ * The burst's clock is pinned as well: even synchronous, a process the OS pauses for
+ * 30ms in the middle of the burst (three suites sharing one machine) would split one
+ * scan into two runs. Each key reads a time exactly 1ms after the previous one, starting
+ * well after any slow typing that came before, so the burst is a scan on any machine.
  */
 export function simulateScan(input: HTMLElement, scannedValue: string) {
   const el = input as HTMLInputElement
-  act(() => {
-    for (const char of scannedValue) {
-      fireEvent.keyDown(el, { key: char })
-    }
-    fireEvent.change(el, { target: { value: el.value + scannedValue } })
-    fireEvent.keyDown(el, { key: 'Enter' })
-  })
+  const start = Date.now() + 1000
+  let tick = 0
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => start + tick++)
+  try {
+    act(() => {
+      for (const char of scannedValue) {
+        fireEvent.keyDown(el, { key: char })
+      }
+      fireEvent.change(el, { target: { value: el.value + scannedValue } })
+      fireEvent.keyDown(el, { key: 'Enter' })
+    })
+  } finally {
+    clock.mockRestore()
+  }
 }

@@ -33,15 +33,16 @@ describe('StokRow', () => {
     expect(screen.getByText('Rp 58.000 - Rp 65.000')).toBeInTheDocument()
   })
 
-  it('marks a habis row with a status bar and the word Habis, and an aman row with no bar', () => {
+  it('states the status in words (Habis / Aman) and draws no coloured edge bar', () => {
     const { container, rerender } = render(
       <MemoryRouter><StokRow row={row({ status: 'habis', ukuran: [ukuran({ id: 'u1', ukuran: '50 kg', quantity: 0, status: 'habis' })] })} /></MemoryRouter>,
     )
     expect(screen.getByText('Habis')).toBeInTheDocument()
-    expect(container.querySelector('.bg-danger')).not.toBeNull()
+    // The word is the signal; the old 4px side bar is retired.
+    expect(container.querySelector('a > span[aria-hidden="true"].absolute')).toBeNull()
 
     rerender(<MemoryRouter><StokRow row={row()} /></MemoryRouter>)
-    expect(container.querySelector('.bg-danger, .bg-warning')).toBeNull()
+    expect(screen.getByText('Aman')).toBeInTheDocument()
   })
 
   it('omits the kategori line when there is none', () => {

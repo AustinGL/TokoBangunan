@@ -229,3 +229,69 @@ describe('version(6) schema', () => {
     expect(await getCursor()).toBe(0)
   })
 })
+
+describe('version(7) schema', () => {
+  it('adds customersProj and paymentsProj', async () => {
+    await db.open()
+    const names = db.tables.map(t => t.name)
+    expect(names).toContain('customersProj')
+    expect(names).toContain('paymentsProj')
+  })
+
+  it('backfills both tables from events written before they existed, and resets the sync cursor', async () => {
+    const legacy = new LegacyDbV5()
+    await legacy.open()
+    const customer = createEvent('CustomerUpserted', { id: 'c1', nama: 'Budi' }, at('2026-10-01T07:00:00.000Z'))
+    const payment = createEvent('PaymentReceived', { saleId: 's1', jumlah: 50000 }, at('2026-10-02T07:00:00.000Z'))
+    await legacy.events.bulkAdd([customer, payment])
+    await legacy.meta.put({ key: 'syncCursor', value: 999 })
+    legacy.close()
+
+    await db.open()
+
+    expect(await db.customersProj.get('c1')).toMatchObject({ nama: 'Budi', termynHari: 30 })
+    expect(await db.paymentsProj.get(payment.id)).toMatchObject({ saleId: 's1', jumlah: 50000 })
+    expect(await getCursor()).toBe(0)
+  })
+
+  it('keeps a sale stored before this version', async () => {
+    const legacy = new LegacyDbV5()
+    await legacy.open()
+    const sale = createEvent('SaleRecorded', {
+      lines: [{ itemId: 'semen', nama: 'Semen', unit: 'sak', qty: 1000, hargaSatuan: 52000, subtotal: 52000 }],
+      metodeBayar: 'tunai' as const, subtotal: 52000, diskon: 0, total: 52000,
+    }, at('2026-10-01T09:00:00.000Z'))
+    await legacy.events.bulkAdd([sale])
+    legacy.close()
+
+    await db.open()
+    // The upgrade does not clear salesProj; a rebuild still folds the old tunai event unchanged.
+    const { rebuildProjections } = await import('./eventStore')
+    await rebuildProjections()
+    expect(await db.salesProj.get(sale.id)).toMatchObject({ metodeBayar: 'tunai', total: 52000 })
+  })
+})
+
+describe('version(8) schema', () => {
+  it('adds the tokoProj table', async () => {
+    await db.open()
+    expect(db.tables.map(t => t.name)).toContain('tokoProj')
+  })
+
+  it('keeps data written under version 7: customers and payments survive the upgrade', async () => {
+    await db.open()
+    const customer = createEvent('CustomerUpserted', { id: 'c1', nama: 'Budi' }, at('2026-10-01T07:00:00.000Z'))
+    const { appendEvents } = await import('./eventStore')
+    await appendEvents([customer])
+    db.close()
+    await db.open()
+    expect(await db.customersProj.get('c1')).toMatchObject({ nama: 'Budi' })
+  })
+})
+
+describe('version(9) schema', () => {
+  it('adds the expensesProj table', async () => {
+    await db.open()
+    expect(db.tables.map(t => t.name)).toContain('expensesProj')
+  })
+})

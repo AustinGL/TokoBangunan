@@ -19,6 +19,17 @@ describe('SyncIndicator', () => {
     expect(screen.getByText('Belum tersinkron (3)')).toBeInTheDocument()
   })
 
+  it('says local-only, not failed, when no server is configured', () => {
+    render(<SyncIndicator status="lokal" pendingCount={4} />)
+    expect(screen.getByText('Hanya di perangkat ini')).toBeInTheDocument()
+    expect(screen.queryByText(/belum tersinkron/i)).toBeNull()
+  })
+
+  it('says plainly that nothing is backed up when the owner is not signed in', () => {
+    render(<SyncIndicator status="belum-masuk" pendingCount={7} />)
+    expect(screen.getByText('Belum masuk · 7 belum tercadangkan')).toBeInTheDocument()
+  })
+
   it('announces changes politely', () => {
     render(<SyncIndicator status="tersinkron" pendingCount={0} />)
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
@@ -82,13 +93,13 @@ describe('SyncIndicator', () => {
     // carry a unique `class` naming the icon itself, which is what actually
     // proves three different icons render, not an accident of one icon
     // happening to have no <path>.
-    const classes = (['tersinkron', 'menyimpan', 'belum-tersinkron'] as const).map((status) => {
+    const classes = (['tersinkron', 'menyimpan', 'belum-tersinkron', 'lokal', 'belum-masuk'] as const).map((status) => {
       const { container, unmount } = render(<SyncIndicator status={status} pendingCount={0} />)
       const className = container.querySelector('svg')?.getAttribute('class') ?? ''
       unmount()
       return className
     })
 
-    expect(new Set(classes).size).toBe(3)
+    expect(new Set(classes).size).toBe(5)
   })
 })

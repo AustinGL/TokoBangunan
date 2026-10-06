@@ -52,6 +52,20 @@ describe('Masuk: signed out', () => {
     expect(screen.getByText(/kasir tetap bisa dipakai tanpa masuk/i)).toBeInTheDocument()
   })
 
+  it('can reveal and hide the password without clearing it', async () => {
+    const user = userEvent.setup()
+    renderMasuk()
+    const password = screen.getByLabelText('Password')
+
+    await user.type(password, 'rahasia')
+    await user.click(screen.getByRole('button', { name: 'Tampilkan kata sandi' }))
+    expect(password).toHaveAttribute('type', 'text')
+    expect(password).toHaveValue('rahasia')
+
+    await user.click(screen.getByRole('button', { name: 'Sembunyikan kata sandi' }))
+    expect(password).toHaveAttribute('type', 'password')
+  })
+
   it('asks for both fields, without calling the server, and moves focus to the first empty one', async () => {
     const user = userEvent.setup()
     renderMasuk()

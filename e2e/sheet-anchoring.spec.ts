@@ -1,4 +1,10 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator } from '@playwright/test'
+
+// Sheets slide in (transform + opacity). A bounding box read mid-slide is
+// offset by however far along the animation is, so wait for it to finish.
+async function settled(sheet: Locator) {
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)))
+}
 
 // Chrome's UA stylesheet gives dialog:modal `inset-block: 0`. The side sheet
 // must reset `top` itself, or on a phone the box stretches from the top down to
@@ -12,6 +18,7 @@ test.describe('phone (390x700)', () => {
     await page.getByRole('button', { name: /tambah stok/i }).first().click()
     const sheet = page.getByRole('dialog', { name: 'Tambah stok' })
     await expect(sheet).toBeVisible()
+    await settled(sheet)
     const box = await sheet.boundingBox()
     expect(box).toBeTruthy()
     expect(Math.round(box!.y + box!.height)).toBe(700)
@@ -28,6 +35,7 @@ test.describe('desktop (1280x800)', () => {
     await page.getByRole('button', { name: /tambah stok/i }).first().click()
     const sheet = page.getByRole('dialog', { name: 'Tambah stok' })
     await expect(sheet).toBeVisible()
+    await settled(sheet)
     const box = await sheet.boundingBox()
     expect(box).toBeTruthy()
     expect(Math.round(box!.y)).toBe(0)

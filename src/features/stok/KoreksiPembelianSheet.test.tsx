@@ -1,11 +1,15 @@
 import 'fake-indexeddb/auto'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
 import { correctBatch } from '../../data/commands'
 import { dateAtLocalNoon } from '../../domain/tanggal'
 import { KoreksiPembelianSheet } from './KoreksiPembelianSheet'
+import { bukaKalender, pilihTanggal } from '../../test-utils/pickDate'
+import { bulanDari, namaBulan, ringkas } from '../../domain/kalender'
+import { todayIsoDate } from '../../domain/tanggal'
+import { systemClock } from '../../domain/clock'
 
 vi.mock('../../data/commands', async () => {
   const actual = await vi.importActual<typeof import('../../data/commands')>('../../data/commands')
@@ -50,7 +54,7 @@ describe('KoreksiPembelianSheet', () => {
     expect(screen.getByLabelText(/supplier/i)).toHaveTextContent('CV Maju')
     expect(screen.getByLabelText(/harga beli/i)).toHaveValue('58.000')
     expect(screen.getByLabelText(/harga jual/i)).toHaveValue('65.000')
-    expect(screen.getByLabelText(/tanggal beli/i)).toHaveValue('2026-09-15')
+    expect(screen.getByLabelText(/tanggal beli/i)).toHaveTextContent('15 Sep 2026')
     expect(screen.getByLabelText(/jumlah/i)).toHaveValue(50)
   })
 
@@ -82,8 +86,7 @@ describe('KoreksiPembelianSheet', () => {
     const year = earlyMorningInstant.getFullYear()
     const month = String(earlyMorningInstant.getMonth() + 1).padStart(2, '0')
     const day = String(earlyMorningInstant.getDate()).padStart(2, '0')
-    const tanggalInput = screen.getByLabelText(/tanggal beli/i) as HTMLInputElement
-    expect(tanggalInput.value).toBe(`${year}-${month}-${day}`)
+    expect(screen.getByLabelText(/tanggal beli/i)).toHaveTextContent(ringkas(`${year}-${month}-${day}`))
   })
 
   it('calls correctBatch with a corrected jumlah, keeping tanggal beli unchanged when the date field is untouched', async () => {
@@ -116,9 +119,7 @@ describe('KoreksiPembelianSheet', () => {
     const user = userEvent.setup()
     render(<KoreksiPembelianSheet open onClose={onClose} batch={batch} suppliers={suppliers} />)
 
-    // fireEvent.change, not user.type - see the "rejects a future tanggal
-    // beli" test below for why.
-    fireEvent.change(screen.getByLabelText(/tanggal beli/i), { target: { value: '2026-09-10' } })
+    await pilihTanggal(user, /Tanggal beli/, '2026-09-10')
     await user.click(screen.getByRole('button', { name: /^simpan$/i }))
 
     await waitFor(() => expect(onClose).toHaveBeenCalled())
@@ -131,20 +132,18 @@ describe('KoreksiPembelianSheet', () => {
     )
   })
 
-  it('rejects a future tanggal beli at submit time', async () => {
+  it('offers no day after today for tanggal beli', async () => {
     const user = userEvent.setup()
     render(<KoreksiPembelianSheet open onClose={vi.fn()} batch={batch} suppliers={suppliers} />)
 
-    const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    // fireEvent.change, not user.type: a native <input type="date">'s
-    // segmented editing does not respond to plain keystrokes the way a text
-    // input does - same technique TambahStokSheet.test.tsx's own
-    // "rejects a future tanggal beli" test already establishes.
-    const tanggalInput = screen.getByLabelText(/tanggal beli/i)
-    fireEvent.change(tanggalInput, { target: { value: futureIso } })
-    await user.click(screen.getByRole('button', { name: /^simpan$/i }))
+    const kartu = await bukaKalender(user, /Tanggal beli/)
+    // Page forward until the edge: it must be this month, never a later one.
+    for (let i = 0; i < 600 && !within(kartu).getByRole('button', { name: 'Bulan berikutnya' }).hasAttribute('disabled'); i += 1) {
+      await user.click(within(kartu).getByRole('button', { name: 'Bulan berikutnya' }))
+    }
 
-    expect(await screen.findByText(/tidak boleh di masa depan/i)).toBeInTheDocument()
+    expect(within(kartu).getByRole('button', { name: 'Bulan berikutnya' })).toBeDisabled()
+    expect(within(kartu).getByRole('heading')).toHaveTextContent(namaBulan(bulanDari(todayIsoDate(systemClock))))
     expect(correctBatch).not.toHaveBeenCalled()
   })
 

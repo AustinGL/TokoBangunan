@@ -79,18 +79,41 @@ const saleLineSchema = z.object({
   hargaNormal: integer.optional(),
 })
 
+const tanggalKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
 const saleRecordedSchema = z.object({
   lines: z.array(saleLineSchema).min(1),
-  // Enum, not a plain string: only 'tunai' is legal now. Extending the enum
-  // in Phase 4 ('transfer' | 'qris' | 'bon') is additive and never
-  // invalidates events already written under this narrower schema.
-  metodeBayar: z.enum(['tunai']),
+  // 'bon', 'transfer' and 'qris' are additive: every event written under the old tunai-only enum stays valid.
+  // Transfer and QRIS are paid in full, like Tunai, but never tender cash.
+  metodeBayar: z.enum(['tunai', 'bon', 'transfer', 'qris']),
   subtotal: integer,
   diskon: integer.default(0),       // always 0 this phase; see Decision 6
   total: integer,                   // subtotal - diskon
   uangDiterima: integer.optional(), // Tunai: amount tendered
-  customerId: z.string().optional(),// a Tunai sale may carry no customer
+  customerId: z.string().optional(),// a Tunai sale may carry no customer; a Bon always has one
   deliveryIntent: z.enum(['dibawa']).default('dibawa'),
+  /** Bon only: the day (yyyy-mm-dd, local) the customer is due to pay. */
+  jatuhTempo: tanggalKey.optional(),
+  /** Bon only: paid at the counter, whole rupiah, 0 <= dibayarAwal < total. The rest is piutang. */
+  dibayarAwal: integer.min(0).optional(),
+}).superRefine((sale, ctx) => {
+  if (sale.metodeBayar === 'bon') {
+    if (!sale.customerId) ctx.addIssue({ code: 'custom', path: ['customerId'], message: 'a Bon requires a customerId' })
+    if (!sale.jatuhTempo) ctx.addIssue({ code: 'custom', path: ['jatuhTempo'], message: 'a Bon requires a jatuhTempo' })
+    if ((sale.dibayarAwal ?? 0) >= sale.total) {
+      ctx.addIssue({ code: 'custom', path: ['dibayarAwal'], message: 'dibayarAwal must be less than total' })
+    }
+    return
+  }
+  if (sale.metodeBayar !== 'tunai' && sale.uangDiterima !== undefined) ctx.addIssue({ code: 'custom', path: ['uangDiterima'], message: 'only Tunai tenders cash' })
+  if (sale.jatuhTempo !== undefined) ctx.addIssue({ code: 'custom', path: ['jatuhTempo'], message: 'only a Bon has a jatuhTempo' })
+  if ((sale.dibayarAwal ?? 0) !== 0) ctx.addIssue({ code: 'custom', path: ['dibayarAwal'], message: 'only a Bon takes a dibayarAwal' })
+})
+
+const paymentReceivedSchema = z.object({
+  saleId: z.string().min(1),
+  jumlah: integer.refine(n => n > 0, 'jumlah must be positive'),
+  catatan: z.string().optional(),
 })
 
 const saleVoidedSchema = z.object({
@@ -144,6 +167,35 @@ const batchCorrectedSchema = z.object({
   jumlah: integer.optional(),
 })
 
+/** Operating expenses a shop pays outside buying stock. A fixed list, no custom names. */
+export const KATEGORI_BIAYA = ['gaji', 'sewa', 'listrik', 'transport', 'lainnya'] as const
+export type KategoriBiaya = (typeof KATEGORI_BIAYA)[number]
+
+const expenseRecordedSchema = z.object({
+  jumlah: integer.refine(n => n > 0, 'jumlah must be positive'),
+  kategori: z.enum(KATEGORI_BIAYA),
+  catatan: z.string().optional(),
+})
+
+/** Cancels an expense without erasing it (the log is append-only). */
+const expenseVoidedSchema = z.object({
+  expenseId: z.string().min(1),
+})
+
+/**
+ * The owner tapped "Kirim pengingat" for a customer: WhatsApp was opened, which
+ * is all the app can know (it cannot see whether the message was sent). Kept
+ * so the screen can say when a customer was last reminded.
+ */
+const reminderSentSchema = z.object({
+  customerId: z.string().min(1),
+})
+
+/** The shop's name, shown only in the payment reminder. Empty clears it. */
+const tokoDiaturSchema = z.object({
+  nama: z.string().trim().max(60),
+})
+
 export const eventSchemas = {
   ItemUpserted: itemUpsertedSchema,
   CustomerUpserted: customerUpsertedSchema,
@@ -155,6 +207,11 @@ export const eventSchemas = {
   KategoriUpserted: kategoriUpsertedSchema,
   StockReceived: stockReceivedSchema,
   BatchCorrected: batchCorrectedSchema,
+  PaymentReceived: paymentReceivedSchema,
+  TokoDiatur: tokoDiaturSchema,
+  ExpenseRecorded: expenseRecordedSchema,
+  ExpenseVoided: expenseVoidedSchema,
+  ReminderSent: reminderSentSchema,
 } as const
 
 export type EventType = keyof typeof eventSchemas

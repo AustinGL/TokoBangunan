@@ -13,13 +13,25 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // All four projects share one `npm run preview` server. High worker counts
-  // were observed to starve page.goto() under contention (30s timeouts that
-  // passed instantly in isolation), so this is capped rather than left at
-  // Playwright's per-core default.
-  workers: 4,
+  // All four projects share one `npm run preview` server, and every worker is a node process
+  // plus a Chromium. Measured on the dev machine (16 threads, 16 GB, a normal desktop session
+  // open): with 4 workers the full suite failed every time in different places (page.goto and
+  // `load` hanging for 45s, dialogs not opening, sizes read mid-animation) even with nothing
+  // else running; with 2 workers it passed 167/167 on every run. So this is capped at 2. Raise it
+  // on a bigger machine, not to make a slow run faster.
+  workers: 2,
+  // Booting the app in a fresh browser (service worker install, lazy route chunks) takes
+  // several seconds, and the first test on each worker pays it while the other workers and
+  // the preview server compete for the same machine. Under load that went past Playwright's
+  // defaults (5s per expect, 30s per test), failing tests such as control-system with
+  // "waiting for getByRole('heading', { level: 1 })" although nothing in the page was wrong.
+  // These are ceilings, not delays: a wait returns as soon as the element appears. Do not
+  // pass a smaller per-call timeout to wait for a page or heading; it overrides this.
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   reporter: [['list']],
   use: {
+    navigationTimeout: 45_000,
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

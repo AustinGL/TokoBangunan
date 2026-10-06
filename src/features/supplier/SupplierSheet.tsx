@@ -67,53 +67,55 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah supplier' : 'Supplier baru'}>
       <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
-          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger">
             {submitError}
           </p>
         )}
         <div className="flex flex-col gap-1">
-          <label htmlFor="supplier-nama" className="text-[14px] font-medium text-ink">Nama</label>
+          <label htmlFor="supplier-nama" className="req text-sm font-medium text-ink">Nama</label>
           <input
             id="supplier-nama" value={nama} onChange={e => setNama(e.target.value)}
+            aria-required="true"
             aria-invalid={error ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            aria-describedby={error ? 'supplier-nama-error' : undefined}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {error && <p className="text-[13px] text-danger">{error}</p>}
+          {error && <p id="supplier-nama-error" className="text-sm text-danger">{error}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="supplier-telepon" className="text-[14px] font-medium text-ink">Telepon</label>
+          <label htmlFor="supplier-telepon" className="text-sm font-medium text-ink">Telepon</label>
           <input id="supplier-telepon" value={telepon} onChange={e => setTelepon(e.target.value)}
-            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm" />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="supplier-alamat" className="text-[14px] font-medium text-ink">Alamat</label>
+          <label htmlFor="supplier-alamat" className="text-sm font-medium text-ink">Alamat</label>
           <input id="supplier-alamat" value={alamat} onChange={e => setAlamat(e.target.value)}
-            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm" />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="supplier-kontak" className="text-[14px] font-medium text-ink">Kontak</label>
+          <label htmlFor="supplier-kontak" className="text-sm font-medium text-ink">Kontak</label>
           <input id="supplier-kontak" value={kontak} onChange={e => setKontak(e.target.value)}
-            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-[14px] text-ink" />
+            className="h-control rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm" />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="supplier-catatan" className="text-[14px] font-medium text-ink">Catatan</label>
+          <label htmlFor="supplier-catatan" className="text-sm font-medium text-ink">Catatan</label>
           <textarea id="supplier-catatan" value={catatan} onChange={e => setCatatan(e.target.value)} rows={3}
-            className="rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] p-3 text-[14px] text-ink" />
+            className="rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] p-3 text-base text-ink md:text-sm" />
         </div>
 
         {riwayat && (
           <div className="flex flex-col gap-2 border-t border-border pt-4">
-            <h3 className="text-[13px] font-semibold text-ink">Riwayat pembelian</h3>
+            <h3 className="text-sm font-semibold text-ink">Riwayat pembelian</h3>
             {riwayat.length === 0 ? (
-              <p className="text-[13px] text-ink-muted">Belum ada pembelian.</p>
+              <p className="text-sm text-ink-muted">Belum ada pembelian.</p>
             ) : (
               <ul className="flex flex-col gap-1">
                 {riwayat.map(r => (
-                  <li key={r.batchId} className="text-[13px] text-ink-muted">
+                  <li key={r.batchId} className="text-sm text-ink-muted">
                     {formatTanggal(r.tanggalBeli)} · {r.nama}
                   </li>
                 ))}
@@ -123,8 +125,8 @@ export function SupplierSheet({ open, onClose, onSubmit, initialValues, riwayat 
         )}
 
         <SheetFooter>
-          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
-            {submitting ? 'Menyimpan...' : 'Simpan'}
+          <Button type="submit" variant="primary" fullWidth loading={submitting} loadingLabel="Menyimpan...">
+            Simpan
           </Button>
         </SheetFooter>
       </form>

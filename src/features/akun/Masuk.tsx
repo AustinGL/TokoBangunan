@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CloudOff, UserRound, WifiOff } from 'lucide-react'
+import { CloudOff, Eye, EyeOff, UserRound, WifiOff } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { signIn, signOut } from '../../data/auth'
@@ -11,12 +11,13 @@ import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
 import { IconTile } from '../../ui/IconTile'
 import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 import { useToast } from '../../ui/useToast'
 import { useSession } from './useSession'
 
-const PAGE = 'mx-auto flex w-full max-w-md flex-col gap-5 p-4 md:p-8'
-const ALERT = 'rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger'
-const FIELD = 'h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink'
+const PAGE = 'mx-auto flex w-full max-w-md flex-col gap-5 p-4 md:p-8 md:pt-16'
+const ALERT = 'rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger'
+const FIELD = 'h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm'
 
 /**
  * Signing in is optional: the shop runs fully without it, on this device.
@@ -65,6 +66,7 @@ function FormMasuk() {
   const passwordRef = useRef<HTMLInputElement>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -101,16 +103,17 @@ function FormMasuk() {
   return (
     <main className={PAGE}>
       <PageHeader title="Masuk" />
-      <p className="text-[14px] text-ink-muted">
-        Masuk agar data toko dicadangkan ke cloud dan bisa dibuka di perangkat lain. Kasir tetap bisa dipakai tanpa masuk.
-        Perangkat ini akan mengingat Anda sampai Anda memilih Keluar.
-      </p>
+      <div className="card-in rounded-card-xl bg-surface p-5 shadow-card md:p-6">
+        <p className="mb-5 text-sm leading-6 text-ink-muted">
+          Masuk agar data toko dicadangkan ke cloud dan bisa dibuka di perangkat lain. Kasir tetap bisa dipakai tanpa masuk.
+          Perangkat ini akan mengingat Anda sampai Anda memilih Keluar.
+        </p>
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         {submitError && <p role="alert" className={ALERT}>{submitError}</p>}
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="masuk-email" className="req text-[14px] font-medium text-ink">Email</label>
+          <label htmlFor="masuk-email" className="req text-sm font-medium text-ink">Email</label>
           <input
             id="masuk-email" ref={emailRef} type="email" inputMode="email" autoComplete="username" autoFocus
             value={email} onChange={e => setEmail(e.target.value)}
@@ -118,25 +121,37 @@ function FormMasuk() {
             aria-describedby={errors.email ? 'masuk-email-error' : undefined}
             className={`${FIELD} ${errors.email ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {errors.email && <p id="masuk-email-error" className="text-[13px] text-danger">{errors.email}</p>}
+          {errors.email && <p id="masuk-email-error" className="text-sm text-danger">{errors.email}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="masuk-password" className="req text-[14px] font-medium text-ink">Password</label>
-          <input
-            id="masuk-password" ref={passwordRef} type="password" autoComplete="current-password"
-            value={password} onChange={e => setPassword(e.target.value)}
-            aria-required="true" aria-invalid={errors.password ? true : undefined}
-            aria-describedby={errors.password ? 'masuk-password-error' : undefined}
-            className={`${FIELD} ${errors.password ? 'border-danger' : 'border-[var(--field-bd)]'}`}
-          />
-          {errors.password && <p id="masuk-password-error" className="text-[13px] text-danger">{errors.password}</p>}
+          <label htmlFor="masuk-password" className="req text-sm font-medium text-ink">Password</label>
+          <div className="relative">
+            <input
+              id="masuk-password" ref={passwordRef} type={showPassword ? 'text' : 'password'} autoComplete="current-password"
+              value={password} onChange={e => setPassword(e.target.value)}
+              aria-required="true" aria-invalid={errors.password ? true : undefined}
+              aria-describedby={errors.password ? 'masuk-password-error' : undefined}
+              className={`${FIELD} w-full pr-12 ${errors.password ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            />
+            <IconButton
+              icon={showPassword ? EyeOff : Eye}
+              label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              variant="ghost"
+              shape="field"
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword(value => !value)}
+              className="absolute right-0 top-0"
+            />
+          </div>
+          {errors.password && <p id="masuk-password-error" className="text-sm text-danger">{errors.password}</p>}
         </div>
 
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? 'Memproses...' : 'Masuk'}
+        <Button type="submit" variant="primary" loading={submitting}>
+          Masuk
         </Button>
       </form>
+      </div>
     </main>
   )
 }
@@ -160,25 +175,25 @@ function AkunMasuk({ email }: { email: string }) {
   return (
     <main className={PAGE}>
       <PageHeader title="Akun" />
-      <section className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4 shadow-card md:p-5">
+      <section className="card-in flex flex-col gap-4 rounded-card-xl bg-surface p-5 shadow-card md:p-6">
         <div className="flex items-center gap-3">
           <IconTile icon={UserRound} tone="primary" />
           <div className="min-w-0">
-            <p className="text-[13px] text-ink-muted">Masuk sebagai</p>
-            <p className="break-all text-[15px] font-semibold text-ink">{email}</p>
+            <p className="text-sm text-ink-muted">Masuk sebagai</p>
+            <p className="break-all text-base font-semibold text-ink">{email}</p>
           </div>
         </div>
 
-        <p className="text-[14px] text-ink">
+        <p className="text-sm text-ink">
           {pending === 0 ? 'Semua data sudah tercadangkan.' : `${pending} perubahan menunggu dicadangkan.`}
         </p>
 
         {error && <p role="alert" className={ALERT}>{error}</p>}
 
-        <Button variant="secondary" onClick={handleKeluar} disabled={busy}>
-          {busy ? 'Memproses...' : 'Keluar'}
+        <Button variant="secondary" onClick={handleKeluar} loading={busy}>
+          Keluar
         </Button>
-        <p className="text-[13px] text-ink-muted">
+        <p className="text-sm text-ink-muted">
           Keluar tidak menghapus data. Semua data toko tetap ada dan terlihat di perangkat ini, dan perubahan yang belum tercadangkan tidak hilang.
         </p>
       </section>

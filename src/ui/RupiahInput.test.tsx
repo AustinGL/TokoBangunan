@@ -70,4 +70,10 @@ describe('RupiahInput', () => {
 
     expect(screen.getByLabelText('Harga jual')).toHaveValue('1.000')
   })
+
+  it('associates an inline validation message with the field', () => {
+    render(<RupiahInput id="harga" label="Harga jual" value={null} onChange={vi.fn()} error="Harga jual wajib diisi." />)
+    expect(screen.getByLabelText('Harga jual')).toHaveAccessibleDescription('Harga jual wajib diisi.')
+    expect(screen.getByLabelText('Harga jual')).toHaveAttribute('aria-invalid', 'true')
+  })
 })

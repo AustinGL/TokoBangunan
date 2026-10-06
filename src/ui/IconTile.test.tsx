@@ -11,11 +11,11 @@ describe('IconTile', () => {
     expect(tile).toHaveClass('bg-danger-bg', 'text-danger')
   })
 
-  it('is a 40px rounded square by default and a 36px circle when small', () => {
+  it('is a 40px rounded square by default and a compact rounded square when small', () => {
     const { container, rerender } = render(<IconTile icon={Package} />)
     expect(container.firstElementChild).toHaveClass('size-10', 'rounded-inner')
 
     rerender(<IconTile icon={Package} size="sm" />)
-    expect(container.firstElementChild).toHaveClass('size-9', 'rounded-full')
+    expect(container.firstElementChild).toHaveClass('size-9', 'rounded-[10px]')
   })
 })

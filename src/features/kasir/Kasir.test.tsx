@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/db'
 import { Kasir } from './Kasir'
 import { simulateScan } from './testHelpers'
@@ -93,7 +93,7 @@ describe('Kasir: the add button resolves a default batch (legacy pool first, the
 
     await user.click(await screen.findByRole('button', { name: 'Tambah Semen Tiga Roda 50 kg ke keranjang' }))
 
-    expect(await screen.findByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch batch-old)')).toHaveValue(1)
+    expect(await screen.findByLabelText('Jumlah Semen Tiga Roda · 50 kg (batch 1, 2 Sep 2026)')).toHaveValue(1)
     expect(screen.getByText(/Rp 60\.000 \/ 50 kg/)).toBeInTheDocument()
   })
 })
@@ -190,4 +190,69 @@ describe('Kasir: inline creation from a typed search with no matches', () => {
 
     expect(screen.queryByText(/tidak ditemukan/i)).toBeNull()
   }, 10000)
+})
+
+describe('Kasir: on a phone (below 1024px)', () => {
+  // jsdom has no matchMedia; stubbing it to "matches" puts the app in the
+  // phone layout: no inline cart, a summary bar, and the cart in a sheet.
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {},
+      dispatchEvent: () => false,
+    }))
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('does not lay the cart out inline: the page ends with the product grid', async () => {
+    await seedUkuran({ id: 'semen', nama: 'Semen Tiga Roda', ukuran: '50 kg', hargaEceran: 52000 })
+    render(<Kasir />)
+    await screen.findByText('Semen Tiga Roda')
+
+    // The cart sheet is closed, so no cart controls are reachable in the page.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Simpan transaksi' })).toBeNull()
+  })
+
+  it('answers a tap on "+" at once with a summary bar showing the count and total', async () => {
+    await seedUkuran({ id: 'semen', nama: 'Semen Tiga Roda', ukuran: '50 kg', hargaEceran: 52000 })
+    const user = userEvent.setup()
+    render(<Kasir />)
+
+    await user.click(await screen.findByRole('button', { name: 'Tambah Semen Tiga Roda 50 kg ke keranjang' }))
+
+    const bar = await screen.findByRole('button', { name: /1 barang.*Rp 52.000.*Lihat keranjang/ })
+    expect(bar).toBeInTheDocument()
+  })
+
+  it('opens the cart in a sheet from the bar, with quantity and Simpan inside it', async () => {
+    await seedUkuran({ id: 'semen', nama: 'Semen Tiga Roda', ukuran: '50 kg', hargaEceran: 52000 })
+    const user = userEvent.setup()
+    render(<Kasir />)
+    await user.click(await screen.findByRole('button', { name: 'Tambah Semen Tiga Roda 50 kg ke keranjang' }))
+
+    await user.click(await screen.findByRole('button', { name: /Lihat keranjang/ }))
+
+    const sheet = within(await screen.findByRole('dialog', { name: 'Keranjang' }))
+    expect(sheet.getByLabelText(/^Jumlah Semen Tiga Roda/)).toHaveValue(1)
+    expect(sheet.getByRole('button', { name: 'Simpan transaksi' })).toBeEnabled()
+  })
+
+  it('keeps the receipt (and the change) in the sheet after saving, and "Transaksi baru" closes it', async () => {
+    await seedUkuran({ id: 'semen', nama: 'Semen Tiga Roda', ukuran: '50 kg', hargaEceran: 52000 })
+    const user = userEvent.setup()
+    render(<Kasir />)
+    await user.click(await screen.findByRole('button', { name: 'Tambah Semen Tiga Roda 50 kg ke keranjang' }))
+    await user.click(await screen.findByRole('button', { name: /Lihat keranjang/ }))
+
+    const sheet = within(await screen.findByRole('dialog', { name: 'Keranjang' }))
+    await user.type(sheet.getByLabelText('Uang diterima'), '100000')
+    await user.click(sheet.getByRole('button', { name: 'Simpan transaksi' }))
+
+    expect(await sheet.findByText('Transaksi tersimpan')).toBeInTheDocument()
+    expect(sheet.getByText('Rp 48.000')).toBeInTheDocument() // kembalian
+
+    await user.click(sheet.getByRole('button', { name: 'Transaksi baru' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Keranjang' })).toBeNull())
+  })
 })

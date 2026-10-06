@@ -142,16 +142,17 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor="kasir-search" className="text-[14px] font-medium text-ink">
-        Cari barang
-      </label>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="kasir-search" className="text-sm font-semibold text-ink">Cari barang</label>
+        <span className="text-2xs font-medium text-ink-muted">Ketik nama atau arahkan scanner</span>
+      </div>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Icon
             icon={Search}
             size="button"
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint"
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-faint"
           />
           <input
             id="kasir-search"
@@ -162,7 +163,7 @@ export function SearchScanField({ value, onChange, onScan, autoFocus }: Props) {
             onKeyDown={handleKeyDown}
             autoFocus={autoFocus}
             placeholder="Cari nama barang atau scan barcode"
-            className="h-control w-full rounded-pill border border-[var(--field-bd)] bg-[var(--field-bg)] pl-11 pr-4 text-[14px] text-ink placeholder:text-[var(--field-placeholder)]"
+            className="h-control w-full rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] pl-10 pr-4 text-base text-ink md:text-sm placeholder:text-[var(--field-placeholder)]"
           />
         </div>
         <Button variant="secondary" onClick={handleScanButtonClick}>

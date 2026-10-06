@@ -18,6 +18,9 @@ describe('App: Supplier badge', () => {
     // Sidebar.tsx's own convention (see navItems.ts's doc comment): the
     // count lives in the link's accessible name, e.g. "Supplier, 1 perlu
     // dilengkapi", not just the visual dot.
+    // The whole app mounts here (several live queries plus the sync attempt); the wait
+    // cap in src/test-setup.ts covers a loaded machine. The assertion is about the
+    // query's result, not about speed.
     expect(await screen.findByRole('link', { name: /supplier.*1 perlu dilengkapi/i })).toBeInTheDocument()
   })
 })

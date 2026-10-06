@@ -6,7 +6,7 @@ import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { db } from '../../data/db'
 import { StatusPill } from '../../ui/StatusPill'
-import { AlertTriangle, Truck } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { PageHeader } from '../../ui/PageHeader'
 import { IconTile } from '../../ui/IconTile'
 import { Button } from '../../ui/Button'
@@ -14,6 +14,7 @@ import { Icon } from '../../ui/Icon'
 import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
 import type { Supplier as SupplierRow } from '../../domain/projections/suppliers'
+import { SupplierIcon } from '../../ui/BrandIcons'
 
 function ctx() {
   return { clock: systemClock, deviceId: getDeviceId() }
@@ -90,7 +91,7 @@ export function Supplier() {
 
       {perluDilengkapiCount > 0 && (
         <div className="flex items-center justify-between gap-4 rounded-card border border-warning bg-warning-bg p-4">
-          <p className="flex items-center gap-3 text-[14px] font-medium text-warning">
+          <p className="flex items-center gap-3 text-sm font-medium text-warning">
             <Icon icon={AlertTriangle} size="nav" className="shrink-0" />
             <span>{perluDilengkapiCount} supplier baru perlu dilengkapi</span>
           </p>
@@ -103,7 +104,7 @@ export function Supplier() {
       {suppliers === undefined ? (
         <ListSkeleton label="Memuat daftar supplier..." />
       ) : suppliers.length === 0 ? (
-        <EmptyState icon={Truck}>Belum ada supplier. Mulai tambahkan supplier.</EmptyState>
+        <EmptyState icon={SupplierIcon}>Belum ada supplier. Mulai tambahkan supplier.</EmptyState>
       ) : (
         <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {visible.map(row => (
@@ -111,12 +112,12 @@ export function Supplier() {
               <button
                 type="button"
                 onClick={() => openEdit(row)}
-                className="flex w-full items-center gap-3 rounded-card border border-border bg-surface p-4 text-left shadow-card transition-colors duration-instant hover:bg-[var(--table-row-hover)]"
+                className="press flex min-h-control w-full items-center gap-3 rounded-card bg-surface p-4 text-left shadow-card transition-shadow duration-quick hover:shadow-float focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
               >
-                <IconTile icon={Truck} tone={row.perluDilengkapi ? 'warning' : 'neutral'} />
+                <IconTile icon={SupplierIcon} tone={row.perluDilengkapi ? 'warning' : 'primary'} />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] font-semibold text-ink">{row.nama}</span>
-                  {row.telepon && <span className="truncate text-[13px] text-ink-muted">{row.telepon}</span>}
+                  <span className="truncate text-base font-semibold text-ink">{row.nama}</span>
+                  {row.telepon && <span className="truncate text-sm text-ink-muted">{row.telepon}</span>}
                 </span>
                 {row.perluDilengkapi && <StatusPill tone="warning">Perlu dilengkapi</StatusPill>}
               </button>

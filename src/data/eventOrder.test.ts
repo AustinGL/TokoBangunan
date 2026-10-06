@@ -43,3 +43,36 @@ describe('compareCausal', () => {
     expect([second, first].sort(compareCausal).map(e => e.id)).toEqual([first.id, second.id])
   })
 })
+
+describe('compareCausal: a void never sorts before what it voids', () => {
+  const T = '2026-09-18T07:00:00.000Z'
+
+  it('puts a void after other unsynced events with an identical recordedAt, whatever the ids are', () => {
+    // Ids are UUIDv7, monotonic on a device even within one millisecond, so the tie-break by id
+    // already keeps a void after the record it was made for. This pins that guarantee: if ids ever
+    // stop being time-ordered, a rebuild could apply a void before its target and silently drop it.
+    for (let i = 0; i < 60; i += 1) {
+      const record = createEvent('ExpenseRecorded', { jumlah: 1000, kategori: 'sewa' }, at(T))
+      const voided = createEvent('ExpenseVoided', { expenseId: record.id }, at(T))
+      expect([voided, record].sort(compareCausal).map(e => e.type)).toEqual(['ExpenseRecorded', 'ExpenseVoided'])
+      expect([record, voided].sort(compareCausal).map(e => e.type)).toEqual(['ExpenseRecorded', 'ExpenseVoided'])
+    }
+  })
+
+  it('does the same for a cancelled sale', () => {
+    for (let i = 0; i < 30; i += 1) {
+      const sale = createEvent('SaleRecorded', {
+        lines: [{ itemId: 'x', nama: 'X', unit: 'sak', qty: 1000, hargaSatuan: 1000, subtotal: 1000 }],
+        metodeBayar: 'tunai', subtotal: 1000, diskon: 0, total: 1000,
+      }, at(T))
+      const voided = createEvent('SaleVoided', { saleId: sale.id, alasan: 'salah' }, at(T))
+      expect([voided, sale].sort(compareCausal).map(e => e.type)).toEqual(['SaleRecorded', 'SaleVoided'])
+    }
+  })
+
+  it('still orders by recordedAt first: an earlier void is not dragged after a later event', () => {
+    const early = createEvent('ExpenseVoided', { expenseId: 'x' }, at('2026-09-18T07:00:00.000Z'))
+    const late = createEvent('ItemUpserted', item('a'), at('2026-09-18T07:00:01.000Z'))
+    expect([late, early].sort(compareCausal).map(e => e.id)).toEqual([early.id, late.id])
+  })
+})

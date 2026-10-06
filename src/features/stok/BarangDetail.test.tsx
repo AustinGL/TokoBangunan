@@ -129,7 +129,7 @@ describe('BarangDetail', () => {
 
     renderAt('/stok/b1')
     await screen.findByRole('heading', { name: /riwayat stok/i })
-    await user.click(screen.getByRole('button', { name: /^atur$/i }))
+    await user.click(screen.getByRole('button', { name: /^atur ukuran$/i }))
 
     const dialog = within(await screen.findByRole('dialog', { name: /atur 50 kg/i }))
     expect(dialog.getByLabelText(/harga jual/i)).toHaveValue('65.000')

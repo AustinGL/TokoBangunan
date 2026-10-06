@@ -25,14 +25,14 @@ export function StatTile({ label, value, icon, tone = 'neutral', onClick, presse
     <>
       <IconTile icon={icon} tone={tone} size="sm" />
       <span className="flex min-w-0 flex-col">
-        <span className="whitespace-nowrap text-[22px] font-bold leading-7 tabular-nums text-ink">{value}</span>
-        <span className="text-[13px] leading-4 text-ink-muted">{label}</span>
+        <span className="whitespace-nowrap text-xl font-semibold tabular-nums text-ink">{value}</span>
+        <span className="text-sm text-ink-muted">{label}</span>
       </span>
     </>
   )
 
   if (!onClick) {
-    return <div className={`${BASE} border-border bg-surface shadow-card ${className}`}>{body}</div>
+    return <div className={`${BASE} border-transparent bg-surface shadow-card ${className}`}>{body}</div>
   }
 
   return (
@@ -41,8 +41,8 @@ export function StatTile({ label, value, icon, tone = 'neutral', onClick, presse
       aria-pressed={pressed}
       aria-label={`${label}: ${value}`}
       onClick={onClick}
-      className={`${BASE} transition-colors duration-instant active:scale-[0.98] ${
-        pressed ? 'border-primary bg-accent-50' : 'border-border bg-surface shadow-card hover:bg-[var(--table-row-hover)]'
+      className={`${BASE} press ${
+        pressed ? 'border-primary bg-accent-50' : 'border-transparent bg-surface shadow-card hover:bg-fill-tertiary'
       } ${className}`}
     >
       {body}

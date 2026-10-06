@@ -1,283 +1,434 @@
-/* Design tokens - "Toko Oranye" (docs/REDESIGN.md). Soft, flat, tonal light
-   theme with one orange accent. It replaces Kaca Putih (cobalt + frosted
-   glass): the glass blur, ambient glows and glass shadows are gone, so
-   nothing paints over a variable backdrop and there is no backdrop-filter
-   cost on the counter laptop. Two oranges on purpose: --primary carries
-   small white text and accent text (measured >= 4.5:1), --accent is for
-   graphics and large marks only (3.43:1 against white). Status keeps its own
-   hues and is never conveyed by colour alone. Light is the only theme:
-   color-scheme: light locks native controls against a phone set to dark. */
-
-/* 1.1 Primitives (never referenced from a component) */
-:root {
-  /* Orange (brand + primary action). 600/700/800 carry white text;
-     accent is for graphics, big glyphs and the dark focal widget only. */
-  --orange-600: #C43E17;  --orange-700: #B93A15;  --orange-800: #A33313;
-  --accent:     #E4623F;
-  --accent-300: #EE9A82;  --accent-200: #F4BFAE;
-  --accent-100: #FDEDE7;  --accent-50:  #FEF4F0;
-
-  /* Green (status "Aman" only - not a brand colour) */
-  --green-100: #DCF5EA;  --green-700: #0F6B46;
-
-  /* Neutral grey */
-  --grey-25:  #FAFAFA;  --grey-50:  #F7F7F7;  --grey-75:  #F1F1F1;
-  --grey-100: #EEEEEE;  --grey-150: #E6E6E6;
-  --grey-200: #E3E3E3;  --grey-300: #CFCFCF;  --grey-400: #B8B8B8;
-  --grey-500: #8A8A8A;  --grey-550: #6E6E6E;  --grey-600: #6B6B6B;
-  --grey-700: #4A4A4A;  --grey-900: #111111;
-
-  /* Status: warning, danger. Danger doubles as the notification dot -
-     verified 3:1 or better against every background it can sit on. */
-  --amber-600: #A66A12;  --amber-700: #8A5714;  --amber-100: #FCEFD6;
-  --red-700:   #AE2E2E;  --red-100:   #FDE4E4;
-}
-
-/* 1.2 Semantic tokens (light is the only theme - see 1.3 below) */
+/* Toko Clarity design tokens. Components consume semantic names only.
+   Direction: content is flat, white and quiet; only the navigation layer
+   floats in glass; blue is reserved for actions; motion is spring-based and
+   always honours prefers-reduced-motion. Light is the only theme, but every
+   colour below is a token so a dark set can be added without touching
+   components. */
 :root {
   color-scheme: light;
 
-  /* Surfaces: shell (page canvas, edge to edge) -> card -> raised white.
-     Hierarchy comes from these tone steps, not from shadows. */
-  --background:     var(--grey-50);   /* the shell / page canvas */
-  --surface:        #FFFFFF;          /* raised card, input, pill, sheet */
+  /* Primitives (components never reference these directly) */
+  --blue-500: #0071E3;
+  --blue-600: #0066CC;
+  --blue-700: #0058B0;
+  --blue-50: #E8F1FC;
+  --blue-100: #DFEBFB;
+  --blue-200: #AFCFF5;
+  --blue-300: #7FB3EE;
+
+  --gray-25: #FBFBFD;
+  --gray-50: #F5F5F7;
+  --gray-100: #EFEFF2;
+  --gray-150: #E4E4E8;
+  --gray-300: #C7C7CC;
+  --gray-400: #AEAEB2;
+  --gray-500: #86868B;
+  --gray-600: #6B6B70;
+  --gray-700: #424245;
+  --gray-900: #1D1D1F;
+
+  --green-100: #E5F6EA;
+  --green-700: #1E7B34;
+  --amber-100: #FFF1D6;
+  --amber-700: #8A4B00;
+  --red-100: #FDE8E6;
+  --red-700: #C4271D;
+  --info-100: #E3EFFD;
+  --info-700: #0A58B8;
+
+  /* Surfaces: canvas -> white card. Hierarchy comes from tone, not shadow. */
+  --background: var(--gray-50);
+  --surface: #FFFFFF;
   --surface-raised: #FFFFFF;
-  --surface-card:   var(--grey-75);   /* standard card sitting on the shell */
-  --surface-sunken: var(--grey-25);
-  --surface-inset:  var(--grey-150);  /* inactive chip, empty track */
+  --surface-card: var(--gray-50);
+  --surface-sunken: var(--gray-25);
+  --surface-inset: var(--gray-100);
+  --fill-secondary: rgba(120, 120, 128, .12);
+  --fill-tertiary: rgba(120, 120, 128, .08);
 
-  /* Boundaries. Two kinds, and they are not interchangeable. */
-  --border:        var(--grey-200);  /* decorative separator, contrast-exempt */
-  --border-strong: var(--grey-300);  /* decorative, heavier */
-  --border-input:  var(--grey-500);  /* CONTROL boundary, must stay 3:1 or better */
+  /* Boundaries. A hairline separates; a control border must stay 3:1. */
+  --separator: rgba(60, 60, 67, .16);
+  --border: rgba(60, 60, 67, .12);
+  --border-strong: rgba(60, 60, 67, .22);
+  --border-input: var(--gray-500);
 
-  /* Ink. Never put --ink-muted / --ink-faint on --surface-inset (4.27:1). */
-  --ink:            var(--grey-900);
-  --ink-muted:      var(--grey-600);
-  --ink-faint:      var(--grey-550);  /* floor for text, 12px minimum */
-  --ink-disabled:   var(--grey-400);  /* disabled only, contrast-exempt */
+  --ink: var(--gray-900);
+  --ink-muted: var(--gray-600);
+  --ink-faint: var(--gray-600);
+  --ink-disabled: var(--gray-400);
   --ink-on-primary: #FFFFFF;
 
-  /* Primary action: orange. Darker shades for hover/active keep white text
-     comfortably above AA at every state. */
-  --primary:        var(--orange-600);
-  --primary-hover:  var(--orange-700);
-  --primary-active: var(--orange-800);
+  /* Blue: --primary fills with white text; --primary-ink is blue as text. */
+  --primary: var(--blue-500);
+  --primary-hover: var(--blue-600);
+  --primary-active: var(--blue-700);
+  --primary-ink: var(--blue-600);
+  --accent: var(--blue-500);
+  --accent-300: var(--blue-300);
+  --accent-200: var(--blue-200);
+  --accent-100: var(--blue-100);
+  --accent-50: var(--blue-50);
+  --accent-soft: var(--blue-100);
+  --accent-tint: var(--blue-50);
 
-  /* Tint fills (badge background, active nav). Primary text sits on both
-     at >= 4.5:1. */
-  --accent-soft: var(--accent-100);
-  --accent-tint: var(--accent-50);
+  --success: var(--green-700);   --success-bg: var(--green-100);
+  --warning: var(--amber-700);   --warning-bg: var(--amber-100);
+  --danger: var(--red-700);      --danger-bg: var(--red-100);
+  --info: var(--info-700);       --info-bg: var(--info-100);
+  --neutral: var(--gray-700);    --neutral-bg: var(--gray-100);
+  --dot-danger: var(--red-700);
+  --dot-warning: var(--amber-700);
+  --dot-neutral: var(--gray-600);
+  --dot-notif: var(--red-700);
 
-  /* Status */
-  --success: var(--green-700);  --success-bg: var(--green-100);
-  --warning: var(--amber-700);  --warning-bg: var(--amber-100);
-  --danger:  var(--red-700);    --danger-bg:  var(--red-100);
-  --neutral: var(--grey-700);   --neutral-bg: var(--grey-100);
-
-  /* Dots for alert lists and the nav notification dot. Non-text, 3:1 or
-     better against every background they can sit on (measured in
-     tokens.test.ts). Danger, never the accent: a notification must not
-     read as decoration. */
-  --dot-danger:  var(--red-700);
-  --dot-warning: var(--amber-600);
-  --dot-neutral: var(--grey-700);
-  --dot-notif:   var(--red-700);
-
-  /* Data marks. --data-fill is --primary (not --accent) because it is
-     measured against --data-track at >= 3:1; --accent only clears that on
-     white and on the dark focal widget. */
-  --data-fill:  var(--primary);
-  --data-track: var(--grey-150);
-
-  /* The one dark focal widget (Beranda's "Penjualan hari ini"). */
-  --focal-bg: var(--grey-900);
+  --data-fill: var(--blue-500);
+  --data-track: var(--blue-100);
+  --focal-bg: var(--gray-900);
   --focal-fg: #FFFFFF;
 
-  /* Focus */
-  --focus-ring:   var(--primary);
+  /* Navigation material: the only translucent layer. */
+  --sidebar-bg: rgba(255, 255, 255, .72);
+  --sidebar-raised: var(--fill-tertiary);
+  --sidebar-border: var(--separator);
+  --sidebar-ink: var(--gray-900);
+  --sidebar-muted: var(--gray-600);
+  --sidebar-faint: var(--gray-600);
+  --sidebar-active: var(--fill-secondary);
+
+  --glass-bg: rgba(255, 255, 255, .72);
+  --glass-bg-strong: rgba(255, 255, 255, .86);
+  --glass-border: rgba(255, 255, 255, .6);
+  --glass-highlight: inset 0 .5px 0 rgba(255, 255, 255, .9);
+
+  --focus-ring: var(--blue-500);
   --focus-offset: var(--surface);
+  --shadow-card: 0 0 0 .5px rgba(0, 0, 0, .05);
+  --shadow-float: 0 8px 28px rgba(0, 0, 0, .10), 0 0 0 .5px rgba(0, 0, 0, .06);
+  --shadow-panel: 0 24px 64px rgba(0, 0, 0, .18), 0 0 0 .5px rgba(0, 0, 0, .08);
+  --shadow-button: none;
+  --shadow-button-hover: none;
+  --scrim: rgba(0, 0, 0, .28);
 
-  /* Shadow and scrim. Almost flat: only white raised elements get the
-     hairline; panels (sheets, toast, FAB) keep a soft neutral lift. */
-  --shadow-card:  0 1px 2px rgba(17, 17, 17, .04);
-  --shadow-panel: 0 8px 24px rgba(17, 17, 17, .10), 0 24px 48px -16px rgba(17, 17, 17, .14);
-  --scrim:        rgba(17, 17, 17, .48);
-}
+  /* Type: 34px is the Large Title. Tracking is applied per size in tailwind.config.js. */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+  --leading-2xs: 14px;
+  --leading-xs: 16px;
+  --leading-sm: 20px;
+  --leading-base: 24px;
+  --leading-lg: 22px;
+  --leading-xl: 28px;
+  --leading-2xl: 34px;
+  --leading-3xl: 41px;
 
-/* 1.3 Dark mode: retired.
-   Toko Oranye ships light-only, like Kaca Putih before it: color-scheme:
-   light above locks native controls (date pickers, checkboxes) to light
-   rendering even on a phone set to dark mode. The token *names* are
-   unchanged, so a dark theme could return later by adding the two
-   selectors back without touching any component. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
 
-/* 1.4 Spacing, radius, motion, layering */
-:root {
-  /* Spacing, 4px base. */
-  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
-  --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --r-card-xl: 26px;
+  --r-card: 20px;
+  --r-sheet: 26px;
+  --r-inner: 14px;
+  --r-field: 12px;
+  --r-tile: 10px;
+  --r-pill: 9999px;
 
-  /* Radius. Soft: big cards, pill controls. No app-shell radius: the app
-     runs edge to edge as an installed PWA. */
-  --r-card-xl: 28px;
-  --r-card:    24px;
-  --r-sheet:   24px;
-  --r-inner:   16px;
-  --r-field:   14px;
-  --r-tile:    14px;
-  --r-pill:    9999px;
-
-  /* Motion: three durations, two easings. */
-  --dur-instant: 90ms;    /* press feedback, hover */
-  --dur-quick:   160ms;   /* pill switch, tooltip, qty change, popovers */
-  --dur-panel:   240ms;   /* drawer, modal, sheet, cart panel */
-  --ease-out:    cubic-bezier(.16, 1, .3, 1);
+  /* Motion. Springs are sampled from a damped-spring equation (linear()).
+     --ease-spring: ~1% overshoot, settles in ~480ms. --ease-spring-bouncy:
+     ~5% overshoot for toasts and pops. Exits are always faster than entries. */
+  --dur-instant: 100ms;
+  --dur-quick: 200ms;
+  --dur-panel: 420ms;
+  --dur-exit: 160ms;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
   --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --ease-ios: cubic-bezier(.32, .72, 0, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(.22, 1.1, .36, 1);
+  --ease-spring-bouncy: cubic-bezier(.34, 1.45, .5, 1);
+  --press-scale: .97;
 
-  /* Layering. Use these names, never a raw z-index. */
-  --z-base:     0;
-  --z-sticky:   10;   /* table header, cart footer */
-  --z-nav:      20;
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-nav: 20;
   --z-dropdown: 30;
-  --z-scrim:    40;
-  --z-modal:    50;
-  --z-toast:    60;
-
-  /* Sticky element reservation. A sticky bar that covers a focused control
-     is a WCAG 2.2 failure, so scrollable regions near one reserve space via
-     scroll-padding and a bottom inset. */
-  --sticky-top:    64px;
+  --z-scrim: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --sticky-top: 64px;
   --sticky-bottom: 96px;
-}
+  --sidebar-w: 256px;
+  --workspace-wide: 1440px;
+  --workspace-dashboard: 1280px;
+  --panel-w: 420px;
 
-.scroll-region {
-  scroll-padding-top: var(--sticky-top);
-  scroll-padding-bottom: var(--sticky-bottom);
-  /* The bottom inset so the last row is not stranded behind a sticky footer. */
-  padding-bottom: var(--sticky-bottom);
-}
-
-/* 1.5 Component tokens */
-:root {
-  --btn-primary-bg:   var(--primary);
-  --btn-primary-fg:   var(--ink-on-primary);
-  --btn-secondary-bg: var(--surface);
-  --btn-secondary-fg: var(--ink);
-  --btn-secondary-bd: var(--border-input);
-
-  --field-bg:          var(--surface);
-  --field-bd:          var(--border-input);
-  --field-bd-invalid:  var(--danger);
+  --btn-primary-bg: var(--primary);
+  --btn-primary-fg: var(--ink-on-primary);
+  --btn-secondary-bg: var(--fill-secondary);
+  --btn-secondary-fg: var(--blue-700);
+  --btn-secondary-bd: transparent;
+  --field-bg: #FFFFFF;
+  --field-bd: var(--border-input);
+  --field-bd-invalid: var(--danger);
   --field-placeholder: var(--ink-faint);
-
-  /* Muted, not faint: the header row sits on --surface-card, where
-     --ink-faint is only 4.51:1. */
-  --table-head-fg:   var(--ink-muted);
-  --table-head-bg:   var(--surface-card);
-  --table-row-bd:    var(--border);
-  --table-row-hover: var(--background);
-
-  --tap-min: 44px;   /* every interactive control */
-
-  /* One height for every input, select, button, pill and search field.
-     48px clears the 44px tap floor and matches today's layouts closely.
-     --control-h-sm is for dense in-card actions; its hit area is padded to 44px. */
-  --control-h:    48px;
+  --table-head-fg: var(--ink-muted);
+  --table-head-bg: var(--surface);
+  --table-row-bd: var(--separator);
+  --table-row-hover: var(--fill-tertiary);
+  --tap-min: 44px;
+  --control-h: 44px;
   --control-h-sm: 36px;
 }
 
-/* 1.5b Required-field marker
-   A visible "*" drawn by CSS, so it is not part of the label's text (a screen
-   reader gets the requirement from aria-required on the field instead, and
-   the field's accessible name stays exactly its label). */
-.req::after {
-  content: ' *';
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, .034, .118, .226, .344, .46, .567, .662, .743, .811, .865, .908, .941, .965, .983, .995, 1.003, 1.008, 1.01, 1.011, 1.011, 1.01, 1.009, 1.008, 1.006, 1.005, 1.004, 1.003, 1);
+    --ease-spring-bouncy: linear(0, .044, .151, .29, .438, .58, .707, .813, .897, .96, 1.004, 1.032, 1.048, 1.054, 1.053, 1.049, 1.042, 1.034, 1.026, 1.019, 1.012, 1.007, 1.003, 1.001, .999, .998, .997, .997, .997, .998, 1);
+  }
 }
 
-/* 1.6 Global focus ring (visible focus everywhere)
-   --focus-ring is measured against --surface by tokens.test.ts, so
-   applying it here is what turns that measurement into something a user
-   can actually see. :focus-visible, not :focus, so a mouse click on a
-   button does not draw a ring but a keyboard tab or a barcode-scanner-driven
-   focus move does. */
+.req::after { content: ' *'; }
+
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-/* 1.7 Reduced motion (reduced motion is honored)
-   The duration tokens collapse so anything built on them stops moving, and
-   the blanket rule catches third-party or hand-written CSS that never read
-   a token. 1ms rather than 0s keeps transitionend/animationend handlers
-   firing, so logic waiting on them cannot hang. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --dur-instant: 1ms;
-    --dur-quick:   1ms;
-    --dur-panel:   1ms;
-  }
-
-  *, *::before, *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-    scroll-behavior: auto !important;
-  }
+.scroll-region {
+  scroll-padding-top: var(--sticky-top);
+  scroll-padding-bottom: var(--sticky-bottom);
+  padding-bottom: var(--sticky-bottom);
 }
 
-/* 1.8 Card mount (Beranda only, first mount)
-   A short fade-and-rise. Staggered by the caller via --stagger. Disabled by
-   the reduced-motion block above (animation-duration collapses to 1ms). */
 @keyframes card-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .card-in {
-  animation: card-in 300ms var(--ease-out) both;
-  animation-delay: calc(var(--stagger, 0) * 40ms);
+  animation: card-in 320ms var(--ease-out) both;
+  animation-delay: calc(min(var(--stagger, 0), 6) * 30ms);
 }
 
-/* 1.9 Page shell
-   Both html and body declare the same background and colour, deliberately
-   redundant: without this the document falls back to the browser default
-   while the tokens above may be serving different values, producing
-   invisible content that every component still consumed correctly (see the
-   2026-09-21 bug this guards against, pinned by tokens.test.ts and
-   e2e/shell.spec.ts). */
 html {
   background-color: var(--background);
   color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, .28) transparent;
 }
 
 body {
+  min-height: 100vh;
+  margin: 0;
   background-color: var(--background);
   color: var(--ink);
-  font-family: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, sans-serif;
-  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter Variable', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* 1.10 Dropdown panel
-   A short fade and 4px slide away from the trigger. Uses --dur-quick, so the
-   reduced-motion block in 1.7 collapses it. */
+::selection { background: rgba(0, 113, 227, .22); }
+
+button, a, summary, [role='button'] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), summary { cursor: pointer; }
+
+:where(input:not([type='checkbox']):not([type='radio']), textarea) {
+  transition: border-color var(--dur-quick) var(--ease-in-out), background-color var(--dur-quick) var(--ease-in-out), box-shadow var(--dur-quick) var(--ease-in-out);
+}
+
+:where(input:not([type='checkbox']):not([type='radio']), textarea):enabled:hover { border-color: var(--ink-muted); }
+:where(input:not([type='checkbox']):not([type='radio']), textarea):focus { box-shadow: 0 0 0 4px rgba(0, 113, 227, .16); }
+:where(input, textarea, select):focus-visible { outline-offset: 0; }
+:where(input:not([type='checkbox']):not([type='radio']), textarea):disabled {
+  cursor: not-allowed;
+  background-color: var(--surface-card);
+  color: var(--ink-disabled);
+}
+
+#konten { min-height: 100dvh; }
+
+/* Content layer: flat white, no border, no shadow. */
+.crafted-panel {
+  background: var(--surface);
+  border-color: transparent;
+  box-shadow: var(--shadow-card);
+}
+
+/* Navigation layer: the one translucent material. */
+.glass-panel {
+  background: var(--glass-bg);
+  box-shadow: var(--glass-highlight), var(--shadow-float);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-panel { background: rgba(255, 255, 255, .95); }
+}
+
+/* Inset-grouped list rows: the hairline starts after the leading icon. */
+.row-sep > * + * { position: relative; }
+.row-sep > * + *::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: var(--sep-inset, 16px);
+  height: 1px;
+  background: var(--separator);
+  transform: scaleY(.5);
+  transform-origin: top;
+}
+
+/* Continuous (squircle) corners where the browser supports them. Pills and
+   circles keep plain radii: a squircle would turn a capsule into a blob. */
+@supports (corner-shape: squircle) {
+  .rounded-card, .rounded-card-xl, .rounded-sheet, .rounded-inner, .rounded-field, .rounded-tile { corner-shape: squircle; }
+}
+
+.sidebar-sync [role='status'] { color: var(--sidebar-muted); }
+
+/* Press feedback: physical, quick to engage, springs back on release. */
+.press {
+  transition: transform var(--dur-quick) var(--ease-spring), background-color var(--dur-quick) var(--ease-in-out), color var(--dur-quick) var(--ease-in-out);
+}
+.press:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+  transition-duration: 80ms, var(--dur-quick), var(--dur-quick);
+}
+
+/* Dropdown panels grow from the trigger edge they are attached to. */
 @keyframes listbox-in {
-  from { opacity: 0; transform: translateY(var(--listbox-from, -4px)); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(var(--listbox-from, -6px)) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes listbox-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(var(--listbox-from, -6px)) scale(.97); }
 }
 
 .listbox-in {
-  animation: listbox-in var(--dur-quick) var(--ease-out) both;
+  transform-origin: var(--listbox-origin, top center);
+  animation: listbox-in 260ms var(--ease-spring) both;
+}
+.listbox-out {
+  transform-origin: var(--listbox-origin, top center);
+  animation: listbox-out var(--dur-exit) var(--ease-exit) both;
+  pointer-events: none;
+}
+.listbox-up { --listbox-from: 6px; --listbox-origin: bottom center; }
+
+/* Sheets: native dialog. Entry and exit both animate through
+   @starting-style + allow-discrete; browsers without it just open instantly. */
+dialog[data-sheet] {
+  --sheet-from: translateY(100%);
+  opacity: 0;
+  transform: var(--sheet-from);
+  transition:
+    opacity var(--dur-exit) var(--ease-exit),
+    transform var(--dur-exit) var(--ease-exit),
+    overlay var(--dur-exit) allow-discrete,
+    display var(--dur-exit) allow-discrete;
+}
+dialog[data-sheet][open] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 260ms var(--ease-out),
+    transform var(--dur-panel) var(--ease-ios),
+    overlay var(--dur-panel) allow-discrete,
+    display var(--dur-panel) allow-discrete;
+}
+dialog[data-sheet][data-variant='center'] { --sheet-from: scale(.96); }
+@media (min-width: 768px) {
+  dialog[data-sheet][data-variant='side'] { --sheet-from: translateX(32px); }
+}
+@starting-style {
+  dialog[data-sheet][open] { opacity: 0; transform: var(--sheet-from); }
+}
+dialog[data-sheet]::backdrop {
+  background: var(--scrim);
+  opacity: 0;
+  transition: opacity var(--dur-exit) var(--ease-exit), overlay var(--dur-exit) allow-discrete, display var(--dur-exit) allow-discrete;
+}
+dialog[data-sheet][open]::backdrop { opacity: 1; transition-duration: 300ms, 300ms, 300ms; transition-timing-function: var(--ease-out); }
+@starting-style {
+  dialog[data-sheet][open]::backdrop { opacity: 0; }
 }
 
-.listbox-up {
-  --listbox-from: 4px;
+/* Route changes: only the page content crossfades; the nav stays put. */
+html:active-view-transition #konten { view-transition-name: content; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(content) { animation: vt-out 120ms var(--ease-exit) both; }
+::view-transition-new(content) { animation: vt-in 280ms var(--ease-out) both; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
+
+@keyframes shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+.skeleton {
+  background: linear-gradient(100deg, var(--fill-tertiary) 30%, rgba(120, 120, 128, .16) 50%, var(--fill-tertiary) 70%);
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
 }
 
-/* 1.11 Native date fields
-   The picker itself stays native (the best one on a phone). Only the calendar
-   glyph gets a comfortable hit area and a calmer tone, so the three date
-   fields sit with the text fields. */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-16px) scale(.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-10px) scale(.96); }
+}
+.toast-in { animation: toast-in 520ms var(--ease-spring-bouncy) both; }
+.toast-out { animation: toast-out var(--dur-exit) var(--ease-exit) both; }
+
+@keyframes digit-in {
+  from { opacity: 0; transform: translateY(.45em); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.digit-in { display: inline-block; animation: digit-in 360ms var(--ease-spring) both; }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(28px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rise-in { animation: rise-in 520ms var(--ease-spring-bouncy) both; }
+
+@keyframes pop {
+  0% { transform: scale(.82); }
+  100% { transform: scale(1); }
+}
+.pop { animation: pop 420ms var(--ease-spring-bouncy) both; }
+
+/* Animated disclosure: the panel grows instead of snapping open. */
+@supports (interpolate-size: allow-keywords) {
+  details { interpolate-size: allow-keywords; }
+  details::details-content {
+    height: 0;
+    overflow: clip;
+    opacity: 0;
+    transition: height var(--dur-panel) var(--ease-ios), opacity var(--dur-quick) var(--ease-out), content-visibility var(--dur-panel) allow-discrete;
+  }
+  details[open]::details-content { height: auto; opacity: 1; }
+}
+
 input[type='date']::-webkit-calendar-picker-indicator {
   box-sizing: content-box;
   width: 20px;
@@ -286,10 +437,18 @@ input[type='date']::-webkit-calendar-picker-indicator {
   margin-right: -8px;
   border-radius: var(--r-pill);
   cursor: pointer;
-  opacity: .65;
+  opacity: .6;
 }
 
-input[type='date']::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
-  background: var(--surface-card);
+input[type='date']::-webkit-calendar-picker-indicator:hover { opacity: 1; background: var(--fill-secondary); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-instant: 1ms; --dur-quick: 1ms; --dur-panel: 1ms; --dur-exit: 1ms; }
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

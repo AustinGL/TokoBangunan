@@ -1,4 +1,15 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
+
+/**
+ * Lazy routes (Kasir, Laporan...) are real dynamic imports that vite has to
+ * transform on first use. Testing Library's default 1s wait is too short for
+ * that when the machine is busy (the full suite running in parallel), which
+ * made navigation tests fail at random and pass on a rerun. Raising the cap
+ * costs nothing when the element appears quickly: a wait returns as soon as
+ * it is found, and only a genuinely missing element waits the full time.
+ */
+configure({ asyncUtilTimeout: 10_000 })
 
 /**
  * jsdom (29.1.1, this project's installed version) implements no methods at

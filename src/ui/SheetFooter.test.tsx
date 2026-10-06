@@ -8,7 +8,7 @@ describe('SheetFooter', () => {
   it('is sticky to the bottom, full-bleed, with a top border and its own background', () => {
     render(<form><SheetFooter><Button type="submit">Simpan</Button></SheetFooter></form>)
     const footer = screen.getByRole('button', { name: 'Simpan' }).parentElement!
-    expect(footer).toHaveClass('sticky', 'bottom-0', 'border-t', 'bg-surface')
+    expect(footer).toHaveClass('sticky', 'bottom-0', 'translate-y-4', 'border-t', 'bg-surface')
     expect(footer.className).toMatch(/-mx-4/)
     expect(footer.className).toMatch(/mt-auto/)
     expect(footer.className).toMatch(/safe-area-inset-bottom/)

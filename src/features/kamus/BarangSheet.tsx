@@ -54,33 +54,35 @@ export function BarangSheet({ open, onClose, onSubmit, initialValues, initialNam
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah barang' : 'Barang baru'} variant="center">
       <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
-          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger">
             {submitError}
           </p>
         )}
         <div className="flex flex-col gap-1">
-          <label htmlFor="barang-nama" className="req text-[14px] font-medium text-ink">Nama barang</label>
+          <label htmlFor="barang-nama" className="req text-sm font-medium text-ink">Nama barang</label>
           <input
             id="barang-nama" value={nama} onChange={e => setNama(e.target.value)}
+            aria-required="true"
             aria-invalid={error ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            aria-describedby={error ? 'barang-nama-error' : undefined}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {error && <p className="text-[13px] text-danger">{error}</p>}
+          {error && <p id="barang-nama-error" className="text-sm text-danger">{error}</p>}
         </div>
 
         <KategoriPicker value={kategoriId} onChange={setKategoriId} />
 
         {/* Archiving something that does not exist yet makes no sense: edit only. */}
         {initialValues && (
-          <label className="flex min-h-control items-center gap-2 text-[14px] text-ink">
-            <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5" />
+          <label className="flex min-h-control items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={diarsipkan} onChange={e => setDiarsipkan(e.target.checked)} className="h-5 w-5 accent-primary" />
             Arsipkan
           </label>
         )}
 
         <SheetFooter>
-          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
-            {submitting ? 'Menyimpan...' : 'Simpan'}
+          <Button type="submit" variant="primary" fullWidth loading={submitting} loadingLabel="Menyimpan...">
+            Simpan
           </Button>
         </SheetFooter>
       </form>

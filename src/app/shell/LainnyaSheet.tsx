@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { LAINNYA_ITEMS } from './navItems'
 import { Icon } from '../../ui/Icon'
 import { NotifDot } from '../../ui/NotifDot'
@@ -14,6 +15,9 @@ type Props = {
   pendingCount: number
 }
 
+const ROW =
+  'flex min-h-control items-center gap-3 px-4 text-sm font-medium text-ink transition-colors duration-instant hover:bg-fill active:bg-fill'
+
 /**
  * Flow spec: "Lainnya holds: Transaksi, Supplier, Laporan" (Kamus Barang is
  * new since that spec was written, added alongside Supplier under the same
@@ -22,11 +26,14 @@ type Props = {
  * real screens. A sheet (not a route) means BottomNav.tsx can open it from
  * any screen without a navigation round-trip, and it never needs its own
  * back-button handling.
+ *
+ * Laid out as an inset-grouped list (iOS Settings): one rounded group, rows
+ * divided by hairlines that start after the icon.
  */
 export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pendingCount }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title="Lainnya" variant="side">
-      <nav aria-label="Lainnya" className="flex flex-col gap-1">
+      <nav aria-label="Lainnya" className="row-sep overflow-hidden rounded-card bg-fill-tertiary [--sep-inset:52px]">
         {LAINNYA_ITEMS.map(item => {
           const badgeCount = item.path === '/supplier' ? supplierAlertCount : 0
           return (
@@ -35,11 +42,12 @@ export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pe
               to={item.path}
               onClick={onClose}
               aria-label={badgeCount > 0 ? `${item.label}, ${badgeCount} perlu dilengkapi` : undefined}
-              className="flex min-h-control items-center gap-3 rounded-tile px-3 text-[14px] font-medium text-ink"
+              className={ROW}
             >
-              <Icon icon={item.icon} size="button" />
+              <Icon icon={item.icon} size="nav" className="text-primary-ink" />
               <span className="flex-1">{item.label}</span>
               {badgeCount > 0 && <NotifDot />}
+              <Icon icon={ChevronRight} size="inline" className="text-ink-faint" />
             </Link>
           )
         })}
@@ -53,9 +61,9 @@ export function LainnyaSheet({ open, onClose, supplierAlertCount, syncStatus, pe
         <Link
           to="/masuk"
           onClick={onClose}
-          className="mt-4 flex min-h-control flex-col gap-1 rounded-tile border border-border px-3 py-2"
+          className="mt-4 flex min-h-control flex-col gap-1 rounded-card bg-fill-tertiary px-4 py-3 transition-colors duration-instant hover:bg-fill"
         >
-          <span className="text-[14px] font-medium text-ink">Akun dan cadangan</span>
+          <span className="text-sm font-medium text-ink">Akun dan cadangan</span>
           <SyncIndicator status={syncStatus} pendingCount={pendingCount} />
         </Link>
       )}

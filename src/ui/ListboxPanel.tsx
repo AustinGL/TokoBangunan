@@ -17,6 +17,12 @@ type Props = {
   highlight?: string
   /** Width classes; the panel is absolutely positioned inside a `relative` parent. */
   className?: string
+  /**
+   * True while the panel plays its exit animation. The list is then a ghost:
+   * it drops its listbox role and id, is hidden from assistive tech and inert,
+   * so the accessibility tree already reflects "closed".
+   */
+  closing?: boolean
   onPick: (row: ListboxRow) => void
 }
 
@@ -33,7 +39,7 @@ function Emphasised({ text, needle }: { text: string; needle: string }) {
 }
 
 export function ListboxPanel({
-  id, rows, activeIndex, selectedValue, emptyText, placement, highlight = '', className = 'w-full', onPick,
+  id, rows, activeIndex, selectedValue, emptyText, placement, highlight = '', className = 'w-full', closing = false, onPick,
 }: Props) {
   const listRef = useRef<HTMLUListElement>(null)
   const needle = highlight.trim().toLowerCase()
@@ -50,18 +56,20 @@ export function ListboxPanel({
   return (
     <ul
       ref={listRef}
-      id={id}
-      role="listbox"
+      id={closing ? undefined : id}
+      role={closing ? undefined : 'listbox'}
+      aria-hidden={closing || undefined}
+      inert={closing}
       // Pressing the panel (or dragging its scrollbar) must not steal focus
       // from the trigger, or the blur-driven close would fire first.
       onMouseDown={e => e.preventDefault()}
       style={{ maxHeight: placement.maxHeight }}
-      className={`listbox-in absolute left-0 z-dropdown overflow-y-auto overscroll-contain rounded-inner border border-border bg-surface p-1 shadow-panel ${
-        up ? 'listbox-up bottom-full mb-1' : 'top-full mt-1'
+      className={`${closing ? 'listbox-out' : 'listbox-in'} absolute left-0 z-dropdown overflow-y-auto overscroll-contain rounded-inner bg-surface p-1.5 shadow-float ${
+        up ? 'listbox-up bottom-full mb-1.5' : 'top-full mt-1.5'
       } ${className}`}
     >
       {rows.length === 0 ? (
-        <li role="presentation" className="flex items-center gap-2 px-3 py-3 text-[13px] text-ink-muted">
+        <li role="presentation" className="flex items-center gap-2 px-3 py-3 text-sm text-ink-muted">
           <Icon icon={SearchX} size="inline" className="shrink-0" />
           {emptyText}
         </li>
@@ -89,9 +97,9 @@ export function ListboxPanel({
                 e.preventDefault()
                 if (!row.disabled) onPick(row)
               }}
-              className={`flex min-h-control items-center gap-2 rounded-tile px-3 py-2 text-[14px] ${
+              className={`flex min-h-control items-center gap-2 rounded-tile px-3 py-2 text-sm ${
                 row.disabled ? 'cursor-not-allowed text-ink-disabled' : 'cursor-pointer'
-              } ${create ? 'font-semibold text-primary' : row.disabled ? '' : 'text-ink'} ${active ? 'bg-accent-50' : ''}`}
+              } ${create ? 'font-semibold text-primary-ink' : row.disabled ? '' : 'text-ink'} ${active ? 'bg-fill' : ''}`}
             >
               {create && <Icon icon={Plus} size="inline" className="shrink-0" />}
               <span className="flex min-w-0 flex-1 flex-col">
@@ -99,10 +107,10 @@ export function ListboxPanel({
                   {create ? row.label : <Emphasised text={row.label} needle={needle} />}
                 </span>
                 {row.hint && (
-                  <span id={hintId} className="text-[12px] text-ink-muted">{row.hint}</span>
+                  <span id={hintId} className="text-xs text-ink-muted">{row.hint}</span>
                 )}
               </span>
-              {selected && <Icon icon={Check} size="inline" className="shrink-0 text-primary" />}
+              {selected && <Icon icon={Check} size="inline" className="shrink-0 text-primary-ink" />}
             </li>
           )
         })

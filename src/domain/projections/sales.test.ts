@@ -146,3 +146,15 @@ describe('reduceSales: batchId/hargaNormal passthrough and derived indexes', () 
     expect(projectSales([e])[e.id].batchIds).toEqual([])
   })
 })
+
+describe('projectSales Bon fields', () => {
+  it('keeps metodeBayar, customerId, jatuhTempo and dibayarAwal on a Bon sale', () => {
+    const e = createEvent('SaleRecorded', {
+      lines: [line], metodeBayar: 'bon' as const, subtotal: 104000, diskon: 0, total: 104000,
+      customerId: 'c1', jatuhTempo: '2026-10-17', dibayarAwal: 20000,
+    }, at('2026-10-03T07:00:00.000Z'))
+    expect(projectSales([e])[e.id]).toMatchObject({
+      metodeBayar: 'bon', customerId: 'c1', jatuhTempo: '2026-10-17', dibayarAwal: 20000, status: 'aktif',
+    })
+  })
+})

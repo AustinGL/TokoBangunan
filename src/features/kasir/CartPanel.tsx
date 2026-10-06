@@ -11,14 +11,21 @@ import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { useBatches } from '../shared/useBatches'
 import { useSuppliers } from '../shared/useSuppliers'
-import { formatTanggal } from '../shared/formatTanggal'
+import { formatTanggal, formatTanggalKey } from '../shared/formatTanggal'
 import { RupiahInput } from '../../ui/RupiahInput'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
 import { Icon } from '../../ui/Icon'
+import { NumberTicker } from '../../ui/NumberTicker'
 import { legacyRemainder, availableForLine, planSplit } from '../../domain/batchPick'
 import type { Supplier } from '../../domain/projections/suppliers'
 import type { Batch } from '../../domain/projections/batches'
+import { DatePicker } from '../../ui/DatePicker'
+import { SegmentedControl } from '../../ui/SegmentedControl'
+import { PelangganPicker } from '../shared/PelangganPicker'
+import { useCustomers } from '../shared/useCustomers'
+import { todayIsoDate } from '../../domain/tanggal'
+import { geserHari, ringkas } from '../../domain/kalender'
 import { movedHargaSatuan, type CartLine, type UseCartResult, type SplitLineInput } from './useCart'
 
 /**
@@ -43,7 +50,28 @@ type Props = {
   onDone?: () => void
 }
 
-type Receipt = { saleId: string; total: number; uangDiterima?: number; kembalian?: number }
+type Receipt = {
+  saleId: string
+  total: number
+  uangDiterima?: number
+  kembalian?: number
+  /** Present for a Bon: what was paid at the counter, what stays as piutang, and when it is due. */
+  bon?: { dibayar: number; sisa: number; jatuhTempo: string }
+  /** Present for a Transfer or QRIS sale: paid in full, no cash changed hands. */
+  nonTunai?: string
+}
+
+type Metode = 'tunai' | 'bon' | 'transfer' | 'qris'
+
+const OPSI_METODE: Array<{ value: Metode; label: string }> = [
+  { value: 'tunai', label: 'Tunai' },
+  { value: 'transfer', label: 'Transfer' },
+  { value: 'qris', label: 'QRIS' },
+  { value: 'bon', label: 'Bon' },
+]
+
+/** Days until a Bon is due when the customer has no terms of their own (or is not loaded yet). */
+const DEFAULT_TEMPO_HARI = 30
 
 /**
  * A human name for where a cart line's stock comes from, used in accessible
@@ -98,8 +126,8 @@ function QtyStepper({ line, sourceLabel, onChange }: { line: CartLine; sourceLab
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <IconButton icon={Minus} label="Kurangi jumlah" shape="field" onClick={() => onChange(line.qtyWhole - 1)} />
+    <div className="flex w-fit items-center rounded-pill bg-fill">
+      <IconButton icon={Minus} label="Kurangi jumlah" variant="ghost" onClick={() => onChange(line.qtyWhole - 1)} />
       <div className="flex flex-col items-center">
         {/* The - and + buttons already say what this is for; a visible "Jumlah" above the box only cost a row of height. */}
         <label htmlFor={inputId} className="sr-only">
@@ -114,10 +142,10 @@ function QtyStepper({ line, sourceLabel, onChange }: { line: CartLine; sourceLab
           value={draft}
           onChange={e => handleChange(e.target.value)}
           onBlur={handleBlur}
-          className="h-control w-16 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-center text-[14px] text-ink"
+          className="h-control w-12 appearance-none rounded-none border-0 bg-transparent px-0 text-center text-base font-semibold tabular-nums text-ink [-moz-appearance:textfield] focus:shadow-none md:text-sm [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
       </div>
-      <IconButton icon={Plus} label="Tambah jumlah" shape="field" onClick={() => onChange(line.qtyWhole + 1)} />
+      <IconButton icon={Plus} label="Tambah jumlah" variant="ghost" onClick={() => onChange(line.qtyWhole + 1)} />
     </div>
   )
 }
@@ -139,7 +167,7 @@ function PriceEdit({ line, sourceLabel, onChange }: { line: CartLine; sourceLabe
       <button
         type="button"
         onClick={() => { setDraft(line.hargaSatuan === null ? '' : String(line.hargaSatuan)); setEditing(true) }}
-        className="flex min-h-control min-w-control items-center gap-1 text-[12px] tabular-nums text-ink-faint"
+        className="flex min-h-control min-w-control items-center gap-1 text-xs tabular-nums text-ink-faint"
       >
         {/* The separating spaces sit OUTSIDE the spans on purpose: accessible-name computation trims each element's own text, and a whitespace-only text node renders nothing inside this flex button. */}
         <span className="sr-only">Ubah harga {line.nama} ({sourceLabel}):</span>{' '}
@@ -169,7 +197,7 @@ function PriceEdit({ line, sourceLabel, onChange }: { line: CartLine; sourceLabe
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
-        className="h-control w-28 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-[13px] text-ink"
+        className="h-control w-28 rounded-field border border-[var(--field-bd)] bg-[var(--field-bg)] px-2 text-base text-ink md:text-sm"
       />
     </div>
   )
@@ -262,7 +290,7 @@ function BatchChip({
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
         aria-label={`Ubah batch untuk ${line.nama}, saat ini ${label}`}
-        className="flex min-h-control items-center gap-1 text-[12px] text-ink-faint"
+        className="flex min-h-control items-center gap-1 text-xs text-ink-faint"
       >
         {label}
         <Icon icon={ChevronDown} size="inline" />
@@ -275,7 +303,7 @@ function BatchChip({
         // blocking error, and a role="alert" here would collide with (and
         // make ambiguous) CartPanel's own save-error alert whenever both are
         // visible at once.
-        <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-warning">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-warning">
           <span>Ambil {wholeOf(movableQty)} {line.unit} dari batch berikutnya?</span>
           <Button variant="secondary" size="sm" onClick={handleSplit}>
             Bagi otomatis
@@ -286,7 +314,7 @@ function BatchChip({
       {expanded && (
         <div role="radiogroup" aria-label={`Pilih batch untuk ${line.nama}`} className="flex flex-col gap-1 rounded-tile border border-border-input p-2">
           {legacyAvailableRaw > 0 && (
-            <label className="flex min-h-control items-center gap-2 text-[13px] text-ink">
+            <label className="flex min-h-control items-center gap-2 text-sm text-ink">
               <input
                 type="radio" name={`batch-${line.itemId}-${line.batchId ?? 'legacy'}`} checked={line.batchId === undefined}
                 onChange={() => { onChangeBatch(undefined, itemHargaEceran); setExpanded(false) }}
@@ -295,7 +323,7 @@ function BatchChip({
             </label>
           )}
           {batches.map(b => (
-            <label key={b.batchId} className="flex min-h-control items-center gap-2 text-[13px] text-ink">
+            <label key={b.batchId} className="flex min-h-control items-center gap-2 text-sm text-ink">
               <input
                 type="radio" name={`batch-${line.itemId}-${line.batchId ?? 'legacy'}`} checked={line.batchId === b.batchId}
                 onChange={() => { onChangeBatch(b.batchId, b.hargaJual); setExpanded(false) }}
@@ -327,13 +355,13 @@ function CartLineRow({
   const sourceLabel = useSourceLabel(line)
 
   return (
-    <li className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0">
+    <li className="card-in flex flex-col gap-2 border-b border-separator py-3 last:border-b-0">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-[14px] font-semibold text-ink">{line.nama}</p>
+          <p className="text-sm font-semibold text-ink">{line.nama}</p>
           <PriceEdit line={line} sourceLabel={sourceLabel} onChange={onHargaChange} />
         </div>
-        <p className="text-[15px] font-bold tabular-nums text-ink">
+        <p className="text-base font-bold tabular-nums text-ink">
           {line.subtotal === null ? '—' : formatRupiah(rupiah(line.subtotal))}
         </p>
       </div>
@@ -342,7 +370,7 @@ function CartLineRow({
         onChangeBatch={onChangeBatch} onSplit={onSplit}
       />
       <QtyStepper line={line} sourceLabel={sourceLabel} onChange={onQtyChange} />
-      {warning && <p className="text-[13px] font-medium text-warning">{warning}</p>}
+      {warning && <p className="text-sm font-medium text-warning">{warning}</p>}
     </li>
   )
 }
@@ -353,6 +381,14 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const [metode, setMetode] = useState<Metode>('tunai')
+  const [pelangganId, setPelangganId] = useState<string | null>(null)
+  // Null until the owner picks a due date by hand: until then it follows the sale date and the customer's terms.
+  const [jatuhTempoPilih, setJatuhTempoPilih] = useState<string | null>(null)
+  const [tanggal, setTanggal] = useState(() => todayIsoDate(systemClock))
+  const [ubahTanggal, setUbahTanggal] = useState(false)
+  const [dibayarAwal, setDibayarAwal] = useState<number | null>(null)
+  const customers = useCustomers()
   const errorRef = useRef<HTMLDivElement>(null)
 
   // The receipt stays until the owner dismisses it or starts the next sale:
@@ -375,6 +411,26 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
 
   const kembalian = uangDiterima === null ? undefined : subtract(rupiah(uangDiterima), total)
 
+  const bon = metode === 'bon'
+  const tunai = metode === 'tunai'
+  const hariIni = todayIsoDate(systemClock)
+  const tempoHari = customers?.find(c => c.id === pelangganId)?.termynHari ?? DEFAULT_TEMPO_HARI
+  const jatuhTempo = jatuhTempoPilih ?? geserHari(tanggal, tempoHari)
+  const dibayar = dibayarAwal ?? 0
+  // The one hard block in the sale flow: a Bon with nobody to owe it.
+  const pelangganError = bon && pelangganId === null ? 'Pilih pelanggan untuk Bon.' : undefined
+  const jatuhTempoError = !bon ? undefined
+    : jatuhTempo === '' ? 'Isi jatuh tempo.'
+    : jatuhTempo < tanggal ? 'Jatuh tempo tidak boleh sebelum tanggal transaksi.'
+    : undefined
+  const dibayarError = bon && lines.length > 0 && dibayar >= total ? 'Jika lunas sekarang, pilih Tunai.' : undefined
+  const bonInvalid = bon && (pelangganError !== undefined || jatuhTempoError !== undefined || dibayarError !== undefined)
+
+  const pilihPelanggan = (id: string) => {
+    setPelangganId(id)
+    setJatuhTempoPilih(null)
+  }
+
   const unpricedNames = lines.filter(l => l.hargaSatuan === null).map(l => l.nama)
 
   const handleSave = async (andNew: boolean) => {
@@ -394,14 +450,30 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
           batchId: line.batchId,
           hargaNormal: line.hargaNormal,
         })),
-        metodeBayar: 'tunai',
-        uangDiterima: uangDiterima ?? undefined,
-        customerId: undefined,
+        metodeBayar: metode,
+        tanggal: tanggal === hariIni ? undefined : tanggal,
+        uangDiterima: tunai ? uangDiterima ?? undefined : undefined,
+        customerId: bon ? pelangganId ?? undefined : undefined,
+        jatuhTempo: bon ? jatuhTempo : undefined,
+        dibayarAwal: bon && dibayar > 0 ? dibayar : undefined,
       }
       const saleId = await recordSale(input, { clock: systemClock, deviceId: getDeviceId() })
       cart.clear()
-      setReceipt({ saleId, total, uangDiterima: uangDiterima ?? undefined, kembalian })
+      setReceipt({
+        saleId, total,
+        uangDiterima: tunai ? uangDiterima ?? undefined : undefined,
+        kembalian: tunai ? kembalian : undefined,
+        bon: bon ? { dibayar, sisa: total - dibayar, jatuhTempo } : undefined,
+        nonTunai: metode === 'transfer' ? 'Transfer' : metode === 'qris' ? 'QRIS' : undefined,
+      })
       setUangDiterima(null)
+      // Back to a plain cash sale, so the next one cannot become a Bon by accident.
+      setMetode('tunai')
+      setPelangganId(null)
+      setDibayarAwal(null)
+      setJatuhTempoPilih(null)
+      setTanggal(hariIni)
+      setUbahTanggal(false)
       if (andNew) onSaveAndNew?.()
     } catch {
       setSaveError('Transaksi gagal disimpan. Coba lagi.')
@@ -410,7 +482,7 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
     }
   }
 
-  const saveDisabled = lines.length === 0 || saving || unpricedNames.length > 0
+  const saveDisabled = lines.length === 0 || saving || unpricedNames.length > 0 || bonInvalid
 
   const dismissReceipt = () => {
     setReceipt(null)
@@ -422,40 +494,60 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
   return (
     <div
       className={`flex flex-col bg-surface ${
-        embedded ? '' : 'rounded-card border border-border shadow-card lg:max-h-[calc(100dvh-2rem)]'
+        embedded ? '' : 'overflow-hidden rounded-card shadow-card lg:max-h-[calc(100dvh-2rem)]'
       }`}
     >
       {!embedded && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border p-4">
-          <h2 className="text-[15px] font-bold text-ink">Keranjang</h2>
-          <span className="inline-flex min-h-[24px] items-center rounded-[var(--r-pill)] bg-accent-100 px-[10px] text-[12px] font-semibold text-primary">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-separator p-4">
+          <h2 className="text-lg font-semibold text-ink">Keranjang</h2>
+          <span className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center rounded-pill bg-fill px-2 text-xs font-semibold tabular-nums text-ink">
             {lines.length}
           </span>
-        </div>
+        </header>
       )}
 
       {receipt && (
         <div role="status" aria-live="polite" className="mx-4 mt-3 flex shrink-0 flex-col gap-2 rounded-inner bg-success-bg p-4">
-          <p className="text-[13px] font-semibold text-success">
+          <p className="text-sm font-semibold text-success">
             <span>Transaksi tersimpan</span> <span className="tabular-nums">{shortNota(receipt.saleId)}</span>
           </p>
-          <p className="flex items-baseline justify-between text-[14px] text-ink">
+          <p className="flex items-baseline justify-between text-sm text-ink">
             <span>Total</span>
             <span className="font-semibold tabular-nums">{formatRupiah(rupiah(receipt.total))}</span>
           </p>
+          {receipt.nonTunai && (
+            <p className="flex items-baseline justify-between text-sm text-ink">
+              <span>Dibayar lewat {receipt.nonTunai}</span>
+            </p>
+          )}
           {receipt.uangDiterima !== undefined && (
-            <p className="flex items-baseline justify-between text-[14px] text-ink">
+            <p className="flex items-baseline justify-between text-sm text-ink">
               <span>Uang diterima</span>
               <span className="tabular-nums">{formatRupiah(rupiah(receipt.uangDiterima))}</span>
             </p>
           )}
           {receipt.kembalian !== undefined && (
             <div className="flex flex-col rounded-tile bg-surface px-3 py-2">
-              <span className="text-[12px] font-medium text-ink-muted">{receipt.kembalian < 0 ? 'Kurang' : 'Kembalian'}</span>
-              <span className="text-[28px] font-extrabold leading-8 tabular-nums text-ink">
+              <span className="text-xs font-medium text-ink-muted">{receipt.kembalian < 0 ? 'Kurang' : 'Kembalian'}</span>
+              <span className="text-xl font-bold leading-8 tabular-nums text-ink">
                 {formatRupiah(rupiah(Math.abs(receipt.kembalian)))}
               </span>
             </div>
+          )}
+          {receipt.bon && (
+            <>
+              {receipt.bon.dibayar > 0 && (
+                <p className="flex items-baseline justify-between text-sm text-ink">
+                  <span>Dibayar sekarang</span>
+                  <span className="tabular-nums">{formatRupiah(rupiah(receipt.bon.dibayar))}</span>
+                </p>
+              )}
+              <div className="flex flex-col rounded-tile bg-surface px-3 py-2">
+                <span className="text-xs font-medium text-ink-muted">Sisa piutang</span>
+                <span className="text-xl font-bold leading-8 tabular-nums text-ink">{formatRupiah(rupiah(receipt.bon.sisa))}</span>
+                <span className="text-xs text-ink-muted">Jatuh tempo {formatTanggalKey(receipt.bon.jatuhTempo)}</span>
+              </div>
+            </>
           )}
           <Button variant="primary" onClick={dismissReceipt}>
             Transaksi baru
@@ -464,7 +556,7 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
       )}
 
       {saveError && (
-        <div ref={errorRef} role="alert" tabIndex={-1} className="mx-4 mt-3 shrink-0 rounded-field border border-danger bg-danger-bg p-3 text-[13px] font-semibold text-danger focus-visible:outline-none">
+        <div ref={errorRef} role="alert" tabIndex={-1} className="mx-4 mt-3 shrink-0 rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger focus-visible:outline-none">
           {saveError}
         </div>
       )}
@@ -474,7 +566,7 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
           Inside the phone sheet the sheet's own body scrolls instead. */}
       <ul className={`min-h-[96px] flex-1 px-4 ${embedded ? '' : 'overflow-y-auto'}`}>
         {lines.length === 0 ? (
-          <li className="py-6 text-center text-[14px] text-ink-muted">
+          <li className="py-6 text-center text-sm text-ink-muted">
             {receipt ? 'Siap untuk transaksi berikutnya.' : 'Keranjang kosong. Tambahkan barang untuk mulai.'}
           </li>
         ) : (
@@ -496,19 +588,31 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
       </ul>
 
       {unpricedNames.length > 0 && (
-        <p role="alert" className="mx-4 mt-2 shrink-0 text-[13px] font-medium text-danger">
+        <p role="alert" className="mx-4 mt-2 shrink-0 text-sm font-medium text-danger">
           Isi harga untuk {unpricedNames.join(', ')}.
         </p>
       )}
 
       {/* Right after a sale the receipt above is the whole story: an empty total and two disabled buttons would only push it up the screen. */}
       {!(receipt && lines.length === 0) && (
-        <div className="flex shrink-0 flex-col gap-3 rounded-b-card border-t border-border bg-surface-sunken p-4">
+        <div className="flex shrink-0 flex-col gap-3 border-t border-separator bg-surface p-4">
           <div data-testid="kasir-total" aria-live="polite" role="status" className="flex items-center justify-between">
-            <span className="text-[14px] font-semibold text-ink">Total</span>
-            <span className="text-[26px] font-extrabold tabular-nums text-ink">{formatRupiah(total)}</span>
+            <span className="text-sm font-semibold text-ink">Total</span>
+            <NumberTicker value={total} className="text-2xl font-bold text-ink">{formatRupiah(total)}</NumberTicker>
           </div>
 
+          <SegmentedControl
+            aria-label="Metode bayar"
+            options={OPSI_METODE}
+            value={metode}
+            onChange={next => setMetode(next as Metode)}
+          />
+
+          {(metode === 'transfer' || metode === 'qris') && (
+            <p className="text-sm text-ink-muted">Dibayar penuh lewat {metode === 'qris' ? 'QRIS' : 'Transfer'}.</p>
+          )}
+
+          {tunai && (
           <div className="flex flex-col gap-2">
             <RupiahInput id="kasir-uang-diterima" label="Uang diterima" value={uangDiterima} onChange={setUangDiterima} />
             {amounts.length > 0 && (
@@ -524,22 +628,40 @@ export function CartPanel({ cart, onSaveAndNew, embedded = false, onDone }: Prop
               </div>
             )}
             {kembalian !== undefined && (
-              <p className={`text-[20px] font-bold tabular-nums ${kembalian < 0 ? 'text-danger' : 'text-ink'}`}>
+              <p className={`text-lg font-bold tabular-nums ${kembalian < 0 ? 'text-danger' : 'text-ink'}`}>
                 Kembalian: {formatRupiah(kembalian)}
               </p>
             )}
           </div>
+          )}
 
-          {/* Payment methods, delivery and customer are not built yet. They used
-              to render as faint, permanently disabled options that looked
-              tappable; one honest line takes less room and cannot be mistaken
-              for a control. */}
-          <div className="text-[13px] text-ink-muted">
-            <p><span className="sr-only">Pembayaran: </span>Tunai · Dibawa sekarang · Tanpa pelanggan</p>
-            <p>Transfer, QRIS, Bon, dan Kirim segera hadir.</p>
-          </div>
+          {bon && (
+            <div className="flex flex-col gap-3">
+              <PelangganPicker id="kasir-pelanggan" value={pelangganId} onChange={pilihPelanggan} error={pelangganError} />
+              <DatePicker id="kasir-jatuh-tempo" label="Jatuh tempo" value={jatuhTempo || null} onChange={setJatuhTempoPilih} min={tanggal} error={jatuhTempoError} />
+              <RupiahInput id="kasir-dibayar-awal" label="Dibayar sekarang (opsional)" value={dibayarAwal} onChange={setDibayarAwal} error={dibayarError} />
+              <p className="text-sm font-semibold tabular-nums text-ink">
+                Sisa jadi piutang: {formatRupiah(rupiah(Math.max(0, total - dibayar)))}
+              </p>
+            </div>
+          )}
 
-          <div className={`flex flex-col gap-2 ${embedded ? 'sticky bottom-0 z-sticky -mx-4 -mb-4 border-t border-border bg-surface-sunken p-4' : ''}`}>
+          {tanggal === hariIni && !ubahTanggal ? (
+            <p className="flex items-center justify-between gap-2 text-sm text-ink-muted">
+              <span>Tanggal transaksi: hari ini</span>
+              <Button variant="link" onClick={() => setUbahTanggal(true)}>Ubah tanggal</Button>
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <DatePicker id="kasir-tanggal" label="Tanggal transaksi" value={tanggal} onChange={setTanggal} max={hariIni} />
+              {tanggal !== hariIni && (
+                <p role="status" className="text-sm font-semibold text-warning">Transaksi dicatat untuk {ringkas(tanggal)}</p>
+              )}
+              <Button variant="link" className="self-start" onClick={() => { setTanggal(hariIni); setUbahTanggal(false) }}>Kembali ke hari ini</Button>
+            </div>
+          )}
+
+          <div className={`flex flex-col gap-2 ${embedded ? 'sticky bottom-0 z-sticky -mx-4 -mb-4 border-t border-separator bg-surface p-4' : ''}`}>
             <Button variant="primary" fullWidth onClick={() => handleSave(false)} disabled={saveDisabled}>
               Simpan transaksi
             </Button>

@@ -1,10 +1,13 @@
 import 'fake-indexeddb/auto'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
-import { recordSale, type RecordSaleInput } from '../../data/commands'
+import { recordSale, recordCustomer, catatPembayaran, type RecordSaleInput } from '../../data/commands'
 import { fixedClock } from '../../domain/clock'
+import { createEvent } from '../../domain/events'
+import { appendEvents } from '../../data/eventStore'
+import { shortNota } from '../../domain/nota'
 import { SaleDetail } from './SaleDetail'
 
 // voidSale is wrapped as a spy over its real implementation, so every
@@ -40,6 +43,20 @@ beforeEach(async () => {
 })
 
 describe('SaleDetail: rendering', () => {
+  it('shows the nota number, and writes a quantity as "3 × sak" so a unit starting with a number is never misread', async () => {
+    const saleId = await recordSale({
+      lines: [{ itemId: 'semen', nama: 'Semen Tiga Roda · 50 kg', unit: '50 kg', qty: 1000, hargaSatuan: 65000, subtotal: 65000 }],
+      metodeBayar: 'tunai',
+    }, at('2026-09-18T08:00:00.000Z'))
+
+    render(<SaleDetail saleId={saleId} />)
+
+    expect(await screen.findByText(shortNota(saleId))).toBeInTheDocument()
+    // "1 50 kg" reads as 150 kg; "1 × 50 kg" cannot.
+    expect(screen.getByText('1 × 50 kg')).toBeInTheDocument()
+    expect(screen.queryByText('1 50 kg')).toBeNull()
+  })
+
   it('renders all line items, amounts and status for an aktif sale', async () => {
     const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
 
@@ -160,5 +177,115 @@ describe('SaleDetail: Batalkan flow', () => {
     // confirm area's own "Batal" cancel button is still on screen too, and
     // a plain getByText('Batal') would ambiguously match it.
     expect(screen.getByTestId('sale-status')).toHaveTextContent('Aktif')
+  })
+})
+
+describe('SaleDetail: Bon', () => {
+  const bonSale = async (extra: Partial<RecordSaleInput> = {}) => {
+    const customerId = await recordCustomer({ nama: 'Budi Santoso' }, at('2026-10-01T07:00:00.000Z'))
+    const saleId = await recordSale({
+      lines: [{ itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 2000, hargaSatuan: 50000, subtotal: 100000 }],
+      metodeBayar: 'bon', customerId, jatuhTempo: '2026-10-20', dibayarAwal: 20000, ...extra,
+    }, at('2026-10-03T08:00:00.000Z'))
+    return { saleId, customerId }
+  }
+
+  it('shows Bon as the method, with the customer, due date, down payment, payments and the remaining sisa', async () => {
+    const { saleId } = await bonSale()
+    await catatPembayaran({ saleId, jumlah: 30000, catatan: 'cicilan' }, at('2026-10-05T07:00:00.000Z'))
+
+    render(<SaleDetail saleId={saleId} />)
+
+    const blok = await screen.findByTestId('sale-bon')
+    expect(screen.getByText('Bon')).toBeInTheDocument()
+    expect(await within(blok).findByText('Budi Santoso')).toBeInTheDocument()
+    expect(within(blok).getByText('20 Okt 2026')).toBeInTheDocument()
+    expect(within(blok).getByText('Rp 20.000')).toBeInTheDocument() // down payment
+    expect(within(blok).getByText('Rp 30.000')).toBeInTheDocument() // the payment
+    expect(within(blok).getByText(/Sisa piutang/)).toBeInTheDocument()
+    expect(within(blok).getByText('Rp 50.000')).toBeInTheDocument() // 100000 - 20000 - 30000
+  })
+
+  it('names a customer this device has not synced yet as "Pelanggan tidak dikenal"', async () => {
+    const { saleId } = await bonSale({ customerId: 'belum-sinkron' })
+    render(<SaleDetail saleId={saleId} />)
+    expect(await within(await screen.findByTestId('sale-bon')).findByText('Pelanggan tidak dikenal')).toBeInTheDocument()
+  })
+
+  it('a tunai sale has no Bon block', async () => {
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+    render(<SaleDetail saleId={saleId} />)
+    await screen.findByText('Aktif')
+    expect(screen.queryByTestId('sale-bon')).toBeNull()
+    expect(screen.getByText('Tunai')).toBeInTheDocument()
+  })
+
+  it('Batalkan on a Bon that already has a payment shows the reason, and the sale stays aktif', async () => {
+    const { saleId } = await bonSale()
+    await catatPembayaran({ saleId, jumlah: 30000 }, at('2026-10-05T07:00:00.000Z'))
+    const user = userEvent.setup()
+    render(<SaleDetail saleId={saleId} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Batalkan' }))
+    await user.type(screen.getByLabelText(/Alasan pembatalan/), 'salah input')
+    await user.click(screen.getByRole('button', { name: 'Ya, batalkan' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sudah ada pembayaran Rp 30.000 untuk transaksi ini, jadi tidak bisa dibatalkan.')
+    expect(screen.getByText('Aktif')).toBeInTheDocument()
+  })
+
+  it('Batalkan still shows the generic message for a failure that is not a refusal', async () => {
+    const saleId = await recordSale(cart, at('2026-09-18T08:00:00.000Z'))
+    const { voidSale } = await import('../../data/commands')
+    vi.mocked(voidSale).mockRejectedValueOnce(new Error('IndexedDB blew up'))
+    const user = userEvent.setup()
+    render(<SaleDetail saleId={saleId} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Batalkan' }))
+    await user.type(screen.getByLabelText(/Alasan pembatalan/), 'salah')
+    await user.click(screen.getByRole('button', { name: 'Ya, batalkan' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Transaksi gagal dibatalkan. Coba lagi.')
+  })
+
+  describe('a cancelled Bon', () => {
+    const bonSale = () => recordSale({
+      lines: [{ itemId: 'semen', nama: 'Semen Tiga Roda', unit: 'sak', qty: 2000, hargaSatuan: 50000, subtotal: 100000 }],
+      metodeBayar: 'bon', customerId: 'c1', jatuhTempo: '2026-10-20',
+    }, at('2026-10-03T08:00:00.000Z'))
+
+    it('shows no Sisa piutang once the nota is batal', async () => {
+      const saleId = await bonSale()
+      const { voidSale } = await import('../../data/commands')
+      await voidSale(saleId, 'salah input', at('2026-10-04T08:00:00.000Z'))
+
+      render(<SaleDetail saleId={saleId} />)
+
+      await screen.findByText('Batal')
+      expect(within(screen.getByTestId('sale-bon')).queryByText(/Sisa piutang/)).toBeNull()
+      expect(screen.queryByText(/sudah diterima untuk transaksi yang dibatalkan/)).toBeNull()
+    })
+
+    it('flags money received against a nota that another device cancelled', async () => {
+      const saleId = await bonSale()
+      await catatPembayaran({ saleId, jumlah: 30000 }, at('2026-10-05T07:00:00.000Z'))
+      // A SaleVoided pulled from a device that had not yet seen the payment: it bypasses voidSale's local guard.
+      await appendEvents([createEvent('SaleVoided', { saleId, alasan: 'dibatalkan dari perangkat lain' }, at('2026-10-05T08:00:00.000Z'))])
+
+      render(<SaleDetail saleId={saleId} />)
+
+      expect(await screen.findByText('Pembayaran Rp 30.000 sudah diterima untuk transaksi yang dibatalkan. Cek apakah uangnya perlu dikembalikan.')).toBeInTheDocument()
+      expect(within(screen.getByTestId('sale-bon')).queryByText(/Sisa piutang/)).toBeNull()
+    })
+  })
+})
+
+describe('SaleDetail: Transfer and QRIS', () => {
+  it('names the method of a transfer sale and shows no Bon block', async () => {
+    const saleId = await recordSale({ ...cart, uangDiterima: undefined, metodeBayar: 'transfer' }, at('2026-09-18T08:00:00.000Z'))
+    render(<SaleDetail saleId={saleId} />)
+    await screen.findByText('Aktif')
+    expect(screen.getByText('Transfer')).toBeInTheDocument()
+    expect(screen.queryByTestId('sale-bon')).toBeNull()
   })
 })

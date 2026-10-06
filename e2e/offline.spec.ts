@@ -7,6 +7,17 @@ import { test, expect } from '@playwright/test'
 // a cold offline load. This is that proof, run against a real production
 // build (see playwright.config.ts webServer: npm run build && preview).
 
+async function activateServiceWorker(page: import('@playwright/test').Page) {
+  // A newly installed worker is active before it controls the tab that
+  // installed it. Wait for that state, reload once, then assert control.
+  await page.waitForFunction(async () => {
+    const registrations = await navigator.serviceWorker?.getRegistrations()
+    return registrations?.some(registration => registration.active) ?? false
+  }, { timeout: 15_000 })
+  await page.reload()
+  await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })
+}
+
 test.describe('offline boot', () => {
   test('the shell renders and navigates with the network disabled', async ({ page, context, isMobile }) => {
     // The "Beranda" page heading is used as the readiness signal rather than
@@ -24,21 +35,22 @@ test.describe('offline boot', () => {
     // once while still online is what lets the now-active worker start
     // controlling requests, which is the real precondition an offline
     // reload depends on, not a timing workaround.
-    await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })
-    await page.reload()
+    await activateServiceWorker(page)
     await expect(beranda).toHaveText('Beranda')
 
     await context.setOffline(true)
     await page.reload()
 
-    await expect(beranda).toHaveText('Beranda', { timeout: 10_000 })
+    await expect(beranda).toHaveText('Beranda')
 
     // The sync indicator lives only inside TopNav (MASTER.md: "nav, never
     // the cart"), and TopNav is `hidden md:flex`. Phase 1's phone shell has
     // no sync-status UI yet, so the status region is legitimately absent
     // from the accessibility tree on phone, not a bug.
     if (!isMobile) {
-      await expect(page.getByRole('status')).toContainText('Belum tersinkron')
+      // The preview build has no .env, so it reports local-only; a configured
+      // build with the network down would say "Belum tersinkron".
+      await expect(page.getByRole('status')).toContainText(/Belum tersinkron|Belum masuk|Hanya di perangkat ini/)
     }
 
     // Navigation must still work: no network round trip is needed to move
@@ -55,13 +67,12 @@ test.describe('offline boot', () => {
   test('F2 opens Kasir while offline', async ({ page, context }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Beranda')
-    await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })
-    await page.reload()
+    await activateServiceWorker(page)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Beranda')
 
     await context.setOffline(true)
     await page.reload()
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Beranda', { timeout: 10_000 })
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Beranda')
 
     await page.keyboard.press('F2')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir')

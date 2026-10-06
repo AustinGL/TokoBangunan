@@ -65,7 +65,7 @@ export function AturUkuranSheet({ open, onClose, item }: Props) {
     <Sheet open={open} onClose={onClose} title={`Atur ${item.ukuran}`} variant="center">
       <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
-          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger">
             {submitError}
           </p>
         )}
@@ -76,19 +76,20 @@ export function AturUkuranSheet({ open, onClose, item }: Props) {
         />
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="atur-ukuran-min" className="text-[14px] font-medium text-ink">Stok minimum</label>
+          <label htmlFor="atur-ukuran-min" className="text-sm font-medium text-ink">Stok minimum</label>
           <input
             id="atur-ukuran-min" type="number" inputMode="numeric" min={0} step={1}
             value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
             aria-invalid={stokError ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            aria-describedby={stokError ? 'atur-ukuran-min-error' : undefined}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm ${stokError ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {stokError && <p className="text-[13px] text-danger">{stokError}</p>}
+          {stokError && <p id="atur-ukuran-min-error" className="text-sm text-danger">{stokError}</p>}
         </div>
 
         <SheetFooter>
-          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
-            {submitting ? 'Menyimpan...' : 'Simpan'}
+          <Button type="submit" variant="primary" fullWidth loading={submitting} loadingLabel="Menyimpan...">
+            Simpan
           </Button>
         </SheetFooter>
       </form>

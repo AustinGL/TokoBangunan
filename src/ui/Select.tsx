@@ -4,6 +4,7 @@ import { Icon } from './Icon'
 import { ListboxPanel } from './ListboxPanel'
 import { optionId, type ListboxRow } from './listbox'
 import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
+import { usePresence } from './usePresence'
 
 export type SelectOption = { value: string; label: string; hint?: string; disabled?: boolean }
 
@@ -43,6 +44,7 @@ export function Select({
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [placement, setPlacement] = useState<PanelPlacement>(DEFAULT_PLACEMENT)
+  const { mounted, closing } = usePresence(open)
 
   const selectedIndex = options.findIndex(o => o.value === value)
   const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined
@@ -138,10 +140,10 @@ export function Select({
 
   const triggerClass =
     variant === 'pill'
-      ? `flex h-control items-center gap-2 rounded-pill border px-4 text-[13px] font-semibold transition-colors duration-quick disabled:text-ink-disabled ${
-          tinted ? 'border-primary bg-accent-50 text-primary' : 'border-border-input bg-surface text-ink'
+      ? `flex h-control items-center gap-2 rounded-pill border px-4 text-sm font-semibold transition-colors duration-quick enabled:hover:border-ink-muted enabled:hover:bg-surface-card disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ink-disabled ${
+          tinted ? 'border-primary bg-accent-50 text-primary-ink' : 'border-border-input bg-surface text-ink'
         }`
-      : `flex h-control w-full items-center justify-between gap-2 rounded-field border bg-[var(--field-bg)] px-3 text-left text-[14px] text-ink disabled:text-ink-disabled ${
+      : `flex h-control w-full items-center justify-between gap-2 rounded-field border bg-[var(--field-bg)] px-3 text-left text-sm text-ink transition-[border-color,background-color] duration-quick enabled:hover:border-ink-muted disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ink-disabled ${
           error ? 'border-danger' : 'border-[var(--field-bd)]'
         }`
 
@@ -150,7 +152,7 @@ export function Select({
       {variant === 'field' && (
         <label
           htmlFor={id}
-          className={`text-[14px] font-medium text-ink ${required ? 'req' : ''} ${hideLabel ? 'sr-only' : ''}`}
+          className={`text-sm font-medium text-ink ${required ? 'req' : ''} ${hideLabel ? 'sr-only' : ''}`}
         >
           {label}
         </label>
@@ -193,11 +195,12 @@ export function Select({
           <Icon
             icon={ChevronDown}
             size="button"
-            className={`shrink-0 transition-transform duration-quick ${open ? 'rotate-180' : ''}`}
+            className={`shrink-0 text-ink-muted transition-transform duration-panel ease-spring ${open ? 'rotate-180' : ''}`}
           />
         </button>
-        {open && (
+        {mounted && (
           <ListboxPanel
+            closing={closing}
             id={listboxId}
             rows={options as ListboxRow[]}
             activeIndex={activeIndex}
@@ -209,7 +212,7 @@ export function Select({
           />
         )}
       </div>
-      {error && <p id={`${id}-error`} className="text-[13px] text-danger">{error}</p>}
+      {error && <p id={`${id}-error`} className="text-sm text-danger">{error}</p>}
     </div>
   )
 }

@@ -14,6 +14,14 @@ vi.mock('../data/sync', async () => ({
   },
 }))
 
+// These tests simulate a configured shop whose network is down. Without this
+// the test environment has no .env, which the app (correctly) treats as
+// local-only and never attempts a sync at all.
+vi.mock('../data/supabase', async () => ({
+  ...(await vi.importActual<object>('../data/supabase')),
+  isSupabaseConfigured: true,
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
   // jsdom's window.location/history is a single global that otherwise leaks
@@ -24,15 +32,23 @@ beforeEach(() => {
 })
 
 describe('offline boot', () => {
+  it('tells a not-signed-in owner that nothing is backed up, instead of the vaguer "not synced"', async () => {
+    const { BelumMasukError } = await import('../data/sync')
+    vi.mocked(supabaseTransport.push).mockRejectedValueOnce(new BelumMasukError())
+    vi.mocked(supabaseTransport.pull).mockRejectedValueOnce(new BelumMasukError())
+    render(<App />)
+    expect(await screen.findByText('Belum masuk · 0 belum tercadangkan')).toBeInTheDocument()
+  })
+
   it('renders the shell even though sync fails', async () => {
     render(<App />)
     expect(await screen.findByText('Toko Bahan Bangunan')).toBeInTheDocument()
     // Both Sidebar and BottomNav stay mounted (CSS hides one per breakpoint,
     // see the dedicated test below), so between them there are two distinct
     // "start a sale" controls: Sidebar's labeled "+ Transaksi baru", the
-    // phone FAB labeled "Transaksi baru" (an aria-label, no visible "+").
+    // phone FAB labeled "Kasir · transaksi baru" (an aria-label, no visible "+").
     expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Transaksi baru' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Kasir · transaksi baru' })).toBeInTheDocument()
   })
 
   it('reports the unsynced state rather than crashing', async () => {
@@ -51,10 +67,9 @@ describe('offline boot', () => {
     render(<App />)
     await screen.findByText('Toko Bahan Bangunan')
 
-    const desktopButton = within(screen.getByRole('banner')).getByRole(
-      'button',
-      { name: '+ Transaksi baru' },
-    )
+    // By name, not by landmark: which <header>s count as a banner shifts while
+    // the lazy page is still loading, but only the Sidebar owns a button with this name.
+    const desktopButton = screen.getByRole('button', { name: '+ Transaksi baru' })
     expect(desktopButton).toBeInTheDocument()
 
     // aria-label uniquely identifies the phone nav regardless of CSS
@@ -64,7 +79,7 @@ describe('offline boot', () => {
     // one honestly rather than repurposing a phone-only link as an
     // incidental test hook the way the old "Lainnya" link used to be.
     const phoneNav = screen.getByRole('navigation', { name: 'Navigasi telepon' })
-    const phoneFab = within(phoneNav).getByRole('button', { name: 'Transaksi baru' })
+    const phoneFab = within(phoneNav).getByRole('button', { name: 'Kasir · transaksi baru' })
     expect(phoneFab).toBeInTheDocument()
     expect(phoneFab).not.toBe(desktopButton)
   })
@@ -114,11 +129,11 @@ describe('offline boot', () => {
   it('actually shows the Kasir pane when F2 is pressed, not just a URL change', async () => {
     render(<App />)
     await screen.findByText('Toko Bahan Bangunan')
-    expect(screen.queryByText('Kasir')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Kasir' })).toBeNull()
 
     await userEvent.keyboard('{F2}')
 
-    expect(await screen.findByText('Kasir')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Kasir' })).toBeInTheDocument()
   })
 
   // The F2 listener moved here from the deleted TopNav.tsx verbatim (same
@@ -139,7 +154,7 @@ describe('offline boot', () => {
 
     await userEvent.keyboard('{F2}')
 
-    expect(await screen.findByText('Kasir')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Kasir' })).toBeInTheDocument()
   })
 
   it('stops listening for F2 once unmounted, so it cannot fire twice after the app is torn down', async () => {
@@ -173,6 +188,6 @@ describe('offline boot', () => {
     )
     await userEvent.click(desktopButton)
 
-    expect(await screen.findByText('Kasir')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Kasir' })).toBeInTheDocument()
   })
 })

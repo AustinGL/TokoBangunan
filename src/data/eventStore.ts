@@ -9,6 +9,10 @@ import { projectBarang, reduceBarang } from '../domain/projections/barang'
 import { projectSuppliers, reduceSuppliers } from '../domain/projections/suppliers'
 import { projectBatches, reduceBatches, type BatchesState } from '../domain/projections/batches'
 import { projectKategori, reduceKategori } from '../domain/projections/kategori'
+import { projectCustomers, reduceCustomers } from '../domain/projections/customers'
+import { projectPayments, reducePayments } from '../domain/projections/payments'
+import { projectToko, reduceToko } from '../domain/projections/toko'
+import { projectExpenses, reduceExpenses } from '../domain/projections/expenses'
 
 const CURSOR_KEY = 'syncCursor'
 
@@ -128,6 +132,45 @@ const foldIncremental = async (event: EventEnvelope): Promise<void> => {
       if (next) await db.batchesProj.put(next)
       return
     }
+    case 'CustomerUpserted': {
+      const payload = event.payload as { id: string }
+      const existing = await db.customersProj.get(payload.id)
+      const state = existing ? { [payload.id]: existing } : {}
+      const next = reduceCustomers(state, event)[payload.id]
+      if (next) await db.customersProj.put(next)
+      return
+    }
+    case 'TokoDiatur': {
+      const existing = await db.tokoProj.get('toko')
+      const next = reduceToko(existing ? { toko: existing } : {}, event).toko
+      if (next) await db.tokoProj.put(next)
+      return
+    }
+    case 'PaymentReceived': {
+      const existing = await db.paymentsProj.get(event.id)
+      const state = existing ? { [event.id]: existing } : {}
+      const next = reducePayments(state, event)[event.id]
+      if (next) await db.paymentsProj.put(next)
+      return
+    }
+    case 'ExpenseRecorded': {
+      const existing = await db.expensesProj.get(event.id)
+      const state = existing ? { [event.id]: existing } : {}
+      const next = reduceExpenses(state, event)[event.id]
+      if (next) await db.expensesProj.put(next)
+      return
+    }
+    case 'ExpenseVoided': {
+      const { expenseId } = event.payload as { expenseId: string }
+      const existing = await db.expensesProj.get(expenseId)
+      if (!existing) return // reduceExpenses ignores a void for an unknown expense
+      const next = reduceExpenses({ [expenseId]: existing }, event)[expenseId]
+      if (next) await db.expensesProj.put(next)
+      return
+    }
+    case 'ReminderSent':
+      // No projection: Piutang reads these straight from the log (domain/pengingatLog.ts).
+      return
     default:
       // Every known event schema has a case above.
       return
@@ -138,7 +181,7 @@ export const appendEvents = async (events: EventEnvelope[]): Promise<void> => {
   if (events.length === 0) return
   await db.transaction(
     'rw',
-    [db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj, db.kategoriProj],
+    [db.events, db.outbox, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj, db.kategoriProj, db.customersProj, db.paymentsProj, db.tokoProj, db.expensesProj],
     async () => {
       await db.events.bulkAdd(events)
       await db.outbox.bulkPut(events.map(e => ({ id: e.id })))
@@ -320,6 +363,30 @@ const rebuildKategoriProj = async (events: EventEnvelope[]): Promise<void> => {
   await db.kategoriProj.bulkPut(Object.values(kategori))
 }
 
+const rebuildCustomersProj = async (events: EventEnvelope[]): Promise<void> => {
+  const customers = projectCustomers(events)
+  await db.customersProj.clear()
+  await db.customersProj.bulkPut(Object.values(customers))
+}
+
+const rebuildTokoProj = async (events: EventEnvelope[]): Promise<void> => {
+  const toko = projectToko(events)
+  await db.tokoProj.clear()
+  await db.tokoProj.bulkPut(Object.values(toko))
+}
+
+const rebuildPaymentsProj = async (events: EventEnvelope[]): Promise<void> => {
+  const payments = projectPayments(events)
+  await db.paymentsProj.clear()
+  await db.paymentsProj.bulkPut(Object.values(payments))
+}
+
+const rebuildExpensesProj = async (events: EventEnvelope[]): Promise<void> => {
+  const expenses = projectExpenses(events)
+  await db.expensesProj.clear()
+  await db.expensesProj.bulkPut(Object.values(expenses))
+}
+
 /**
  * Projections are a cache. Discarding and rebuilding must always produce
  * identical state, which the test suite asserts.
@@ -340,7 +407,7 @@ export const rebuildProjections = async (): Promise<void> => {
   // never lost in between.
   await db.transaction(
     'rw',
-    [db.events, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj, db.kategoriProj],
+    [db.events, db.itemsProj, db.stokProj, db.salesProj, db.barangProj, db.suppliersProj, db.batchesProj, db.kategoriProj, db.customersProj, db.paymentsProj, db.tokoProj, db.expensesProj],
     async () => {
       const events = await getAllEvents()
       await rebuildItemsProj(events)
@@ -350,6 +417,10 @@ export const rebuildProjections = async (): Promise<void> => {
       await rebuildSuppliersProj(events)
       await rebuildBatchesProj(events)
       await rebuildKategoriProj(events)
+      await rebuildCustomersProj(events)
+      await rebuildPaymentsProj(events)
+      await rebuildTokoProj(events)
+      await rebuildExpensesProj(events)
     },
   )
 }

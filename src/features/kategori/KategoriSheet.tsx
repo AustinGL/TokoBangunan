@@ -50,12 +50,12 @@ export function KategoriSheet({ open, onClose, onSubmit, initialValues, initialN
     <Sheet open={open} onClose={onClose} title={initialValues ? 'Ubah kategori' : 'Kategori baru'} variant="center">
       <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
         {submitError && (
-          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-[14px] font-semibold text-danger">
+          <p role="alert" className="rounded-field border border-danger bg-danger-bg p-3 text-sm font-semibold text-danger">
             {submitError}
           </p>
         )}
         <div className="flex flex-col gap-1">
-          <label htmlFor="kategori-nama" className="req text-[14px] font-medium text-ink">Nama kategori</label>
+          <label htmlFor="kategori-nama" className="req text-sm font-medium text-ink">Nama kategori</label>
           <input
             ref={namaRef}
             id="kategori-nama"
@@ -64,13 +64,13 @@ export function KategoriSheet({ open, onClose, onSubmit, initialValues, initialN
             aria-required="true"
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? 'kategori-nama-error' : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm ${error ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {error && <p id="kategori-nama-error" role="alert" className="text-[13px] text-danger">{error}</p>}
+          {error && <p id="kategori-nama-error" role="alert" className="text-sm text-danger">{error}</p>}
         </div>
 
         {initialValues && (
-          <label className="flex min-h-control items-center gap-2 text-[14px] text-ink">
+          <label className="flex min-h-control items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={diarsipkan}
@@ -82,8 +82,8 @@ export function KategoriSheet({ open, onClose, onSubmit, initialValues, initialN
         )}
 
         <SheetFooter>
-          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
-            {submitting ? 'Menyimpan...' : 'Simpan'}
+          <Button type="submit" variant="primary" fullWidth loading={submitting} loadingLabel="Menyimpan...">
+            Simpan
           </Button>
         </SheetFooter>
       </form>

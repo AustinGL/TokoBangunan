@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/db'
 import { recordStockPurchase } from '../../data/commands'
 import { ToastProvider } from '../../ui/Toast'
 import { TambahStokSheet } from './TambahStokSheet'
+import { bukaKalender } from '../../test-utils/pickDate'
 
 // recordStockPurchase is wrapped as a spy over its real implementation, so
 // every existing test still writes through to fake-indexeddb as before;
@@ -136,29 +137,17 @@ describe('TambahStokSheet', () => {
     expect(screen.getByText(/total pembelian/i)).toHaveTextContent('Rp 2.400.000')
   })
 
-  it('rejects a future tanggal beli at submit time', async () => {
+  it('offers no day after today for tanggal beli', async () => {
     await seedBarang('b1', 'Semen Tiga Roda')
     await seedUkuran({ id: 'u1', barangId: 'b1', nama: 'Semen Tiga Roda', baseUnit: '50 kg', hargaEceran: 65000, stokMinimum: 10 })
     const user = userEvent.setup()
     render(<ToastProvider><TambahStokSheet open onClose={vi.fn()} /></ToastProvider>)
 
-    await pickBarangAndUkuran(user)
-    await user.type(screen.getByLabelText(/jumlah/i), '40')
+    const kartu = await bukaKalender(user, /Tanggal beli/)
 
-    const future = new Date()
-    future.setDate(future.getDate() + 3)
-    const futureIso = future.toISOString().slice(0, 10)
-    const tanggalInput = screen.getByLabelText(/tanggal beli/i)
-    // fireEvent.change, not user.type: a native <input type="date">'s
-    // segmented editing order depends on the environment's locale, which
-    // makes typing digits into it a known source of flaky date-input
-    // tests. Setting .value directly is the reliable way to drive one.
-    fireEvent.change(tanggalInput, { target: { value: futureIso } })
-
-    await user.click(screen.getByRole('button', { name: /^simpan stok$/i }))
-
-    expect(await screen.findByText(/tidak boleh di masa depan/i)).toBeInTheDocument()
-    expect(await db.batchesProj.toArray()).toHaveLength(0)
+    // max is today: this month is the last one on show, so there is no page forward.
+    expect(within(kartu).getByRole('button', { name: 'Bulan berikutnya' })).toBeDisabled()
+    expect(within(kartu).getByRole('button', { name: 'Tahun berikutnya' })).toBeDisabled()
   })
 
   it('records a real stock purchase batch and closes on Simpan stok', async () => {
@@ -195,8 +184,7 @@ describe('TambahStokSheet', () => {
     await user.click(screen.getByText(/tambah.*UD Baru/i))
     await waitFor(() => expect(screen.getByRole('combobox', { name: /supplier/i })).toHaveValue('UD Baru'))
 
-    const tanggalInput = screen.getByLabelText(/tanggal beli/i) as HTMLInputElement
-    const tanggalValue = tanggalInput.value
+    const tanggalValue = screen.getByLabelText(/tanggal beli/i).textContent
 
     await user.click(screen.getByRole('button', { name: /simpan.*tambah lagi/i }))
 
@@ -207,7 +195,7 @@ describe('TambahStokSheet', () => {
     expect(screen.getByLabelText(/jumlah/i)).toHaveValue(null)
     expect(screen.getByLabelText(/harga jual/i)).toHaveValue('')
     expect(screen.getByRole('combobox', { name: /supplier/i })).toHaveValue('UD Baru')
-    expect((screen.getByLabelText(/tanggal beli/i) as HTMLInputElement).value).toBe(tanggalValue)
+    expect(screen.getByLabelText(/tanggal beli/i)).toHaveTextContent(tanggalValue as string)
   })
 
   it('surfaces a visible error and does not close when the write fails', async () => {

@@ -49,6 +49,11 @@ describe('Combobox: control size', () => {
     render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />)
     expect(screen.getByRole('combobox')).toHaveClass('h-control')
   })
+
+  it('associates an inline validation message with the input', () => {
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} error="Nama barang wajib diisi." />)
+    expect(screen.getByRole('combobox')).toHaveAccessibleDescription('Nama barang wajib diisi.')
+  })
 })
 
 describe('Combobox: display sync', () => {

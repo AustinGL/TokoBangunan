@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { SearchScanField } from './SearchScanField'
 import { ProductGrid } from './ProductGrid'
 import { CartPanel } from './CartPanel'
+import { CartBar } from './CartBar'
 import { Button } from '../../ui/Button'
+import { Sheet } from '../../ui/Sheet'
+import { useIsCompact } from '../shared/useIsCompact'
 import { useCart } from './useCart'
 import { useKatalog, type UkuranRow } from '../shared/useKatalog'
 import { filterBarangRows, purchasableBarangRows } from './filterBarangRows'
@@ -14,6 +17,7 @@ import { getDeviceId } from '../../data/deviceId'
 import { systemClock } from '../../domain/clock'
 import { toBase } from '../../domain/quantity'
 import { legacyRemainder, pickDefaultBatch } from '../../domain/batchPick'
+import { PageHeader } from '../../ui/PageHeader'
 
 /**
  * Screen-assembly root for /kasir. E1's rework: adding an ukuran now
@@ -40,6 +44,8 @@ export function Kasir() {
   const [inlineCreate, setInlineCreate] = useState<InlineCreate | null>(null)
   const [inlineBarangId, setInlineBarangId] = useState<string | null>(null)
   const [searchFieldKey, setSearchFieldKey] = useState(0)
+  const compact = useIsCompact()
+  const [cartOpen, setCartOpen] = useState(false)
 
   const trimmedSearch = searchValue.trim()
   // Checked against the SAME sellable rows ProductGrid renders, not every
@@ -110,15 +116,17 @@ export function Kasir() {
   const inlineBarangNama = rows?.find(r => r.barangId === inlineBarangId)?.nama ?? ''
 
   return (
-    <main className="flex flex-col gap-5 p-4 md:p-8">
-      <h1 className="text-[17px] font-bold text-ink">Kasir</h1>
+    <main className={`mx-auto flex w-full max-w-workspace flex-col gap-5 p-4 md:p-8 ${compact && cart.lines.length > 0 ? 'pb-28' : ''}`}>
+      <PageHeader title="Kasir" subtitle="Transaksi baru" />
 
-      <SearchScanField key={searchFieldKey} value={searchValue} onChange={setSearchValue} onScan={handleScan} autoFocus />
+      <section aria-label="Pencarian barang" className="rounded-card bg-surface p-4 shadow-card">
+        <SearchScanField key={searchFieldKey} value={searchValue} onChange={setSearchValue} onScan={handleScan} autoFocus />
+      </section>
 
       {inlineCreate && (
-        <section className="rounded-card border border-border bg-surface p-6 shadow-card">
+        <section className="card-in rounded-card bg-surface p-6 shadow-card">
           <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="text-[14px] font-bold text-ink">Tambah barang baru</h2>
+            <h2 className="text-sm font-bold text-ink">Tambah barang baru</h2>
             <Button
               variant="ghost"
               size="sm"
@@ -128,7 +136,7 @@ export function Kasir() {
             </Button>
           </div>
           {inlineCreate.source === 'barcode' && (
-            <p className="mb-3 text-[13px] text-ink-muted">
+            <p className="mb-3 text-sm text-ink-muted">
               Kode &quot;{inlineCreate.value}&quot; belum dikenal. Pilih barang yang sudah ada atau buat baru, lalu isi ukurannya.
             </p>
           )}
@@ -153,8 +161,8 @@ export function Kasir() {
       )}
 
       {!inlineCreate && searchHasNoMatches && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-tile border border-dashed border-border-input bg-surface p-3">
-          <p className="text-[14px] text-ink-muted">
+        <div className="card-in flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-4 shadow-card">
+          <p className="text-sm text-ink-muted">
             Barang &quot;{trimmedSearch}&quot; tidak ditemukan.
           </p>
           <Button
@@ -166,14 +174,28 @@ export function Kasir() {
         </div>
       )}
 
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="lg:flex-[1.9_1_0%]">
           <ProductGrid searchQuery={searchValue} onAdd={handleAddToCart} />
         </div>
-        <div className="lg:flex-[1_1_0%]">
-          <CartPanel cart={cart} onSaveAndNew={handleSaveAndNew} />
-        </div>
+        {/* Wide screens: the cart is a sticky column that never grows taller
+            than the window, so the line list scrolls inside it and the total
+            and Simpan stay on screen. Phones: see the bar and sheet below. */}
+        {!compact && (
+          <div className="lg:sticky lg:top-4 lg:flex-[1_1_0%]">
+            <CartPanel cart={cart} onSaveAndNew={handleSaveAndNew} />
+          </div>
+        )}
       </div>
+
+      {compact && cart.lines.length > 0 && !cartOpen && (
+        <CartBar count={cart.lines.length} total={cart.subtotal} onOpen={() => setCartOpen(true)} />
+      )}
+      {compact && (
+        <Sheet open={cartOpen} onClose={() => setCartOpen(false)} title="Keranjang">
+          <CartPanel cart={cart} embedded onSaveAndNew={handleSaveAndNew} onDone={() => setCartOpen(false)} />
+        </Sheet>
+      )}
     </main>
   )
 }

@@ -24,7 +24,7 @@ describe('LainnyaSheet', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('links to Transaksi, Kamus Barang, Kategori, Supplier and Laporan when open', () => {
+  it('links to Transaksi, Kamus Barang, Kategori, Pelanggan, Supplier, Laporan and Biaya when open', () => {
     renderSheet(true)
     const dialog = screen.getByRole('dialog', { name: 'Lainnya' })
     expect(dialog).toBeInTheDocument()
@@ -32,8 +32,10 @@ describe('LainnyaSheet', () => {
       ['Transaksi', '/transaksi'],
       ['Kamus Barang', '/kamus'],
       ['Kategori', '/kategori'],
+      ['Pelanggan', '/pelanggan'],
       ['Supplier', '/supplier'],
       ['Laporan', '/laporan'],
+      ['Biaya', '/biaya'],
     ]) {
       expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', href)
     }
@@ -56,7 +58,7 @@ describe('LainnyaSheet', () => {
 
   it('gives every destination link the minimum tap-target class', () => {
     renderSheet(true)
-    for (const label of ['Transaksi', 'Kamus Barang', 'Kategori', 'Supplier', 'Laporan']) {
+    for (const label of ['Transaksi', 'Kamus Barang', 'Kategori', 'Pelanggan', 'Supplier', 'Laporan', 'Biaya']) {
       expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-control')
     }
   })

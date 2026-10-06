@@ -1,30 +1,31 @@
-import { KeyRound } from 'lucide-react'
+import { KeyRound, X } from 'lucide-react'
 import { ButtonLink } from '../../ui/Button'
 import { Icon } from '../../ui/Icon'
+import { IconButton } from '../../ui/IconButton'
 
 /**
  * Shown while a cloud project is configured but nobody is signed in: until the
  * owner signs in, nothing leaves this device. It asks; it never blocks. The
  * cashier keeps working, which the text says so nobody hesitates to sell.
  */
-export function LoginReminder({ pendingCount }: { pendingCount: number }) {
+export function LoginReminder({ pendingCount, onDismiss }: { pendingCount: number; onDismiss?: () => void }) {
   const state = pendingCount > 0
-    ? `${pendingCount} perubahan belum tercadangkan ke cloud.`
-    : 'Data toko belum dicadangkan ke cloud.'
+    ? `${pendingCount} perubahan menunggu dicadangkan.`
+    : 'Data masih tersimpan di perangkat ini.'
 
   return (
-    <section aria-label="Belum masuk" className="mx-auto w-full max-w-6xl px-4 pt-4 md:px-8 md:pt-6">
-      <div className="flex flex-col gap-3 rounded-card border border-warning bg-warning-bg p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <Icon icon={KeyRound} size="nav" className="mt-0.5 shrink-0 text-warning" />
-          <div className="flex flex-col gap-0.5">
-            <p className="text-[14px] font-semibold text-warning">Masuk dulu agar data toko aman</p>
-            <p className="text-[13px] text-warning">{state} Kasir tetap bisa dipakai.</p>
-          </div>
+    <section
+      aria-label="Belum masuk"
+      className="card-in mx-4 pt-4 md:hidden"
+    >
+      <div className="flex items-center gap-2 rounded-card bg-warning-bg p-3">
+        <Icon icon={KeyRound} size="nav" className="shrink-0 text-warning" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-warning">Cadangan cloud belum aktif</p>
+          <p className="text-xs leading-4 text-warning">{state}</p>
         </div>
-        <ButtonLink to="/masuk" variant="secondary">
-          Masuk
-        </ButtonLink>
+        <ButtonLink to="/masuk" variant="secondary" size="sm" className="min-h-control">Masuk</ButtonLink>
+        {onDismiss && <IconButton icon={X} label="Tutup pengingat masuk" size="sm" variant="ghost" className="min-h-control min-w-control" onClick={onDismiss} />}
       </div>
     </section>
   )

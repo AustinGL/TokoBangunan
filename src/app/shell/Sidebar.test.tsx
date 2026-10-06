@@ -4,17 +4,17 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi } from 'vitest'
 import { Sidebar } from './Sidebar'
 
-const renderSidebar = (path = '/', supplierAlertCount = 0) =>
+const renderSidebar = (path = '/', supplierAlertCount = 0, piutangAlertCount = 0) =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <Sidebar syncStatus="tersinkron" pendingCount={0} onNewTransaction={vi.fn()} supplierAlertCount={supplierAlertCount} />
+      <Sidebar syncStatus="tersinkron" pendingCount={0} onNewTransaction={vi.fn()} supplierAlertCount={supplierAlertCount} piutangAlertCount={piutangAlertCount} />
     </MemoryRouter>,
   )
 
 describe('Sidebar', () => {
-  it('renders all eight destinations (five primary plus three data-master)', () => {
+  it('renders all ten destinations (six primary plus four data-master)', () => {
     renderSidebar()
-    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Kategori', 'Supplier']) {
+    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Biaya', 'Kamus Barang', 'Kategori', 'Pelanggan', 'Supplier']) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
@@ -45,7 +45,7 @@ describe('Sidebar', () => {
 
   it('gives every destination link and the primary button the minimum tap-target class', () => {
     renderSidebar()
-    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Kamus Barang', 'Kategori', 'Supplier']) {
+    for (const label of ['Beranda', 'Transaksi', 'Stok', 'Piutang', 'Laporan', 'Biaya', 'Kamus Barang', 'Kategori', 'Pelanggan', 'Supplier']) {
       expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-control')
     }
     expect(screen.getByRole('button', { name: '+ Transaksi baru' })).toHaveClass('h-control')
@@ -62,6 +62,23 @@ describe('Sidebar', () => {
     // Never announced a second way: the dot itself must stay aria-hidden
     // (NotifDot's own contract), so the count lives in exactly one place.
     expect(screen.queryByRole('link', { name: 'Supplier' })).toBeNull()
+  })
+
+  it('shows no piutang badge when nobody is lewat tempo', () => {
+    renderSidebar('/', 0, 0)
+    expect(screen.getByRole('link', { name: 'Piutang' })).not.toHaveAttribute('aria-label')
+  })
+
+  it('folds the number of customers lewat tempo into the Piutang link’s own accessible name', () => {
+    renderSidebar('/', 0, 2)
+    expect(screen.getByRole('link', { name: 'Piutang, 2 lewat tempo' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Piutang' })).toBeNull()
+  })
+
+  it('keeps the supplier and piutang badges independent', () => {
+    renderSidebar('/', 3, 1)
+    expect(screen.getByRole('link', { name: 'Supplier, 3 perlu dilengkapi' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Piutang, 1 lewat tempo' })).toBeInTheDocument()
   })
 
   it('calls onNewTransaction when the primary button is clicked', async () => {

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Tags } from 'lucide-react'
 import { useKategori } from '../shared/useKategori'
 import { useKatalog } from '../shared/useKatalog'
 import { KategoriSheet, type KategoriSheetValues } from './KategoriSheet'
@@ -13,6 +12,7 @@ import { IconTile } from '../../ui/IconTile'
 import { EmptyState } from '../../ui/EmptyState'
 import { ListSkeleton } from '../../ui/ListSkeleton'
 import { StatusPill } from '../../ui/StatusPill'
+import { CategoryIcon } from '../../ui/BrandIcons'
 
 const ctx = () => ({ clock: systemClock, deviceId: getDeviceId() })
 
@@ -49,7 +49,7 @@ export function Kategori() {
       {entries === undefined ? (
         <ListSkeleton label="Memuat daftar kategori..." />
       ) : entries.length === 0 ? (
-        <EmptyState icon={Tags}>Belum ada kategori. Mulai tambahkan kategori.</EmptyState>
+        <EmptyState icon={CategoryIcon}>Belum ada kategori. Mulai tambahkan kategori.</EmptyState>
       ) : (
         <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {entries.map(entry => (
@@ -57,12 +57,12 @@ export function Kategori() {
               <button
                 type="button"
                 onClick={() => setSheet({ mode: 'edit', entry })}
-                className="flex min-h-control w-full items-center gap-3 rounded-card border border-border bg-surface p-4 text-left shadow-card transition-colors duration-instant hover:bg-[var(--table-row-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                className="press flex min-h-control w-full items-center gap-3 rounded-card bg-surface p-4 text-left shadow-card transition-shadow duration-quick hover:shadow-float focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
               >
-                <IconTile icon={Tags} />
+                <IconTile icon={CategoryIcon} tone="primary" />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] font-semibold text-ink">{entry.nama}</span>
-                  <span className="text-[13px] text-ink-muted">{counts.get(entry.id) ?? 0} barang</span>
+                  <span className="truncate text-base font-semibold text-ink">{entry.nama}</span>
+                  <span className="text-sm text-ink-muted">{counts.get(entry.id) ?? 0} barang</span>
                 </span>
                 {entry.diarsipkan && <StatusPill tone="neutral">Diarsipkan</StatusPill>}
               </button>

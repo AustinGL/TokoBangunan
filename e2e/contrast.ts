@@ -56,9 +56,10 @@ function compositeOver(fg: Rgba, bg: { r: number; g: number; b: number }): { r: 
  * Walks from `selector` up through every ancestor (including html and
  * body), then composites each one's computed background-color in real
  * paint order: the outermost ancestor first, each descendant's own
- * background-color layered on top via standard alpha "over" compositing. A
- * fully opaque layer (alpha === 1) terminates the walk early, since nothing
- * further up the chain can still show through it.
+ * background-color layered on top via standard alpha "over" compositing.
+ * Every descendant must still be visited after an opaque ancestor: an opaque
+ * page canvas does not prevent a card or navigation rail from painting over
+ * it later in the chain.
  *
  * This replaces the previous "first non-transparent layer wins" approach,
  * correct for every original surface (fully opaque --surface,
@@ -84,7 +85,6 @@ export async function effectiveBackground(page: Page, selector: string): Promise
     const rgba = parseRgba(layers[i])
     if (rgba === null || rgba.a === 0) continue
     result = compositeOver(rgba, result)
-    if (rgba.a === 1) break
   }
   return `rgb(${result.r}, ${result.g}, ${result.b})`
 }

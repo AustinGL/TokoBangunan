@@ -29,21 +29,21 @@ export function ProductCard({ barang, onAdd }: Props) {
   const visibleUkuran = barang.ukuran.filter(u => !u.diarsipkan)
 
   return (
-    <div className="flex flex-col gap-2 rounded-tile border border-border bg-surface p-3 shadow-card">
-      <div>
-        <p className="text-[14px] font-semibold text-ink">{barang.nama}</p>
-        {barang.kategori && <p className="text-[12px] text-ink-faint">{barang.kategori}</p>}
+    <div className="card-in flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card transition-shadow duration-quick hover:shadow-float">
+      <div className="pb-1">
+        <p className="text-base font-semibold text-ink">{barang.nama}</p>
+        {barang.kategori && <p className="text-xs text-ink-faint">{barang.kategori}</p>}
       </div>
 
-      <ul className="flex flex-col">
+      <ul className="flex flex-col divide-y divide-separator">
         {visibleUkuran.map(u => (
-          <li key={u.id} className="flex items-center justify-between gap-2 border-t border-border py-2 first:border-t-0">
+          <li key={u.id} className="flex items-center justify-between gap-2 py-2.5">
             <div>
-              <p className="text-[13px] font-medium text-ink">{u.ukuran}</p>
-              <p className={`text-[12px] font-medium ${STATUS_TEXT_CLASS[u.status]}`}>
+              <p className="text-sm font-medium text-ink">{u.ukuran}</p>
+              <p className={`text-xs font-medium ${STATUS_TEXT_CLASS[u.status]}`}>
                 {STATUS_LABEL[u.status]} - sisa {u.quantity}
               </p>
-              <p className="text-[13px] font-bold tabular-nums text-ink">{formatRupiah(rupiah(u.hargaEceran))}</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{formatRupiah(rupiah(u.hargaEceran))}</p>
             </div>
             <IconButton
               icon={Plus}

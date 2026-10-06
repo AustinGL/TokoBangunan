@@ -55,7 +55,7 @@ export function Stok() {
   }, [allRows])
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-8">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 md:p-8">
       <PageHeader
         title="Stok"
         subtitle={katalog !== undefined ? `${summary.totalBarang} barang` : undefined}
@@ -90,9 +90,9 @@ export function Stok() {
       ) : visibleRows.length === 0 ? (
         <EmptyState icon={SearchX}>Tidak ada barang yang cocok dengan pencarian atau filter.</EmptyState>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <ul className="overflow-hidden rounded-card bg-surface shadow-card">
           {visibleRows.map(row => (
-            <li key={row.barangId}>
+            <li key={row.barangId} className="border-b border-separator last:border-b-0">
               <StokRow row={row} />
             </li>
           ))}

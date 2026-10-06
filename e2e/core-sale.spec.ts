@@ -1,3 +1,4 @@
+import { animasiSelesai } from './settle'
 import { test, expect, type Page } from '@playwright/test'
 import { contrastRatio, parseRgb, effectiveBackground } from './contrast'
 
@@ -27,7 +28,7 @@ async function createItemViaKasir(
   opts: { nama: string; baseUnit?: string; harga?: string; stokMinimum?: string },
 ) {
   await page.goto('/kasir')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir', { timeout: 10_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kasir')
 
   await page.getByLabel('Cari barang').fill(opts.nama)
   // Kasir's own "no match" prompt - opens the inline-create section.
@@ -84,8 +85,7 @@ test.describe('core sale flow, offline', () => {
     // starts controlling requests, then go offline.
     await page.goto('/')
     await expect(heading).toHaveText('Beranda')
-    await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })
-    await page.reload()
+    await activateServiceWorker(page)
     await expect(heading).toHaveText('Beranda')
 
     await context.setOffline(true)
@@ -105,8 +105,8 @@ test.describe('core sale flow, offline', () => {
 
     // 3. Confirm it landed in Transaksi, offline, with the right total.
     await page.getByRole('link', { name: 'Transaksi' }).first().click()
-    await expect(heading).toHaveText('Transaksi', { timeout: 10_000 })
-    const row = page.locator('tbody tr').filter({ hasText: itemName })
+    await expect(heading).toHaveText('Transaksi')
+    const row = page.getByRole('table', { name: 'Daftar transaksi' }).locator('tbody tr').filter({ hasText: itemName })
     await expect(row).toBeVisible()
     await expect(row.getByText('Rp 52.000')).toBeVisible()
 
@@ -115,7 +115,7 @@ test.describe('core sale flow, offline', () => {
 })
 
 test.describe('Kasir touch targets', () => {
-  test('the add-to-cart button and the cart qty stepper buttons render at least 44px', async ({ page }, testInfo) => {
+  test('the add-to-cart button and the cart qty stepper buttons render at least 44px', async ({ page, isMobile }, testInfo) => {
     // Box size comes from the min-h-tap/min-w-tap utilities (fixed 44px),
     // not from colour scheme, so light-theme coverage on both viewports is
     // enough; running the dark variant too would only add load (see the
@@ -126,6 +126,7 @@ test.describe('Kasir touch targets', () => {
     await createItemViaKasir(page, { nama: itemName, harga: '15000', stokMinimum: '5' })
 
     const addButton = page.getByRole('button', { name: addToCartButtonName(itemName, 'sak') })
+    await animasiSelesai(page)
     const addBox = await addButton.boundingBox()
     expect(addBox, 'add-to-cart button has no box').not.toBeNull()
     expect(addBox!.height, 'add-to-cart button height').toBeGreaterThanOrEqual(44)
@@ -133,6 +134,11 @@ test.describe('Kasir touch targets', () => {
 
     await addButton.click()
 
+    // On a phone the cart lives in a bottom sheet behind a summary bar.
+    if (isMobile) await page.getByRole('button', { name: /Lihat keranjang/ }).click()
+
+    await expect(page.getByRole('button', { name: 'Kurangi jumlah' })).toBeVisible()
+    await animasiSelesai(page)
     const minus = page.getByRole('button', { name: 'Kurangi jumlah' })
     const plus = page.getByRole('button', { name: 'Tambah jumlah' })
     for (const stepper of [minus, plus]) {
@@ -162,7 +168,7 @@ test.describe('status color contrast', () => {
     await createItemViaKasir(page, { nama: itemName, harga: '10000', stokMinimum: '5' })
 
     await page.goto('/stok')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stok', { timeout: 10_000 })
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stok')
 
     // Scoped to the visible-rows list (Stok.tsx renders a <ul>, not a
     // table): StockFilters' own "Habis" status-toggle button also carries
@@ -196,3 +202,11 @@ test.describe('status color contrast', () => {
     expect(ratio, `text ${textColor} on background ${bgColor}`).toBeGreaterThanOrEqual(4.5)
   })
 })
+async function activateServiceWorker(page: Page) {
+  await page.waitForFunction(async () => {
+    const registrations = await navigator.serviceWorker?.getRegistrations()
+    return registrations?.some(registration => registration.active) ?? false
+  }, { timeout: 15_000 })
+  await page.reload()
+  await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, { timeout: 15_000 })
+}

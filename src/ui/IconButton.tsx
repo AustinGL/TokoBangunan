@@ -7,19 +7,19 @@ type Shape = 'pill' | 'field'
 type Size = 'md' | 'sm'
 
 const BASE =
-  'relative inline-flex shrink-0 items-center justify-center transition-colors duration-quick ' +
-  'disabled:cursor-not-allowed disabled:opacity-50 ' +
+  'inline-flex shrink-0 select-none items-center justify-center transition-[color,background-color,transform] duration-quick ease-spring active:scale-[0.92] ' +
+  'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ' +
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]'
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)]',
-  secondary: 'border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-fg)]',
-  ghost: 'text-ink-muted',
+  primary: 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] hover:bg-primary-hover active:bg-primary-active',
+  secondary: 'border border-[var(--btn-secondary-bd)] bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-fg)] hover:bg-[rgba(120,120,128,.18)] active:bg-[rgba(120,120,128,.24)]',
+  ghost: 'text-ink-muted hover:bg-fill hover:text-ink active:bg-[rgba(120,120,128,.18)]',
 }
 const SHAPE: Record<Shape, string> = { pill: 'rounded-pill', field: 'rounded-field' }
 const SIZE: Record<Size, string> = {
   md: 'h-control w-control',
-  sm: "h-control-sm w-control-sm before:absolute before:-inset-1 before:content-['']",
+  sm: "relative h-control-sm w-control-sm before:absolute before:-inset-1 before:content-['']",
 }
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> & {

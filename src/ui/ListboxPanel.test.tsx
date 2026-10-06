@@ -85,4 +85,23 @@ describe('ListboxPanel', () => {
     expect(list).toHaveClass('bottom-full')
     expect(list).toHaveStyle({ maxHeight: '200px' })
   })
+
+  it('opens with the grow-in animation and plays the exit one while closing', () => {
+    const { unmount } = render(<div className="relative"><ListboxPanel id="lb" rows={rows} activeIndex={-1} selectedValue={null} emptyText="x" placement={DEFAULT_PLACEMENT} onPick={vi.fn()} /></div>)
+    expect(screen.getByRole('listbox')).toHaveClass('listbox-in')
+    unmount()
+
+    render(<div className="relative"><ListboxPanel id="lb" rows={rows} activeIndex={-1} selectedValue={null} emptyText="x" placement={DEFAULT_PLACEMENT} closing onPick={vi.fn()} /></div>)
+    expect(document.querySelector('ul')).toHaveClass('listbox-out')
+  })
+
+  it('is a ghost while closing: no listbox role, hidden from assistive tech and inert', () => {
+    renderPanel({ closing: true })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('option')).toBeNull()
+    const ghost = document.querySelector('ul')!
+    expect(ghost).toHaveAttribute('aria-hidden', 'true')
+    expect(ghost).not.toHaveAttribute('id')
+    expect(ghost).toHaveAttribute('inert')
+  })
 })

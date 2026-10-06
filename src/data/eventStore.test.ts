@@ -523,3 +523,104 @@ describe('appendEvents incremental fold: KategoriUpserted', () => {
     expect(await db.kategoriProj.get('kat_semen')).toEqual(incremental)
   })
 })
+
+describe('appendEvents incremental fold: customers and payments', () => {
+  it('folds CustomerUpserted into customersProj and PaymentReceived into paymentsProj', async () => {
+    const customer = createEvent('CustomerUpserted', { id: 'c1', nama: 'Budi', telepon: '0812' }, at('2026-10-01T07:00:00.000Z'))
+    const payment = createEvent('PaymentReceived', { saleId: 's1', jumlah: 25000 }, at('2026-10-02T07:00:00.000Z'))
+    await appendEvents([customer, payment])
+
+    expect(await db.customersProj.get('c1')).toMatchObject({ nama: 'Budi', telepon: '0812' })
+    expect(await db.paymentsProj.get(payment.id)).toMatchObject({ saleId: 's1', jumlah: 25000 })
+  })
+
+  it('a later CustomerUpserted overwrites the row (last write wins)', async () => {
+    await appendEvents([createEvent('CustomerUpserted', { id: 'c1', nama: 'Budi' }, at('2026-10-01T07:00:00.000Z'))])
+    await appendEvents([createEvent('CustomerUpserted', { id: 'c1', nama: 'Budi Santoso' }, at('2026-10-01T08:00:00.000Z'))])
+    expect((await db.customersProj.get('c1'))?.nama).toBe('Budi Santoso')
+  })
+
+  it('folds a Bon sale with its Bon fields', async () => {
+    const bon = createEvent('SaleRecorded', {
+      ...sale('semen', 100000), metodeBayar: 'bon' as const, customerId: 'c1', jatuhTempo: '2026-10-20', dibayarAwal: 30000,
+    }, at('2026-10-03T07:00:00.000Z'))
+    await appendEvents([bon])
+    expect(await db.salesProj.get(bon.id)).toMatchObject({ metodeBayar: 'bon', customerId: 'c1', jatuhTempo: '2026-10-20', dibayarAwal: 30000 })
+  })
+
+  it('rebuildProjections reproduces both tables identically after the cache is discarded', async () => {
+    await appendEvents([
+      createEvent('CustomerUpserted', { id: 'c1', nama: 'Budi' }, at('2026-10-01T07:00:00.000Z')),
+      createEvent('PaymentReceived', { saleId: 's1', jumlah: 25000 }, at('2026-10-02T07:00:00.000Z')),
+    ])
+    const customersBefore = await db.customersProj.toArray()
+    const paymentsBefore = await db.paymentsProj.toArray()
+
+    await db.customersProj.clear()
+    await db.paymentsProj.clear()
+    await rebuildProjections()
+
+    expect(await db.customersProj.toArray()).toEqual(customersBefore)
+    expect(await db.paymentsProj.toArray()).toEqual(paymentsBefore)
+  })
+})
+
+describe('appendEvents incremental fold: TokoDiatur', () => {
+  it('folds the shop name into the single tokoProj row', async () => {
+    await appendEvents([createEvent('TokoDiatur', { nama: 'Toko Maju' }, at('2026-10-05T07:00:00.000Z'))])
+    expect(await db.tokoProj.get('toko')).toMatchObject({ id: 'toko', nama: 'Toko Maju' })
+    expect(await db.tokoProj.count()).toBe(1)
+  })
+
+  it('a later name overwrites it, and an empty one clears it', async () => {
+    await appendEvents([createEvent('TokoDiatur', { nama: 'Toko Lama' }, at('2026-10-05T07:00:00.000Z'))])
+    await appendEvents([createEvent('TokoDiatur', { nama: 'Toko Baru' }, at('2026-10-05T08:00:00.000Z'))])
+    expect((await db.tokoProj.get('toko'))?.nama).toBe('Toko Baru')
+    await appendEvents([createEvent('TokoDiatur', { nama: '' }, at('2026-10-05T09:00:00.000Z'))])
+    expect((await db.tokoProj.get('toko'))?.nama).toBe('')
+  })
+
+  it('rebuildProjections reproduces the row identically after the cache is discarded', async () => {
+    await appendEvents([
+      createEvent('TokoDiatur', { nama: 'Toko Lama' }, at('2026-10-05T07:00:00.000Z')),
+      createEvent('TokoDiatur', { nama: 'Toko Baru' }, at('2026-10-05T08:00:00.000Z')),
+    ])
+    const before = await db.tokoProj.toArray()
+    await db.tokoProj.clear()
+    await rebuildProjections()
+    expect(await db.tokoProj.toArray()).toEqual(before)
+  })
+})
+
+describe('appendEvents incremental fold: expenses', () => {
+  it('folds ExpenseRecorded into expensesProj and ExpenseVoided marks it batal', async () => {
+    const expense = createEvent('ExpenseRecorded', { jumlah: 750_000, kategori: 'listrik' }, at('2026-10-05T07:00:00.000Z'))
+    await appendEvents([expense])
+    expect(await db.expensesProj.get(expense.id)).toMatchObject({ jumlah: 750_000, kategori: 'listrik', status: 'aktif' })
+
+    await appendEvents([createEvent('ExpenseVoided', { expenseId: expense.id }, at('2026-10-05T08:00:00.000Z'))])
+    expect(await db.expensesProj.get(expense.id)).toMatchObject({ status: 'batal' })
+  })
+
+  it('rebuildProjections reproduces the table identically after the cache is discarded', async () => {
+    const expense = createEvent('ExpenseRecorded', { jumlah: 750_000, kategori: 'listrik' }, at('2026-10-05T07:00:00.000Z'))
+    await appendEvents([expense, createEvent('ExpenseVoided', { expenseId: expense.id }, at('2026-10-05T08:00:00.000Z'))])
+    const before = await db.expensesProj.toArray()
+    await db.expensesProj.clear()
+    await rebuildProjections()
+    expect(await db.expensesProj.toArray()).toEqual(before)
+  })
+})
+
+describe('rebuildProjections: a void written in the same millisecond as its record', () => {
+  it('still cancels the expense, whatever the random ids happen to be', async () => {
+    for (let i = 0; i < 15; i += 1) {
+      await db.delete(); await db.open()
+      const record = createEvent('ExpenseRecorded', { jumlah: 5000, kategori: 'lainnya' }, at('2026-10-05T07:00:00.000Z'))
+      const voided = createEvent('ExpenseVoided', { expenseId: record.id }, at('2026-10-05T07:00:00.000Z'))
+      await appendEvents([record, voided])
+      await rebuildProjections()
+      expect((await db.expensesProj.get(record.id))?.status).toBe('batal')
+    }
+  })
+})

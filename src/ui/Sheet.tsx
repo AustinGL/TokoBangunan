@@ -18,7 +18,7 @@ type Props = {
 }
 
 const VARIANT_POSITION: Record<NonNullable<Props['variant']>, string> = {
-  side: 'inset-x-0 top-auto bottom-0 w-full max-h-[85vh] rounded-t-sheet md:inset-y-0 md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-[420px] md:max-h-none md:rounded-t-none md:rounded-l-sheet',
+  side: 'inset-x-0 top-auto bottom-0 w-full max-h-[85vh] rounded-t-sheet md:inset-y-0 md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-panel md:max-h-none md:rounded-t-none md:rounded-l-sheet',
   center: 'inset-0 m-auto h-fit max-h-[85vh] w-[min(92vw,480px)] rounded-sheet',
 }
 
@@ -42,6 +42,12 @@ function focusFirstField(dialog: HTMLDialogElement): void {
  * HTMLDialogElement.showModal/close/show at all (see the polyfill
  * src/test-setup.ts registers, and its own doc comment for what was
  * verified before writing it).
+ *
+ * Motion lives in tokens.css (dialog[data-sheet]): the sheet slides up from
+ * the bottom on phones, in from the right on desktop, and scales in when
+ * centered, with the scrim fading alongside. Both entry and exit animate
+ * through @starting-style and allow-discrete; a browser without them simply
+ * opens and closes instantly.
  */
 export function Sheet({ open, onClose, title, children, variant = 'side' }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -93,6 +99,8 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
   return createPortal(
     <dialog
       ref={ref}
+      data-sheet=""
+      data-variant={variant}
       // React events still bubble through the component tree across a portal,
       // so a submit inside the sheet would reach the caller's <form> onSubmit
       // (its validation over fields the user is not editing). The sheet is a
@@ -116,12 +124,16 @@ export function Sheet({ open, onClose, title, children, variant = 'side' }: Prop
       // build, so two classes of equal specificity on one element cascade by
       // that compiled order, not by their order in this string - verified in
       // Sheet.test.tsx.
-      className={`fixed m-0 max-w-none border-0 bg-transparent p-0 backdrop:bg-[var(--scrim)] open:flex open:flex-col ${VARIANT_POSITION[variant]}`}
+      className={`fixed m-0 max-w-none border-0 bg-transparent p-0 open:flex open:flex-col ${VARIANT_POSITION[variant]}`}
     >
+      {/* The sheet itself is solid: translucency is for the navigation layer only. */}
       <div className="flex h-full flex-col overflow-hidden bg-surface shadow-panel">
-        <div className="flex items-center justify-between gap-4 border-b border-border p-4">
-          <h2 id={titleId} className="text-[15px] font-bold text-ink">{title}</h2>
-          <IconButton icon={X} label="Tutup" variant="ghost" onClick={onClose} />
+        {variant === 'side' && (
+          <span aria-hidden="true" className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-pill bg-border-strong md:hidden" />
+        )}
+        <div className="flex items-center justify-between gap-4 border-b border-border pl-5 pr-3 py-2.5">
+          <h2 id={titleId} className="text-lg font-semibold text-ink">{title}</h2>
+          <IconButton icon={X} label="Tutup" variant="secondary" onClick={onClose} />
         </div>
         <div data-sheet-body className="flex flex-1 flex-col overflow-y-auto p-4 scroll-pb-[calc(6rem+env(safe-area-inset-bottom))]">{children}</div>
       </div>

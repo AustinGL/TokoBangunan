@@ -61,7 +61,7 @@ export function KategoriPicker({ value, onChange }: Props) {
           </div>
           <IconButton icon={Plus} label="Tambah kategori baru" shape="field" onClick={() => setCreating(true)} />
         </div>
-        {quickAddError && <p role="alert" className="text-[13px] text-danger">{quickAddError}</p>}
+        {quickAddError && <p role="alert" className="text-sm text-danger">{quickAddError}</p>}
       </div>
       {creating && <KategoriSheet open onClose={() => setCreating(false)} onSubmit={handleSheetSubmit} />}
     </>

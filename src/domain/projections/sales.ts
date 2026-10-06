@@ -15,7 +15,11 @@ export type SaleLine = {
 export type Sale = {
   id: string                 // = the SaleRecorded event's own id
   lines: SaleLine[]
-  metodeBayar: 'tunai'
+  metodeBayar: 'tunai' | 'bon' | 'transfer' | 'qris'
+  /** Bon only: yyyy-mm-dd local day the customer is due to pay. */
+  jatuhTempo?: string
+  /** Bon only: paid at the counter; the rest of `total` is piutang. */
+  dibayarAwal?: number
   subtotal: number
   diskon: number
   total: number

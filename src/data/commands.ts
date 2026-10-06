@@ -1,9 +1,12 @@
 import { appendEvents } from './eventStore'
 import { db } from './db'
-import { createEvent, type EventEnvelope } from '../domain/events'
+import { createEvent, type EventEnvelope, type KategoriBiaya } from '../domain/events'
 import { newEventId } from '../domain/ids'
 import { toBase } from '../domain/quantity'
-import { add, rupiah, subtract, type Rupiah } from '../domain/money'
+import { add, formatRupiah, rupiah, subtract, type Rupiah } from '../domain/money'
+import { alokasiTerlama, notaBelumLunas, sisaNota, tanggalBayarTerendah } from '../domain/piutang'
+import { adalahKey } from '../domain/kalender'
+import { dateAtLocalNoon, todayIsoDate } from '../domain/tanggal'
 import type { Clock } from '../domain/clock'
 import { kategoriIdForName, normalizeKategoriName } from '../domain/kategori'
 import { loadKategoriEntries } from './kategoriQueries'
@@ -98,11 +101,17 @@ export type RecordSaleLine = {
 
 export type RecordSaleInput = {
   lines: RecordSaleLine[]
-  /** Phase 2 accepts only tunai; matches saleRecordedSchema's narrower enum. */
-  metodeBayar: 'tunai'
+  metodeBayar: 'tunai' | 'bon' | 'transfer' | 'qris'
+  /** yyyy-mm-dd local day of the sale. Absent, or today: now. Never in the future; stock still comes off now. */
+  tanggal?: string
+  /** Tunai only: cash handed over. */
   uangDiterima?: number
-  /** No customer picker exists yet (Task 6b territory); always undefined this phase. */
+  /** Required for Bon. */
   customerId?: string
+  /** Bon only: yyyy-mm-dd local day the customer is due to pay. */
+  jatuhTempo?: string
+  /** Bon only: paid at the counter, whole rupiah, below the total. */
+  dibayarAwal?: number
 }
 
 /**
@@ -123,6 +132,20 @@ export const recordSale = async (cart: RecordSaleInput, ctx: CommandContext): Pr
   const diskon: Rupiah = rupiah(0)
   const total = subtract(subtotal, diskon)
 
+  if (cart.metodeBayar !== 'tunai' && cart.metodeBayar !== 'bon' && cart.uangDiterima !== undefined) {
+    throw new Error('Transfer dan QRIS tidak memakai uang diterima.')
+  }
+  const occurredAt = waktuBayar(cart.tanggal, ctx.clock, undefined, 'Tanggal transaksi')
+
+  if (cart.metodeBayar === 'bon') {
+    // The schema enforces the same three rules; these give the owner a
+    // readable reason and stop the write before any event is built.
+    if (!cart.customerId) throw new Error('Bon wajib punya pelanggan.')
+    if (!cart.jatuhTempo) throw new Error('Bon wajib punya jatuh tempo.')
+    if ((cart.dibayarAwal ?? 0) >= total) throw new Error('Uang muka harus kurang dari total.')
+    if (cart.tanggal !== undefined && cart.jatuhTempo < cart.tanggal) throw new Error('Jatuh tempo tidak boleh sebelum tanggal transaksi.')
+  }
+
   const saleEvent = createEvent('SaleRecorded', {
     lines: cart.lines,
     metodeBayar: cart.metodeBayar,
@@ -131,8 +154,10 @@ export const recordSale = async (cart: RecordSaleInput, ctx: CommandContext): Pr
     total,
     uangDiterima: cart.uangDiterima,
     customerId: cart.customerId,
+    jatuhTempo: cart.jatuhTempo,
+    dibayarAwal: cart.dibayarAwal,
     deliveryIntent: 'dibawa',
-  }, ctx)
+  }, { ...ctx, occurredAt })
 
   // One StockAdjusted per line, quantity negated: the cart line's own qty is
   // a positive milli-quantity (what was sold), but a sale deducts stock.
@@ -151,6 +176,9 @@ export const recordSale = async (cart: RecordSaleInput, ctx: CommandContext): Pr
   await appendEvents([saleEvent, ...stockEvents])
   return saleEvent.id
 }
+
+/** A void refused for a business reason (as opposed to a write failure); its message is fit to show the owner. */
+export class PembatalanDitolakError extends Error {}
 
 /**
  * Cancels an existing sale: writes SaleVoided and reverses its stock
@@ -175,6 +203,12 @@ export async function voidSale(saleId: string, alasan: string, ctx: CommandConte
   const sale = await db.salesProj.get(saleId)
   if (!sale) throw new Error('Transaksi tidak ditemukan.')
   if (sale.status === 'batal') throw new Error('Transaksi sudah dibatalkan.')
+  if (sale.metodeBayar === 'bon') {
+    const dibayar = (await db.paymentsProj.where('saleId').equals(saleId).toArray()).reduce((sum, p) => sum + p.jumlah, 0)
+    if (dibayar > 0) {
+      throw new PembatalanDitolakError(`Sudah ada pembayaran ${formatRupiah(rupiah(dibayar))} untuk transaksi ini, jadi tidak bisa dibatalkan.`)
+    }
+  }
 
   const voidEvent = createEvent('SaleVoided', { saleId, alasan }, ctx)
   // StockAdjusted.quantity is POSITIVE line.qty, reversing recordSale's
@@ -530,4 +564,182 @@ export const correctBatch = async (input: CorrectBatchInput, ctx: CommandContext
   }
 
   await appendEvents(events)
+}
+
+export type RecordCustomerInput = { nama: string; telepon?: string; alamat?: string; termynHari?: number }
+
+/** Creates a customer (Kasir's Bon picker is the only place that does). Returns its id. */
+export const recordCustomer = async (input: RecordCustomerInput, ctx: CommandContext): Promise<string> => {
+  const id = newEventId()
+  await appendEvents([createEvent('CustomerUpserted', {
+    id,
+    nama: input.nama.trim(),
+    telepon: input.telepon?.trim() || undefined,
+    alamat: input.alamat?.trim() || undefined,
+    termynHari: input.termynHari,
+  }, ctx)])
+  return id
+}
+
+export type UpdateCustomerInput = {
+  id: string
+  nama: string
+  /** null or blank clears it. */
+  telepon?: string | null
+  alamat?: string | null
+}
+
+/**
+ * Rewrites a customer's contact details (the Piutang page is where the
+ * missing phone number for a WhatsApp reminder gets filled in). Same id, so
+ * last-write-wins replaces the row; the terms and tier it already had are
+ * carried forward, and a customer id this device has no row for yet gets the
+ * defaults rather than an error.
+ */
+export const updateCustomer = async (input: UpdateCustomerInput, ctx: CommandContext): Promise<void> => {
+  const nama = input.nama.trim()
+  if (nama === '') throw new Error('Nama pelanggan wajib diisi.')
+  const existing = await db.customersProj.get(input.id)
+  await appendEvents([createEvent('CustomerUpserted', {
+    id: input.id,
+    nama,
+    telepon: input.telepon?.trim() || undefined,
+    alamat: input.alamat?.trim() || undefined,
+    tier: existing?.tier,
+    termynHari: existing?.termynHari,
+  }, ctx)])
+}
+
+export type CatatPembayaranInput = {
+  saleId: string
+  jumlah: number
+  catatan?: string
+  /** yyyy-mm-dd local day the money came in. Absent, or today: now. */
+  tanggal?: string
+}
+
+/**
+ * The business time (`occurredAt`) of a payment dated `tanggal`. Undefined means
+ * "now" (no date, or today: keep the time of day). An earlier day is booked at
+ * local noon of that day; `recordedAt` always stays the real moment of writing.
+ * Refuses a malformed day, a future day, and a day before `terendah` (the
+ * latest nota being paid: it did not exist yet).
+ */
+function waktuBayar(tanggal: string | undefined, clock: Clock, terendah: string | undefined, label = 'Tanggal bayar'): Date | undefined {
+  if (tanggal === undefined) return undefined
+  if (!adalahKey(tanggal)) throw new Error(`${label} tidak valid.`)
+  const hariIni = todayIsoDate(clock)
+  if (tanggal > hariIni) throw new Error(`${label} tidak boleh di masa depan.`)
+  if (terendah !== undefined && tanggal < terendah) throw new Error(`${label} tidak boleh sebelum tanggal nota.`)
+  return tanggal === hariIni ? undefined : dateAtLocalNoon(tanggal)
+}
+
+/** Records a payment against one Bon nota. Never more than its sisa. Returns the event id. */
+export const catatPembayaran = async (input: CatatPembayaranInput, ctx: CommandContext): Promise<string> => {
+  const sale = await db.salesProj.get(input.saleId)
+  if (!sale) throw new Error('Transaksi tidak ditemukan.')
+  if (sale.metodeBayar !== 'bon') throw new Error('Transaksi ini bukan Bon.')
+  if (sale.status === 'batal') throw new Error('Transaksi sudah dibatalkan.')
+  if (!Number.isInteger(input.jumlah) || input.jumlah <= 0) throw new Error('Jumlah harus lebih dari 0.')
+
+  const payments = await db.paymentsProj.where('saleId').equals(input.saleId).toArray()
+  const sisa = sisaNota(sale, payments)
+  if (input.jumlah > sisa) throw new Error(`Jumlah melebihi sisa ${formatRupiah(rupiah(sisa))}.`)
+
+  const occurredAt = waktuBayar(input.tanggal, ctx.clock, tanggalBayarTerendah([sale]))
+  const event = createEvent('PaymentReceived', {
+    saleId: input.saleId,
+    jumlah: input.jumlah,
+    catatan: input.catatan?.trim() || undefined,
+  }, { ...ctx, occurredAt })
+  await appendEvents([event])
+  return event.id
+}
+
+export type CatatPembayaranTerlamaInput = { customerId: string; jumlah: number; catatan?: string; tanggal?: string }
+
+/**
+ * Pays a customer's notas oldest-due-first with one amount: one
+ * PaymentReceived per touched nota, all in a single appendEvents call, so a
+ * failure leaves no half-applied payment. Throws before writing when the
+ * amount is not positive or exceeds the customer's total piutang.
+ */
+export const catatPembayaranTerlama = async (input: CatatPembayaranTerlamaInput, ctx: CommandContext): Promise<void> => {
+  const [sales, payments] = await Promise.all([db.salesProj.toArray(), db.paymentsProj.toArray()])
+  const nota = notaBelumLunas(sales, payments, input.customerId)
+  const alokasi = alokasiTerlama(nota, input.jumlah)
+  // Only the notas this amount actually reaches limit the date.
+  const disentuh = nota.filter(n => alokasi.some(a => a.saleId === n.saleId))
+  const occurredAt = waktuBayar(input.tanggal, ctx.clock, tanggalBayarTerendah(disentuh))
+  const catatan = input.catatan?.trim() || undefined
+  await appendEvents(alokasi.map(a => createEvent('PaymentReceived', { saleId: a.saleId, jumlah: a.jumlah, catatan }, { ...ctx, occurredAt })))
+}
+
+export const NAMA_TOKO_MAKS = 60
+
+/**
+ * Sets the shop's name (shown only in the payment reminder). Empty clears it.
+ * One TokoDiatur per call: the newest write wins, on every device.
+ */
+export const aturNamaToko = async (input: { nama: string }, ctx: CommandContext): Promise<void> => {
+  const nama = input.nama.trim()
+  if (nama.length > NAMA_TOKO_MAKS) throw new Error(`Nama toko maksimal ${NAMA_TOKO_MAKS} karakter.`)
+  await appendEvents([createEvent('TokoDiatur', { nama }, ctx)])
+}
+
+export type CatatBiayaInput = {
+  jumlah: number
+  kategori: KategoriBiaya
+  catatan?: string
+  /** yyyy-mm-dd local day the money went out. Absent, or today: now. Never in the future. */
+  tanggal?: string
+}
+
+/** Validates and builds the ExpenseRecorded event; nothing is written. */
+const eventBiaya = (input: CatatBiayaInput, ctx: CommandContext): EventEnvelope => {
+  if (!Number.isInteger(input.jumlah) || input.jumlah <= 0) throw new Error('Jumlah harus lebih dari 0.')
+  const occurredAt = waktuBayar(input.tanggal, ctx.clock, undefined, 'Tanggal biaya')
+  return createEvent('ExpenseRecorded', {
+    jumlah: input.jumlah,
+    kategori: input.kategori,
+    catatan: input.catatan?.trim() || undefined,
+  }, { ...ctx, occurredAt })
+}
+
+/** Records an operating expense (rent, wages, power...). Returns the event id. */
+export const catatBiaya = async (input: CatatBiayaInput, ctx: CommandContext): Promise<string> => {
+  const event = eventBiaya(input, ctx)
+  await appendEvents([event])
+  return event.id
+}
+
+/**
+ * Corrects an expense the append-only way: cancels the old one and records the
+ * corrected one in a single write, so no half-applied correction can exist and
+ * only the new one counts. Returns the new expense's id.
+ */
+export const ubahBiaya = async (expenseId: string, input: CatatBiayaInput, ctx: CommandContext): Promise<string> => {
+  const existing = await db.expensesProj.get(expenseId)
+  if (!existing) throw new Error('Biaya tidak ditemukan.')
+  if (existing.status === 'batal') throw new Error('Biaya sudah dibatalkan.')
+  const baru = eventBiaya(input, ctx)
+  await appendEvents([createEvent('ExpenseVoided', { expenseId }, ctx), baru])
+  return baru.id
+}
+
+/** Cancels an expense (a typo, a duplicate). The row stays, marked batal. */
+export const batalkanBiaya = async (expenseId: string, ctx: CommandContext): Promise<void> => {
+  const existing = await db.expensesProj.get(expenseId)
+  if (!existing) throw new Error('Biaya tidak ditemukan.')
+  if (existing.status === 'batal') throw new Error('Biaya sudah dibatalkan.')
+  await appendEvents([createEvent('ExpenseVoided', { expenseId }, ctx)])
+}
+
+/**
+ * Notes that a payment reminder was opened in WhatsApp for this customer. A
+ * note only: the app cannot tell whether the message was then sent.
+ */
+export const catatPengingat = async (customerId: string, ctx: CommandContext): Promise<void> => {
+  if (!customerId) throw new Error('Pelanggan wajib dipilih.')
+  await appendEvents([createEvent('ReminderSent', { customerId }, ctx)])
 }

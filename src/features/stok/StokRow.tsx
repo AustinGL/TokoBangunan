@@ -12,25 +12,18 @@ const formatHargaRange = (min: Rupiah, max: Rupiah): string =>
   min === max ? formatRupiah(min) : `${formatRupiah(min)} - ${formatRupiah(max)}`
 
 const ICON_TONE: Record<StokBarangRow['status'], IconTone> = { aman: 'neutral', menipis: 'warning', habis: 'danger' }
-// A 4px reinforcement on the left edge for rows with a problem. Never the only
-// signal: the StatusPill always says the word. An inset element, not a border,
-// so the card corners stay clean.
-const EDGE: Partial<Record<StokBarangRow['status'], string>> = { menipis: 'bg-warning', habis: 'bg-danger' }
-
 export function StokRow({ row }: { row: StokBarangRow }) {
-  const edge = EDGE[row.status]
   return (
     <Link
       to={`/stok/${row.barangId}`}
-      className="relative flex items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card transition-colors duration-instant hover:bg-[var(--table-row-hover)] active:scale-[0.99]"
+      className="relative flex items-center gap-3 bg-surface p-4 transition-colors duration-instant hover:bg-[var(--table-row-hover)] active:bg-fill md:px-5"
     >
-      {edge && <span aria-hidden="true" className={`absolute inset-y-4 left-0 w-1 rounded-r-full ${edge}`} />}
       <IconTile icon={Package} tone={ICON_TONE[row.status]} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <span className="block truncate text-[15px] font-semibold text-ink">{row.nama}</span>
-            {row.kategori && <span className="block truncate text-[13px] text-ink-muted">{row.kategori}</span>}
+            <span className="block truncate text-base font-semibold text-ink">{row.nama}</span>
+            {row.kategori && <span className="block truncate text-sm text-ink-muted">{row.kategori}</span>}
           </div>
           <StatusPill tone={STOK_TONE[row.status]}>{STOK_LABEL[row.status]}</StatusPill>
         </div>
@@ -39,7 +32,7 @@ export function StokRow({ row }: { row: StokBarangRow }) {
             <UkuranChip key={u.id} ukuran={u.ukuran} quantity={u.quantity} status={u.status} />
           ))}
         </div>
-        <span className="text-[13px] tabular-nums text-ink-muted">{formatHargaRange(row.hargaMin, row.hargaMax)}</span>
+        <span className="text-sm tabular-nums text-ink-muted">{formatHargaRange(row.hargaMin, row.hargaMax)}</span>
       </div>
       <Icon icon={ChevronRight} size="button" className="shrink-0 text-ink-faint" />
     </Link>

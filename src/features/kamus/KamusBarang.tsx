@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Package, BookOpen, SearchX } from 'lucide-react'
+import { ChevronRight, Package, BookOpen, SearchX } from 'lucide-react'
 import { useKatalog, type BarangRow } from '../shared/useKatalog'
 import { BarangSheet, type BarangSheetValues } from './BarangSheet'
 import { UkuranSheet, type UkuranSheetValues } from './UkuranSheet'
@@ -120,7 +120,7 @@ export function KamusBarang() {
             />
           )}
         </div>
-        <label className="flex h-control w-fit cursor-pointer items-center gap-2 rounded-pill border border-border-input bg-surface px-4 text-[13px] font-semibold text-ink">
+        <label className="flex h-control w-fit cursor-pointer items-center gap-2 rounded-pill border border-border-input bg-surface px-4 text-sm font-semibold text-ink">
           <input type="checkbox" checked={showArsip} onChange={e => setShowArsip(e.target.checked)} className="h-5 w-5 accent-primary" />
           Tampilkan arsip
         </label>
@@ -138,7 +138,7 @@ export function KamusBarang() {
             const isOpen = expanded === row.barangId
             const visibleUkuran = row.ukuran.filter(u => showArsip || !u.diarsipkan)
             return (
-              <li key={row.barangId} className="rounded-card border border-border bg-surface shadow-card">
+              <li key={row.barangId} className="overflow-hidden rounded-card bg-surface shadow-card">
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : row.barangId)}
@@ -147,19 +147,19 @@ export function KamusBarang() {
                 >
                   <IconTile icon={Package} />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[15px] font-semibold text-ink">{row.nama}</span>
-                    {row.kategori && <span className="truncate text-[13px] text-ink-muted">{row.kategori}</span>}
+                    <span className="truncate text-base font-semibold text-ink">{row.nama}</span>
+                    {row.kategori && <span className="truncate text-sm text-ink-muted">{row.kategori}</span>}
                   </span>
-                  <span className="shrink-0 rounded-pill bg-neutral-bg px-3 py-1 text-[12px] font-medium text-neutral">
+                  <span className="shrink-0 rounded-pill bg-neutral-bg px-3 py-1 text-xs font-medium text-neutral">
                     {row.ukuran.length} ukuran
                   </span>
-                  <Icon icon={isOpen ? ChevronDown : ChevronRight} size="button" className="shrink-0" />
+                  <Icon icon={ChevronRight} size="button" className={`shrink-0 text-ink-faint transition-transform duration-panel ease-spring ${isOpen ? 'rotate-90' : ''}`} />
                 </button>
 
                 {isOpen && (
-                  <div data-testid={`barang-panel-${row.barangId}`} className="flex flex-col gap-3 border-t border-border p-4">
+                  <div data-testid={`barang-panel-${row.barangId}`} className="card-in flex flex-col gap-3 border-t border-separator p-4">
                     {row.virtual ? (
-                      <p className="text-[13px] text-ink-muted">
+                      <p className="text-sm text-ink-muted">
                         Barang lama, belum masuk Kamus Barang. Pindahkan ukurannya ke barang lain untuk mengelolanya di sini.
                       </p>
                     ) : (
@@ -174,14 +174,14 @@ export function KamusBarang() {
                     )}
 
                     {visibleUkuran.length === 0 ? (
-                      <p className="text-[13px] text-ink-muted">Belum ada ukuran.</p>
+                      <p className="text-sm text-ink-muted">Belum ada ukuran.</p>
                     ) : (
                       <ul className="flex flex-col gap-2">
                         {visibleUkuran.map(u => (
-                          <li key={u.id} className="flex items-center justify-between gap-4 rounded-tile border border-border p-3">
+                          <li key={u.id} className="flex items-center justify-between gap-4 rounded-field bg-fill-tertiary p-3">
                             <div className="flex flex-col">
-                              <span className="text-[14px] text-ink">{u.ukuran}</span>
-                              <span className="text-[12px] text-ink-muted">
+                              <span className="text-sm text-ink">{u.ukuran}</span>
+                              <span className="text-xs text-ink-muted">
                                 {u.quantity} {u.ukuran} · {formatRupiah(rupiah(u.hargaEceran))}
                               </span>
                             </div>

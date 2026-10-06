@@ -9,7 +9,7 @@ const LONG_NAME = 'Semen Portland Composite Tiga Roda Kemasan Sak Kertas Anti Le
 
 async function createBarangViaKamus(page: Page, opts: { nama: string; kategori: string; ukuran: string }) {
   await page.goto('/kamus')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kamus Barang', { timeout: 10_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kamus Barang')
   await page.getByRole('button', { name: '+ Barang baru' }).click()
 
   const barang = page.getByRole('dialog', { name: 'Barang baru' })

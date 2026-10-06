@@ -13,5 +13,5 @@ type Props = { icon: LucideIcon; size?: IconSize; className?: string }
 
 /** A decorative glyph: words next to it carry the meaning, so it is always aria-hidden. */
 export function Icon({ icon: Glyph, size = 'button', className }: Props) {
-  return <Glyph aria-hidden="true" size={ICON_SIZE[size]} strokeWidth={2} className={className} />
+  return <Glyph aria-hidden="true" size={ICON_SIZE[size]} strokeWidth={1.75} className={className} />
 }

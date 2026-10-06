@@ -9,6 +9,7 @@ import { db } from './data/db'
 import { isSupabaseConfigured, supabase } from './data/supabase'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSupplierPerluDilengkapiCount } from './features/shared/useSupplierPerluDilengkapiCount'
+import { usePiutangLewatTempoCount } from './features/piutang/usePiutangLewatTempoCount'
 import { ToastProvider } from './ui/Toast'
 import { RouteAnnouncer } from './app/RouteAnnouncer'
 
@@ -21,11 +22,13 @@ type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
 // address bar but never triggers a re-render of <Routes>.
 function AppShell({ syncStatus, pendingCount }: ShellProps) {
   const navigate = useNavigate()
+  const [loginReminderDismissed, setLoginReminderDismissed] = useState(false)
   const supplierAlertCount = useSupplierPerluDilengkapiCount()
+  const piutangAlertCount = usePiutangLewatTempoCount()
   const { pathname } = useLocation()
   // Not on Kasir (the counter screen stays clear, and never waits on this) nor
   // on the sign-in screen itself, where it would only repeat the page.
-  const showLoginReminder = syncStatus === 'belum-masuk' && pathname !== '/kasir' && pathname !== '/masuk'
+  const showLoginReminder = !loginReminderDismissed && syncStatus === 'belum-masuk' && pathname !== '/kasir' && pathname !== '/masuk'
   // react-router guarantees navigate's identity is stable across renders,
   // so wrapping it in useCallback keyed on it keeps openKasir stable too -
   // the F2 listener effect below depends on it and must not re-register on
@@ -55,7 +58,7 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
           the eight sidebar controls before reaching the content (WCAG 2.4.1). */}
       <a
         href="#konten"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-toast focus:rounded-pill focus:bg-focal focus:px-5 focus:py-3 focus:text-[14px] focus:font-semibold focus:text-focal-fg"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-toast focus:rounded-pill focus:bg-focal focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-focal-fg"
       >
         Lewati ke konten
       </a>
@@ -64,13 +67,14 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
         pendingCount={pendingCount}
         onNewTransaction={openKasir}
         supplierAlertCount={supplierAlertCount}
+        piutangAlertCount={piutangAlertCount}
       />
-      <div id="konten" tabIndex={-1} className="pb-24 outline-none md:pb-0 md:pl-[248px]">
-        {showLoginReminder && <LoginReminder pendingCount={pendingCount} />}
+      <div id="konten" tabIndex={-1} className="pb-24 outline-none md:pb-0 md:pl-[calc(var(--sidebar-w)+24px)]">
+        {showLoginReminder && <LoginReminder pendingCount={pendingCount} onDismiss={() => setLoginReminderDismissed(true)} />}
         <AppRoutes />
       </div>
       <RouteAnnouncer />
-      <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} syncStatus={syncStatus} pendingCount={pendingCount} />
+      <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} piutangAlertCount={piutangAlertCount} syncStatus={syncStatus} pendingCount={pendingCount} />
     </>
   )
 }

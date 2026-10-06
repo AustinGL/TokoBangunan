@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/db'
 import { recordSale, type RecordSaleInput } from '../../data/commands'
 import { fixedClock } from '../../domain/clock'
 import { SaleList } from './SaleList'
+import { pilihTanggal } from '../../test-utils/pickDate'
 import { TanggalFilter } from './TanggalFilter'
 
 const at = (iso: string) => ({ clock: fixedClock(iso), deviceId: 'laptop' })
@@ -22,6 +23,15 @@ const pasirCart: RecordSaleInput = {
     { itemId: 'pasir', nama: 'Pasir', unit: 'm3', qty: 1000, hargaSatuan: 180000, subtotal: 180000 },
   ],
   metodeBayar: 'tunai',
+}
+
+// The open nota repeats the sale's item names, so name queries are scoped to
+// the list table: they ask "is this sale in the list", not "is it anywhere".
+const listTable = () => screen.findByRole('table', { name: 'Daftar transaksi' })
+const inList = async (text: string) => within(await listTable()).findByText(text)
+const queryInList = (text: string) => {
+  const table = screen.queryByRole('table', { name: 'Daftar transaksi' })
+  return table ? within(table).queryByText(text) : null
 }
 
 beforeEach(async () => {
@@ -43,8 +53,8 @@ describe('TanggalFilter: narrows SaleList by date', () => {
 
     render(<SaleList />)
 
-    expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
-    expect(await screen.findByText('Pasir')).toBeInTheDocument()
+    expect(await inList('Semen Tiga Roda')).toBeInTheDocument()
+    expect(await inList('Pasir')).toBeInTheDocument()
   })
 
   it('narrows rendered results to only that date\'s occurredAt values', async () => {
@@ -52,44 +62,41 @@ describe('TanggalFilter: narrows SaleList by date', () => {
     await recordSale(pasirCart, at('2026-09-19T07:00:00.000Z'))
 
     render(<SaleList />)
-    await screen.findByText('Semen Tiga Roda')
+    await inList('Semen Tiga Roda')
 
-    const dateInput = screen.getByLabelText('Tanggal')
-    fireEvent.change(dateInput, { target: { value: '2026-09-18' } })
+    await pilihTanggal(userEvent.setup(), /^Tanggal/, '2026-09-18')
 
-    expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
-    await waitFor(() => expect(screen.queryByText('Pasir')).not.toBeInTheDocument())
+    expect(await inList('Semen Tiga Roda')).toBeInTheDocument()
+    await waitFor(() => expect(queryInList('Pasir')).not.toBeInTheDocument())
   })
 
   it('shows the "no transactions on this date" message for a date with no sales, distinct from the fully-empty copy', async () => {
     await recordSale(semenCart, at('2026-09-18T07:00:00.000Z'))
 
     render(<SaleList />)
-    await screen.findByText('Semen Tiga Roda')
+    await inList('Semen Tiga Roda')
 
-    const dateInput = screen.getByLabelText('Tanggal')
-    fireEvent.change(dateInput, { target: { value: '2026-09-20' } })
+    await pilihTanggal(userEvent.setup(), /^Tanggal/, '2026-09-20')
 
     expect(await screen.findByText('Tidak ada transaksi pada tanggal ini.')).toBeInTheDocument()
     expect(screen.queryByText('Belum ada transaksi hari ini. Mulai transaksi.')).not.toBeInTheDocument()
   })
 
-  it('"Tampilkan semua" clears the filter back to showing everything', async () => {
+  it('"Semua" clears the filter back to showing everything', async () => {
     const user = userEvent.setup()
     await recordSale(semenCart, at('2026-09-18T07:00:00.000Z'))
     await recordSale(pasirCart, at('2026-09-19T07:00:00.000Z'))
 
     render(<SaleList />)
-    await screen.findByText('Semen Tiga Roda')
+    await inList('Semen Tiga Roda')
 
-    const dateInput = screen.getByLabelText('Tanggal')
-    fireEvent.change(dateInput, { target: { value: '2026-09-18' } })
-    expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
-    await waitFor(() => expect(screen.queryByText('Pasir')).not.toBeInTheDocument())
+    await pilihTanggal(userEvent.setup(), /^Tanggal/, '2026-09-18')
+    expect(await inList('Semen Tiga Roda')).toBeInTheDocument()
+    await waitFor(() => expect(queryInList('Pasir')).not.toBeInTheDocument())
 
-    await user.click(screen.getByRole('button', { name: 'Tampilkan semua' }))
+    await user.click(screen.getByRole('button', { name: 'Semua' }))
 
-    expect(await screen.findByText('Pasir')).toBeInTheDocument()
+    expect(await inList('Pasir')).toBeInTheDocument()
   })
 })
 
@@ -124,39 +131,36 @@ describe('TanggalFilter: local-day boundaries, not UTC', () => {
     await recordSale(semenCart, at('2026-09-22T18:30:00.000Z'))
 
     render(<SaleList />)
-    await screen.findByText('Semen Tiga Roda')
+    await inList('Semen Tiga Roda')
 
-    const dateInput = screen.getByLabelText('Tanggal')
-    fireEvent.change(dateInput, { target: { value: '2026-09-23' } })
+    await pilihTanggal(userEvent.setup(), /^Tanggal/, '2026-09-23')
 
-    expect(await screen.findByText('Semen Tiga Roda')).toBeInTheDocument()
+    expect(await inList('Semen Tiga Roda')).toBeInTheDocument()
   })
 
   it('does not file that same sale under the UTC calendar day a UTC-boundary filter would have used', async () => {
     await recordSale(semenCart, at('2026-09-22T18:30:00.000Z'))
 
     render(<SaleList />)
-    await screen.findByText('Semen Tiga Roda')
+    await inList('Semen Tiga Roda')
 
-    const dateInput = screen.getByLabelText('Tanggal')
-    fireEvent.change(dateInput, { target: { value: '2026-09-22' } })
+    await pilihTanggal(userEvent.setup(), /^Tanggal/, '2026-09-22')
 
     expect(await screen.findByText('Tidak ada transaksi pada tanggal ini.')).toBeInTheDocument()
   })
 })
 
 describe('TanggalFilter: one control height with its presets', () => {
-  it('draws no label above the date input, so it lines up with the preset buttons', () => {
+  it('draws no visible label for the date field, so it lines up with the preset buttons', () => {
     render(<TanggalFilter value={null} onChange={vi.fn()} />)
-    const input = screen.getByLabelText('Tanggal')
-    expect(input).toHaveClass('h-control')
-    const label = document.querySelector('label[for="transaksi-tanggal-filter"]')!
-    expect(label).toHaveClass('sr-only')
+    expect(screen.getByRole('button', { name: /^Tanggal/ })).toHaveClass('h-control', 'rounded-pill')
+    expect(document.getElementById('transaksi-tanggal-filter-label')).toHaveClass('sr-only')
   })
 
   it('presets and the date field share one control height', () => {
     render(<TanggalFilter value={null} onChange={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Hari ini' })).toHaveClass('h-control')
     expect(screen.getByRole('button', { name: 'Kemarin' })).toHaveClass('h-control')
+    expect(screen.getByRole('button', { name: /^Tanggal/ })).toHaveClass('h-control')
   })
 })

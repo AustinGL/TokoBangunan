@@ -3,7 +3,7 @@ import type { StokStatus } from '../../domain/stokStatus'
 import { Icon } from '../../ui/Icon'
 
 const CLASS: Record<StokStatus, string> = {
-  aman: 'border-border-input bg-surface text-ink-muted',
+  aman: 'border-transparent bg-fill-tertiary text-ink-muted',
   menipis: 'border-transparent bg-warning-bg text-warning',
   habis: 'border-transparent bg-danger-bg text-danger',
 }
@@ -15,7 +15,7 @@ const CLASS: Record<StokStatus, string> = {
  */
 export function UkuranChip({ ukuran, quantity, status }: { ukuran: string; quantity: number; status: StokStatus }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-pill border px-3 py-1 text-[12px] tabular-nums ${CLASS[status]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-pill border px-3 py-1 text-xs tabular-nums ${CLASS[status]}`}>
       {status === 'habis' && <Icon icon={AlertCircle} size="micro" />}
       {status === 'menipis' && <Icon icon={AlertTriangle} size="micro" />}
       {status !== 'aman' && <span className="sr-only">{`stok ${status}`}</span>}

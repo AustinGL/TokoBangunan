@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { DatePicker } from '../../ui/DatePicker'
 import { Sheet } from '../../ui/Sheet'
 import { Button } from '../../ui/Button'
 import { SheetFooter } from '../../ui/SheetFooter'
@@ -202,7 +203,7 @@ export function TambahStokSheet({
             ref={summaryRef}
             role="alert"
             tabIndex={-1}
-            className="rounded-field border border-danger bg-danger-bg p-4 text-[14px] text-danger focus-visible:outline-none"
+            className="rounded-field border border-danger bg-danger-bg p-4 text-sm text-danger focus-visible:outline-none"
           >
             {submitError ? (
               <p className="font-semibold">{submitError}</p>
@@ -219,44 +220,40 @@ export function TambahStokSheet({
           </div>
         )}
         {savedMessage && (
-          <p role="status" className="rounded-field border border-success bg-success-bg p-3 text-[14px] font-semibold text-success">
+          <p role="status" className="rounded-field border border-success bg-success-bg p-3 text-sm font-semibold text-success">
             {savedMessage}
           </p>
         )}
 
-        <BarangPicker value={barangId} onChange={handleBarangChange} error={errors.barang} />
-        <UkuranPicker barangId={barangId} value={itemId} onChange={handleUkuranChange} error={errors.ukuran} />
+        <p className="text-xs text-ink-muted">* wajib diisi. Harga beli boleh dikosongkan, tapi dipakai untuk menghitung laba.</p>
+
+        <BarangPicker value={barangId} onChange={handleBarangChange} error={errors.barang} required />
+        <UkuranPicker barangId={barangId} value={itemId} onChange={handleUkuranChange} error={errors.ukuran} required />
         <SupplierPicker value={supplierId} onChange={setSupplierId} />
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tambah-stok-tanggal" className="text-[14px] font-medium text-ink">
-            Tanggal beli<span aria-hidden="true"> *</span>
-          </label>
-          <input
-            id="tambah-stok-tanggal" type="date" value={tanggalBeli} max={todayIsoDate(systemClock)}
-            onChange={e => setTanggalBeli(e.target.value)}
-            aria-invalid={errors.tanggal ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${errors.tanggal ? 'border-danger' : 'border-[var(--field-bd)]'}`}
-          />
-          {errors.tanggal && <p className="text-[13px] text-danger">{errors.tanggal}</p>}
-        </div>
+        <DatePicker
+          id="tambah-stok-tanggal" label="Tanggal beli" required
+          value={tanggalBeli} onChange={setTanggalBeli} max={todayIsoDate(systemClock)}
+          error={errors.tanggal}
+        />
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="tambah-stok-jumlah" className="text-[14px] font-medium text-ink">
-            Jumlah<span aria-hidden="true"> *</span>
+          <label htmlFor="tambah-stok-jumlah" className="req text-sm font-medium text-ink">
+            Jumlah
           </label>
           <input
             id="tambah-stok-jumlah" type="number" inputMode="numeric" min={1} step={1}
             value={jumlah} onChange={e => setJumlah(e.target.value)}
             aria-invalid={errors.jumlah ? true : undefined}
-            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-[14px] text-ink ${errors.jumlah ? 'border-danger' : 'border-[var(--field-bd)]'}`}
+            aria-describedby={errors.jumlah ? 'tambah-stok-jumlah-error' : undefined}
+            className={`h-control rounded-field border bg-[var(--field-bg)] px-3 text-base text-ink md:text-sm ${errors.jumlah ? 'border-danger' : 'border-[var(--field-bd)]'}`}
           />
-          {errors.jumlah && <p className="text-[13px] text-danger">{errors.jumlah}</p>}
+          {errors.jumlah && <p id="tambah-stok-jumlah-error" className="text-sm text-danger">{errors.jumlah}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
           <RupiahInput id="tambah-stok-harga-beli" label="Harga beli" value={hargaBeli} onChange={setHargaBeli} />
-          {totalPembelian && <p className="text-[13px] text-ink-muted">Total pembelian {totalPembelian}</p>}
+          {totalPembelian && <p className="text-sm text-ink-muted">Total pembelian {totalPembelian}</p>}
         </div>
 
         <RupiahInput
@@ -268,8 +265,8 @@ export function TambahStokSheet({
           <Button variant="secondary" disabled={submitting} onClick={() => void submit(true)}>
             Simpan & tambah lagi
           </Button>
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? 'Menyimpan...' : 'Simpan stok'}
+          <Button type="submit" variant="primary" loading={submitting} loadingLabel="Menyimpan...">
+            Simpan stok
           </Button>
         </SheetFooter>
       </form>

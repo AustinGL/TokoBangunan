@@ -8,6 +8,10 @@ import { recordSale } from '../../data/commands'
 import { useCart, type CartItemInput } from './useCart'
 import { CartPanel } from './CartPanel'
 import type { Batch } from '../../domain/projections/batches'
+import { systemClock } from '../../domain/clock'
+import { isoDateDaysAgo } from '../../domain/tanggal'
+import { ringkas, namaLengkap } from '../../domain/kalender'
+import { bukaKalender, keTanggal } from '../../test-utils/pickDate'
 
 vi.mock('../../data/commands', async () => {
   const actual = await vi.importActual<typeof import('../../data/commands')>('../../data/commands')
@@ -79,11 +83,9 @@ describe('CartPanel: what is not built yet is stated, not faked', () => {
   // Bon, Kirim) plus a red "Diskon Rp 0" row. They looked tappable, cost a
   // third of the panel's height and made the quantity stepper scroll off
   // screen, so a single honest line replaced them (docs/UX-AUDIT.md #1, #11, #13).
-  it('offers no payment-method or delivery controls, only a line saying what is used and what is coming', () => {
+  it('offers no Kirim control: delivery is not built', () => {
     render(<Harness />)
-    expect(screen.queryByRole('radio')).toBeNull()
-    expect(screen.getByText(/Tunai · Dibawa sekarang · Tanpa pelanggan/)).toBeInTheDocument()
-    expect(screen.getByText('Transfer, QRIS, Bon, dan Kirim segera hadir.')).toBeInTheDocument()
+    expect(screen.queryByText(/Kirim/)).toBeNull()
   })
 
   it('shows no Diskon or Subtotal row, only the Total', async () => {
@@ -661,5 +663,332 @@ describe('CartPanel: batch chip', () => {
       }),
       expect.anything(),
     )
+  })
+})
+
+describe('CartPanel: Bon', () => {
+  const customer = (id: string, nama: string, termynHari = 30) =>
+    db.customersProj.put({ id, nama, tier: 'eceran', termynHari, updatedAt: 't', updatedByEventId: 'e' })
+
+  const startBon = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: 'Add semen' })) // total Rp 65.000
+    await user.click(screen.getByRole('button', { name: 'Bon' }))
+  }
+
+  const pickPelanggan = async (user: ReturnType<typeof userEvent.setup>, nama: string) => {
+    await user.click(await screen.findByRole('combobox', { name: 'Pelanggan' }))
+    await user.click(await screen.findByRole('option', { name: nama }))
+  }
+
+  it('Bon swaps the cash block for Pelanggan, Jatuh tempo and Dibayar sekarang', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+
+    expect(screen.queryByLabelText('Uang diterima')).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Pelanggan' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Jatuh tempo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Dibayar sekarang (opsional)')).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: 'Metode bayar' })).getByRole('button', { name: 'Bon' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('blocks saving until a customer is chosen, with the reason shown inline', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+
+    expect(screen.getByText('Pilih pelanggan untuk Bon.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Simpan & buat baru' })).toBeDisabled()
+  })
+
+  it('defaults the due date to today plus the customer\'s terms', async () => {
+    await customer('c1', 'Budi', 14)
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+
+    expect(screen.getByLabelText('Jatuh tempo')).toHaveTextContent(ringkas(isoDateDaysAgo(systemClock, -14)))
+    expect(screen.queryByText('Pilih pelanggan untuk Bon.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeEnabled()
+  })
+
+  it('a customer quick-added before the list refreshed still gets a 30-day due date', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+
+    await user.click(screen.getByRole('combobox', { name: 'Pelanggan' }))
+    await user.type(screen.getByRole('combobox', { name: 'Pelanggan' }), 'Toko Baru')
+    await user.click(screen.getByText(/tambah.*Toko Baru/i))
+
+    await waitFor(() => expect(screen.queryByText('Pilih pelanggan untuk Bon.')).toBeNull())
+    expect(screen.getByLabelText('Jatuh tempo')).toHaveTextContent(ringkas(isoDateDaysAgo(systemClock, -30)))
+  })
+
+  it('rejects a down payment at or above the total and points to Tunai', async () => {
+    await customer('c1', 'Budi')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+
+    await user.type(screen.getByLabelText('Dibayar sekarang (opsional)'), '65000')
+
+    expect(screen.getByText('Jika lunas sekarang, pilih Tunai.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeDisabled()
+  })
+
+  it('does not let a due date before today be chosen', async () => {
+    await customer('c1', 'Budi')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+
+    const kartu = await bukaKalender(user, /Jatuh tempo/)
+    // The calendar opens on the default due date (later); go back to today's month, which is the edge.
+    await keTanggal(user, isoDateDaysAgo(systemClock, 0))
+    expect(within(kartu).getByRole('button', { name: 'Bulan sebelumnya' })).toBeDisabled()
+    const kemarin = within(kartu).queryByRole('button', { name: namaLengkap(isoDateDaysAgo(systemClock, 1)) })
+    if (kemarin) expect(kemarin).toBeDisabled() // absent only when today is the 1st
+    expect(within(kartu).getByRole('button', { name: namaLengkap(isoDateDaysAgo(systemClock, 0)) })).toBeEnabled()
+  })
+
+  it('a due date chosen from the calendar is the one that is saved', async () => {
+    await customer('c1', 'Budi')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+
+    const tujuan = isoDateDaysAgo(systemClock, -45)
+    await bukaKalender(user, /Jatuh tempo/)
+    await user.click(await keTanggal(user, tujuan))
+    expect(screen.getByLabelText('Jatuh tempo')).toHaveTextContent(ringkas(tujuan))
+
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+    expect((await db.salesProj.toArray())[0].jatuhTempo).toBe(tujuan)
+  })
+
+  it('shows what stays as piutang after a down payment', async () => {
+    await customer('c1', 'Budi')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+
+    await user.type(screen.getByLabelText('Dibayar sekarang (opsional)'), '20000')
+
+    expect(screen.getByText('Sisa jadi piutang: Rp 45.000')).toBeInTheDocument()
+  })
+
+  it('saves a Bon sale with its customer, due date and down payment, then shows Sisa piutang on the receipt', async () => {
+    await customer('c1', 'Budi', 14)
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+    await user.type(screen.getByLabelText('Dibayar sekarang (opsional)'), '20000')
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    expect(await screen.findByText('Transaksi tersimpan')).toBeInTheDocument()
+    const sale = (await db.salesProj.toArray())[0]
+    expect(sale).toMatchObject({
+      metodeBayar: 'bon', customerId: 'c1', dibayarAwal: 20000, total: 65000,
+      jatuhTempo: isoDateDaysAgo(systemClock, -14),
+    })
+    expect(screen.getByText('Sisa piutang')).toBeInTheDocument()
+    expect(screen.getByText('Rp 45.000')).toBeInTheDocument()
+    expect(screen.getByText(/Jatuh tempo \d{1,2} \w+ \d{4}/)).toBeInTheDocument()
+    expect(screen.queryByText('Kembalian')).toBeNull()
+  })
+
+  it('saves a Bon with no down payment without a dibayarAwal', async () => {
+    await customer('c1', 'Budi')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    await screen.findByText('Transaksi tersimpan')
+    const sale = (await db.salesProj.toArray())[0]
+    expect(sale.metodeBayar).toBe('bon')
+    expect(sale.dibayarAwal).toBeUndefined()
+    expect(screen.getByText('Rp 65.000', { selector: 'span.text-xl' })).toBeInTheDocument()
+  })
+
+  it('goes back to Tunai with no customer after a Bon is saved, so the next sale cannot become Bon by accident', async () => {
+    await customer('c1', 'Budi')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await startBon(user)
+    await pickPelanggan(user, 'Budi')
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+
+    await user.click(screen.getByRole('button', { name: 'Add pasir' }))
+
+    expect(within(screen.getByRole('group', { name: 'Metode bayar' })).getByRole('button', { name: 'Tunai' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Uang diterima')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Bon' }))
+    expect(screen.getByText('Pilih pelanggan untuk Bon.')).toBeInTheDocument()
+  })
+
+  it('a Tunai sale is unchanged: no customer, no due date', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.type(screen.getByLabelText('Uang diterima'), '70000')
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    await screen.findByText('Transaksi tersimpan')
+    const sale = (await db.salesProj.toArray())[0]
+    expect(sale.metodeBayar).toBe('tunai')
+    expect(sale.customerId).toBeUndefined()
+    expect(sale.jatuhTempo).toBeUndefined()
+  })
+})
+
+describe('CartPanel: Transfer and QRIS', () => {
+  const metodeGroup = () => screen.getByRole('group', { name: 'Metode bayar' })
+
+  it('offers Tunai, Transfer, QRIS and Bon, Tunai chosen', () => {
+    render(<Harness />)
+    expect(within(metodeGroup()).getAllByRole('button').map(b => b.textContent)).toEqual(['Tunai', 'Transfer', 'QRIS', 'Bon'])
+    expect(within(metodeGroup()).getByRole('button', { name: 'Tunai' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('Transfer swaps the cash block for a plain note that it is paid in full', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(within(metodeGroup()).getByRole('button', { name: 'Transfer' }))
+
+    expect(screen.queryByLabelText('Uang diterima')).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Pelanggan' })).toBeNull()
+    expect(screen.getByText('Dibayar penuh lewat Transfer.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Simpan transaksi' })).toBeEnabled()
+  })
+
+  it.each([['Transfer', 'transfer'], ['QRIS', 'qris']] as const)('saves a %s sale paid in full, with no cash tendered', async (label, metode) => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(within(metodeGroup()).getByRole('button', { name: label }))
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+
+    await screen.findByText('Transaksi tersimpan')
+    expect(recordSale).toHaveBeenCalledWith(expect.objectContaining({ metodeBayar: metode, uangDiterima: undefined, customerId: undefined }), expect.anything())
+    const sale = (await db.salesProj.toArray())[0]
+    expect(sale).toMatchObject({ metodeBayar: metode, total: 65000 })
+    expect(screen.queryByText('Kembalian')).toBeNull()
+    expect(screen.getByText(`Dibayar lewat ${label}`)).toBeInTheDocument()
+  })
+
+  it('goes back to Tunai after saving, so the next sale is not a transfer by accident', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(within(metodeGroup()).getByRole('button', { name: 'QRIS' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    expect(within(metodeGroup()).getByRole('button', { name: 'Tunai' })).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+describe('CartPanel: tanggal transaksi', () => {
+  const hariIni = () => isoDateDaysAgo(systemClock, 0)
+  const customer = (id: string, nama: string, termynHari = 30) =>
+    db.customersProj.put({ id, nama, tier: 'eceran', termynHari, updatedAt: 't', updatedByEventId: 'e' })
+
+  it('says the sale is dated today and offers to change it, showing no picker yet', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    expect(screen.getByText('Tanggal transaksi: hari ini')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tanggal transaksi')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Ubah tanggal' })).toBeInTheDocument()
+  })
+
+  it('saves a sale on an earlier day at that day, and says so in a way that is hard to miss', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Ubah tanggal' }))
+    const lalu = isoDateDaysAgo(systemClock, 3)
+    await bukaKalender(user, /Tanggal transaksi/)
+    await user.click(await keTanggal(user, lalu))
+
+    expect(screen.getByText(`Transaksi dicatat untuk ${ringkas(lalu)}`)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+
+    expect(recordSale).toHaveBeenCalledWith(expect.objectContaining({ tanggal: lalu }), expect.anything())
+    const sale = (await db.salesProj.toArray())[0]
+    const [y, m, d] = lalu.split('-').map(Number)
+    expect(sale.occurredAt).toBe(new Date(y, m - 1, d, 12).toISOString())
+  })
+
+  it('"Kembali ke hari ini" undoes the change', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Ubah tanggal' }))
+    await bukaKalender(user, /Tanggal transaksi/)
+    await user.click(await keTanggal(user, isoDateDaysAgo(systemClock, 2)))
+    await user.click(screen.getByRole('button', { name: 'Kembali ke hari ini' }))
+    expect(screen.getByText('Tanggal transaksi: hari ini')).toBeInTheDocument()
+  })
+
+  it('does not let a day after today be picked', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Ubah tanggal' }))
+    const kartu = await bukaKalender(user, /Tanggal transaksi/)
+    await keTanggal(user, hariIni())
+    const besok = within(kartu).queryByRole('button', { name: namaLengkap(isoDateDaysAgo(systemClock, -1)) })
+    if (besok) expect(besok).toBeDisabled() // absent only when today is the last day of the month
+    expect(within(kartu).getByRole('button', { name: 'Bulan berikutnya' })).toBeDisabled()
+  })
+
+  it('is dated today again for the next sale', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Ubah tanggal' }))
+    await bukaKalender(user, /Tanggal transaksi/)
+    await user.click(await keTanggal(user, isoDateDaysAgo(systemClock, 2)))
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    expect(screen.getByText('Tanggal transaksi: hari ini')).toBeInTheDocument()
+  })
+
+  it('a Bon default due date counts from the sale date, and it may not be due before it', async () => {
+    await customer('c1', 'Budi', 14)
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add semen' }))
+    await user.click(screen.getByRole('button', { name: 'Ubah tanggal' }))
+    const lalu = isoDateDaysAgo(systemClock, 20)
+    await bukaKalender(user, /Tanggal transaksi/)
+    await user.click(await keTanggal(user, lalu))
+    await user.click(screen.getByRole('button', { name: 'Bon' }))
+    await user.click(await screen.findByRole('combobox', { name: 'Pelanggan' }))
+    await user.click(await screen.findByRole('option', { name: 'Budi' }))
+
+    const tempo = isoDateDaysAgo(systemClock, 20 - 14) // 20 days ago + 14 days: 6 days ago, already past
+    expect(screen.getByLabelText('Jatuh tempo')).toHaveTextContent(ringkas(tempo))
+    await user.click(screen.getByRole('button', { name: 'Simpan transaksi' }))
+    await screen.findByText('Transaksi tersimpan')
+    const sale = (await db.salesProj.toArray())[0]
+    expect(sale).toMatchObject({ metodeBayar: 'bon', jatuhTempo: tempo })
   })
 })
