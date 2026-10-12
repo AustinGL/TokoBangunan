@@ -120,7 +120,8 @@ test.describe('piutang', () => {
       const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('id-ID', o).format(d)
       return { panjang: f({ day: 'numeric', month: 'long', year: 'numeric' }), ringkas: f({ day: 'numeric', month: 'short', year: 'numeric' }) }
     })
-    const hari = kartu.getByRole('button', { name: panjang })
+    // exact: a bare "2 Oktober 2026" would otherwise also match the 12th and the 22nd.
+    const hari = kartu.getByRole('button', { name: panjang, exact: true })
     if (await hari.count() === 0) await kartu.getByRole('button', { name: 'Bulan sebelumnya' }).click()
     await hari.click()
     await expect(sheet.getByRole('button', { name: /Tanggal bayar/ })).toContainText(ringkas)
