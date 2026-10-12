@@ -13,6 +13,7 @@ import { IconTile } from '../../ui/IconTile'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
 import { useToast } from '../../ui/useToast'
+import { UnduhCadangan } from './UnduhCadangan'
 import { useSession } from './useSession'
 
 const PAGE = 'mx-auto flex w-full max-w-md flex-col gap-5 p-4 md:p-8 md:pt-16'
@@ -32,6 +33,7 @@ export function Masuk() {
       <main className={PAGE}>
         <PageHeader title="Akun" />
         <EmptyState icon={CloudOff}>Cadangan cloud belum diatur di perangkat ini. Data tersimpan hanya di perangkat ini.</EmptyState>
+        <UnduhCadangan />
       </main>
     )
   }
@@ -52,6 +54,7 @@ export function Masuk() {
         <EmptyState icon={WifiOff}>
           Tidak bisa memeriksa akun karena perangkat sedang offline. Kasir tetap bisa dipakai, dan data tersimpan di perangkat ini.
         </EmptyState>
+        <UnduhCadangan />
       </main>
     )
   }
@@ -152,6 +155,7 @@ function FormMasuk() {
         </Button>
       </form>
       </div>
+      <UnduhCadangan />
     </main>
   )
 }
@@ -197,6 +201,7 @@ function AkunMasuk({ email }: { email: string }) {
           Keluar tidak menghapus data. Semua data toko tetap ada dan terlihat di perangkat ini, dan perubahan yang belum tercadangkan tidak hilang.
         </p>
       </section>
+      <UnduhCadangan />
     </main>
   )
 }

@@ -15,6 +15,8 @@ vi.mock('./useSession', () => ({ useSession: () => session.value }))
 vi.mock('../../data/auth', () => auth)
 const persist = vi.hoisted(() => ({ requestPersistentStorage: vi.fn() }))
 vi.mock('../../data/persistentStorage', () => persist)
+const exportEvents = vi.hoisted(() => ({ downloadBackup: vi.fn() }))
+vi.mock('../../data/exportEvents', () => exportEvents)
 vi.mock('../../data/supabase', () => ({ get isSupabaseConfigured() { return cfg.configured } }))
 
 import { Masuk } from './Masuk'
@@ -39,6 +41,7 @@ beforeEach(async () => {
   auth.signIn.mockReset()
   auth.signOut.mockReset()
   persist.requestPersistentStorage.mockReset()
+  exportEvents.downloadBackup.mockReset()
 })
 
 describe('Masuk: signed out', () => {
@@ -236,5 +239,45 @@ describe('Masuk: other states', () => {
 
     expect(screen.getByText(/tidak bisa memeriksa akun karena perangkat sedang offline/i)).toBeInTheDocument()
     expect(screen.queryByLabelText('Password')).toBeNull()
+  })
+})
+
+describe('Masuk: download a backup file', () => {
+  it.each([
+    ['signed out', { status: 'keluar' } as SessionState, true],
+    ['signed in', { status: 'masuk', email: 'pemilik@toko.id' } as SessionState, true],
+    ['offline', { status: 'offline' } as SessionState, true],
+    ['without a server', { status: 'keluar' } as SessionState, false],
+  ])('offers the download when %s', (_name, state, configured) => {
+    session.value = state
+    cfg.configured = configured
+    renderMasuk()
+
+    expect(screen.getByRole('button', { name: 'Unduh cadangan' })).toBeInTheDocument()
+  })
+
+  it('downloads the file and says how many records it holds', async () => {
+    exportEvents.downloadBackup.mockResolvedValue(42)
+    const user = userEvent.setup()
+    renderMasuk()
+
+    await user.click(screen.getByRole('button', { name: 'Unduh cadangan' }))
+
+    expect(exportEvents.downloadBackup).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('Cadangan diunduh (42 catatan).')).toBeInTheDocument()
+  })
+
+  it('says so, and lets the owner try again, when the file could not be made', async () => {
+    exportEvents.downloadBackup.mockRejectedValueOnce(new Error('boom'))
+    exportEvents.downloadBackup.mockResolvedValueOnce(3)
+    const user = userEvent.setup()
+    renderMasuk()
+
+    await user.click(screen.getByRole('button', { name: 'Unduh cadangan' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cadangan gagal dibuat. Coba lagi.')
+
+    await user.click(screen.getByRole('button', { name: 'Unduh cadangan' }))
+    expect(await screen.findByText('Cadangan diunduh (3 catatan).')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

@@ -109,3 +109,24 @@ test.describe('the reminder to sign in', () => {
   })
 })
 
+
+test.describe('backup file', () => {
+  test('downloads a json copy of the shop data, in any account state', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name.endsWith('-dark'), 'behaviour does not depend on colour scheme')
+    await page.goto('/masuk')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Unduh cadangan' }).click(),
+    ])
+
+    expect(download.suggestedFilename()).toMatch(/^toko-cadangan-\d{4}-\d{2}-\d{2}\.json$/)
+    const path = await download.path()
+    const { readFile } = await import('node:fs/promises')
+    const backup = JSON.parse(await readFile(path, 'utf-8'))
+    expect(backup.format).toBe('toko-bangunan-events')
+    expect(Array.isArray(backup.events)).toBe(true)
+    await expect(page.getByText(/cadangan diunduh \(\d+ catatan\)/i)).toBeVisible()
+  })
+})
