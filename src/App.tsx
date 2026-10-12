@@ -6,6 +6,7 @@ import { LoginReminder } from './app/shell/LoginReminder'
 import { AppRoutes } from './app/routes'
 import { runSync, supabaseTransport, BelumMasukError, type SyncStatus } from './data/sync'
 import { db } from './data/db'
+import { requestPersistentStorage } from './data/persistentStorage'
 import { isSupabaseConfigured, supabase } from './data/supabase'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSupplierPerluDilengkapiCount } from './features/shared/useSupplierPerluDilengkapiCount'
@@ -89,6 +90,13 @@ export default function App() {
   // Live, straight from the outbox, so the count moves the moment a sale is
   // saved instead of only after the next sync attempt.
   const pendingCount = useLiveQuery(() => db.outbox.count(), [], 0)
+
+  // The event log on this device is the shop's data until it is backed up, and
+  // a cashier who never signs in would otherwise never ask the browser to keep
+  // it (Masuk.tsx asks only on sign-in). Best effort, never throws.
+  useEffect(() => {
+    void requestPersistentStorage()
+  }, [])
 
   // One effect owns every sync trigger, so there is exactly one listener to
   // register and exactly one place that can leak it. The effect body itself

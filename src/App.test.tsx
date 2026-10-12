@@ -1,12 +1,26 @@
 import 'fake-indexeddb/auto'
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from './data/db'
+
+const persist = vi.hoisted(() => ({ requestPersistentStorage: vi.fn(() => Promise.resolve(true)) }))
+vi.mock('./data/persistentStorage', () => persist)
+
 import App from './App'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
+  persist.requestPersistentStorage.mockClear()
+})
+
+describe('App: persistent storage', () => {
+  it('asks the browser to keep the shop data on start, even if the owner never signs in', async () => {
+    render(<App />)
+
+    await screen.findByRole('link', { name: /supplier/i })
+    expect(persist.requestPersistentStorage).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('App: Supplier badge', () => {

@@ -4,6 +4,9 @@ import '@fontsource-variable/inter'
 import './index.css'
 import './ui/tokens.css'
 import App from './App.tsx'
+import { installStaleChunkReload } from './app/staleChunkReload'
+
+installStaleChunkReload()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
