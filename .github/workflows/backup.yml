@@ -1,0 +1,81 @@
+name: Back up the database
+
+# Supabase's free plan has no backups. This copies the whole event log (every
+# other table in the app is rebuilt from it) once a day, encrypts it, and keeps
+# the last 30 copies in a separate private repo. Setup and restore steps are in
+# README.md ("Backups").
+
+on:
+  schedule:
+    - cron: '17 19 * * *' # 02:17 in Jakarta
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BACKUP_REPO: ${{ github.repository_owner }}/tokobangunan-backups
+    steps:
+      # The runner ships a Postgres 16 client, and pg_dump refuses a newer server.
+      - name: Install the Postgres 17 client and age
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates age
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump and encrypt the event log
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y-%m-%d)"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
+            --data-only --table=public.events --no-owner --no-privileges \
+            | gzip -9 > events.sql.gz
+          gzip -t events.sql.gz
+
+          # A dump that connected but found nothing must not replace good backups silently.
+          rows="$(zcat events.sql.gz | awk '/^COPY public.events/{f=1;next} /^\\\.$/{f=0} f{n++} END{print n+0}')"
+          if [ "$rows" -lt 1 ]; then
+            echo "The dump holds no events; refusing to store it." >&2
+            exit 1
+          fi
+          echo "Events in this backup: $rows" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          age -r "$BACKUP_AGE_PUBLIC_KEY" -o "events-$stamp.sql.gz.age" events.sql.gz
+          rm events.sql.gz
+
+      - name: Check out the backup repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backups
+
+      - name: Store it and keep the last 30
+        run: |
+          set -euo pipefail
+          cp "events-$STAMP.sql.gz.age" backups/
+          cd backups
+          ls -1 events-*.sql.gz.age | sort | head -n -30 | xargs -r git rm -q
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Backup $STAMP" || { echo "Nothing new to commit."; exit 0; }
+          git push

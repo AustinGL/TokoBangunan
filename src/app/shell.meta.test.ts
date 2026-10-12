@@ -58,6 +58,7 @@ describe('vite.config.ts precaches the font and matches the new canvas colour', 
 describe('crawler metadata', () => {
   it('serves a valid robots.txt instead of the SPA fallback HTML', () => {
     expect(robotsTxt).toMatch(/^User-agent:\s*\*/m)
-    expect(robotsTxt).toMatch(/^Disallow:\s*$/m)
+    // A private shop tool behind a login: nothing here should be indexed.
+    expect(robotsTxt).toMatch(/^Disallow:\s*\/\s*$/m)
   })
 })
