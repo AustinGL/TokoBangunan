@@ -38,7 +38,9 @@ Without a `.env` the app runs fully local, with no sync. To try sync, copy `.env
    - `VITE_SUPABASE_ANON_KEY`
 
    The two `VITE_` values are baked into the build, so changing them needs a new deploy.
-4. Every push to `main` deploys. Every other branch gets a preview URL; check changes there first. A bad deploy can be rolled back from the Pages dashboard.
+4. Every push to `main` deploys. Every other branch gets a preview URL; check changes there first. A bad deploy can be rolled back from the dashboard.
+
+The project is deployed as a Cloudflare **Worker with static assets** (build command `npm run build`, deploy command `npx wrangler deploy`). `wrangler.jsonc` must stay in the repo: without it, `wrangler deploy` tries to set the project up on every build by installing packages mid-deploy, and that failed.
 
 `public/_headers` sets no-cache on `index.html` and the service worker, so a new deploy is never hidden behind a cached copy. Routes need no redirect rule: Pages serves `index.html` for unknown paths when there is no root `404.html`.
 

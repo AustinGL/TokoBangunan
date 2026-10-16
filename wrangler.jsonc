@@ -1,0 +1,17 @@
+// Cloudflare Workers static-assets deploy. Without this file, `wrangler deploy`
+// tries to configure the project itself on every build (installing wrangler and
+// @cloudflare/vite-plugin with npm mid-deploy), which failed. The app is a
+// static SPA: the build command produces dist/, and this only uploads it.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "tokobangunan",
+  "compatibility_date": "2026-10-12",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "./dist",
+    // Client-side routes (/stok, /kasir, ...) get index.html instead of a 404.
+    "not_found_handling": "single-page-application"
+  }
+}
