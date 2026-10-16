@@ -1,8 +1,11 @@
+import { useEffect, type RefObject } from 'react'
+
 /**
  * Where a dropdown panel opens. Fields at the bottom of a Sheet (Kasir's
  * inline create, Tambah stok) have no room below, so the panel flips upward
- * instead of being cut off. Measured once, when the list opens, from the
- * caller's event handler: no effect, no re-measure while open.
+ * instead of being cut off. Measured when the list opens, from the caller's
+ * event handler, and again only if the visible viewport changes size while it
+ * is open (useRemeasureWhileOpen).
  */
 export type PanelPlacement = { side: 'down' | 'up'; maxHeight: number }
 
@@ -47,6 +50,22 @@ export function measurePlacement(el: Element | null): PanelPlacement {
   // visualViewport follows an on-screen keyboard; jsdom and old browsers lack it.
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight
   return computePlacement(el.getBoundingClientRect(), viewportHeight, clippingAncestorRect(el))
+}
+
+/**
+ * On a phone the keyboard rises after a searchable list has opened (the tap
+ * that opens it is the same one that focuses the field), so the placement
+ * measured at open time is for a screen twice as tall as what is left. While
+ * the panel is open, measure again whenever the visible viewport resizes.
+ */
+export function useRemeasureWhileOpen(open: boolean, anchor: RefObject<Element | null>, setPlacement: (p: PanelPlacement) => void): void {
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!open || !viewport) return
+    const remeasure = () => setPlacement(measurePlacement(anchor.current))
+    viewport.addEventListener('resize', remeasure)
+    return () => viewport.removeEventListener('resize', remeasure)
+  }, [open, anchor, setPlacement])
 }
 
 /**

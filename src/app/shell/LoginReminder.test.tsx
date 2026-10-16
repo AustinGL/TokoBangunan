@@ -25,7 +25,7 @@ describe('LoginReminder', () => {
   it('counts the changes that are not backed up yet', () => {
     renderReminder(7)
 
-    expect(screen.getByText(/7 perubahan menunggu dicadangkan/i)).toBeInTheDocument()
+    expect(screen.getByText(/7 perubahan belum dicadangkan/i)).toBeInTheDocument()
   })
 
   it('can be dismissed without blocking the shop', async () => {
@@ -33,7 +33,7 @@ describe('LoginReminder', () => {
     const onDismiss = vi.fn()
     render(<MemoryRouter><LoginReminder pendingCount={0} onDismiss={onDismiss} /></MemoryRouter>)
 
-    await user.click(screen.getByRole('button', { name: 'Tutup pengingat masuk' }))
+    await user.click(screen.getByRole('button', { name: 'Tutup pengingat masuk sampai besok' }))
 
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })

@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { Icon } from './Icon'
 import { ListboxPanel } from './ListboxPanel'
 import { optionId, type ListboxRow } from './listbox'
-import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
+import { DEFAULT_PLACEMENT, measurePlacement, useRemeasureWhileOpen, type PanelPlacement } from './panelPlacement'
 import { usePresence } from './usePresence'
 
 export type SelectOption = { value: string; label: string; hint?: string; disabled?: boolean }
@@ -44,6 +44,7 @@ export function Select({
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [placement, setPlacement] = useState<PanelPlacement>(DEFAULT_PLACEMENT)
+  useRemeasureWhileOpen(open, wrapperRef, setPlacement)
   const { mounted, closing } = usePresence(open)
 
   const selectedIndex = options.findIndex(o => o.value === value)

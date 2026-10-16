@@ -220,6 +220,13 @@ export const markSynced = async (assignments: Array<{ id: string; serverSeq: num
 export type ApplyResult = {
   /** Events written to the log. */
   applied: number
+  /**
+   * How many of those the log did not already hold as they are: new to this
+   * device, or this device's own event now carrying its serverSeq. 0 means
+   * the page was all re-reads (the cursor overlap), and the projections
+   * cannot have changed.
+   */
+  changed: number
   /** Records this version could not parse, stored in the quarantine table. */
   quarantined: number
 }
@@ -253,8 +260,11 @@ export const applyRemoteEvents = async (raw: unknown[]): Promise<ApplyResult> =>
     rejected.push({ key: quarantineKey(row), raw: row, reason: result.reason, quarantinedAt })
   }
 
+  let changed = 0
   await db.transaction('rw', db.events, db.quarantine, db.outbox, async () => {
     if (valid.length > 0) {
+      const held = await db.events.bulkGet(valid.map(e => e.id))
+      changed = valid.filter((e, i) => held[i]?.serverSeq !== e.serverSeq).length
       await db.events.bulkPut(valid)
       // A pulled event always carries a real serverSeq, so it is either
       // brand new to this device, or it is this device's own event coming
@@ -279,7 +289,7 @@ export const applyRemoteEvents = async (raw: unknown[]): Promise<ApplyResult> =>
     )
   }
 
-  return { applied: valid.length, quarantined: rejected.length }
+  return { applied: valid.length, changed, quarantined: rejected.length }
 }
 
 /**

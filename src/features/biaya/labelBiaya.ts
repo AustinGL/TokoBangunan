@@ -1,6 +1,6 @@
 import { KATEGORI_BIAYA, type KategoriBiaya } from '../../domain/events'
 
-export const LABEL_BIAYA: Record<KategoriBiaya, string> = {
+const LABEL_BIAYA: Record<KategoriBiaya, string> = {
   gaji: 'Gaji',
   sewa: 'Sewa',
   listrik: 'Listrik',

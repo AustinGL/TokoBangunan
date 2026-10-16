@@ -78,12 +78,13 @@ export async function runSync(
 
   let cursor = await getCursor()
   let pulled = 0
+  let changed = 0
 
   for (let page = 0; page < MAX_PULL_PAGES; page += 1) {
     const remote = await transport.pull(cursor)
     if (remote.length === 0) break
 
-    await applyRemoteEvents(remote)
+    changed += (await applyRemoteEvents(remote)).changed
     pulled += remote.length
 
     const highest = remote.reduce((max, e) => Math.max(max, e.serverSeq ?? 0), cursor)
@@ -102,9 +103,14 @@ export async function runSync(
     if (remote.length < PAGE_SIZE) break
   }
 
-  // Runs on every sync, not only when remote rows arrived: a push-only sync
-  // still has local appends behind it, and the read model must reflect them.
-  await rebuildProjections()
+  // Not only when remote rows arrived: a push-only sync still has local
+  // appends behind it (now ordered by their serverSeq), and the read model
+  // must reflect them. But a sync that pushed nothing and pulled only rows the
+  // log already held (the cursor overlap re-reads up to CURSOR_OVERLAP of them
+  // every time) changed nothing, and a rebuild then rewrote every projection
+  // table and re-ran every live query on screen for the same result. That was
+  // the common case: Supabase re-emits SIGNED_IN each time the tab regains focus.
+  if (pushed > 0 || changed > 0) await rebuildProjections()
 
   return { pushed, pulled }
 }

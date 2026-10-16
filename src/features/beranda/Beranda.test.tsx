@@ -82,7 +82,8 @@ describe('Beranda', () => {
   it('shows honest empties for money owed and profit rather than made-up figures', async () => {
     renderBeranda()
     await screen.findByText('Ringkasan stok')
-    expect(screen.getByText('Belum ada piutang.')).toBeInTheDocument()
+    // Its own live query, which can resolve after the stock summary's under load.
+    expect(await screen.findByText('Belum ada piutang.')).toBeInTheDocument()
     expect(screen.getByText('Belum ada penjualan hari ini.')).toBeInTheDocument()
     expect(screen.getByText('Belum ada transaksi.')).toBeInTheDocument()
   })

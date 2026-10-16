@@ -85,7 +85,7 @@ export function BottomNav({ onNewTransaction, supplierAlertCount, piutangAlertCo
       >
         {/* The tabs float in one glass capsule; the primary action stands
             apart from it as its own round button, as on iOS. */}
-        <div ref={capsuleRef} className="glass-panel relative flex flex-1 items-center rounded-pill p-1.5">
+        <div ref={capsuleRef} className="glass-panel glass-nav relative flex flex-1 items-center rounded-pill p-1.5">
           <span
             ref={thumbRef}
             aria-hidden="true"

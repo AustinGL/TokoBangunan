@@ -109,6 +109,32 @@ describe('runSync', () => {
     expect(await db.itemsProj.get('lokal')).toBeDefined()
   })
 
+  it('leaves the read model alone when a sync pushed nothing and pulled only rows it already had', async () => {
+    // The cursor overlap re-reads known rows on every sync. Rebuilding for them
+    // rewrote every projection table (and re-ran every live query) for nothing.
+    const remote = { ...createEvent('ItemUpserted', item('b'), at('2026-09-18T08:00:00.000Z')), serverSeq: 9 }
+    const t = transport({ pull: vi.fn(async () => [remote]) })
+    await runSync(t)
+    // A marker only a rebuild would wipe.
+    await db.itemsProj.put({ ...(await db.itemsProj.get('b'))!, nama: 'belum dibangun ulang' })
+
+    const result = await runSync(t)
+
+    expect(result.pulled).toBe(1)
+    expect((await db.itemsProj.get('b'))?.nama).toBe('belum dibangun ulang')
+  })
+
+  it('rebuilds when a pulled row is this device\'s own event coming back with its serverSeq', async () => {
+    const own = createEvent('ItemUpserted', item('c'), at('2026-09-18T08:00:00.000Z'))
+    await appendEvents([own])
+    await db.outbox.clear() // its push ack was lost: no serverSeq yet, and nothing left to push
+    await db.itemsProj.clear()
+
+    await runSync(transport({ pull: vi.fn(async () => [{ ...own, serverSeq: 4 }]) }))
+
+    expect(await db.itemsProj.get('c')).toBeDefined()
+  })
+
   it('keeps pulling until a page comes back short, so a long-offline device catches up', async () => {
     // The architecture doc claims "cursor-based pull catches up in pages, no
     // special path". A single pull per runSync caps catch-up at PAGE_SIZE rows

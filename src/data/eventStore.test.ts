@@ -76,7 +76,7 @@ describe('event store', () => {
       { id: 'x', type: 'NotAThing', payload: {}, occurredAt: 'a', recordedAt: 'b', deviceId: 'd', serverSeq: 1 },
     ])
 
-    expect(result).toEqual({ applied: 0, quarantined: 1 })
+    expect(result).toEqual({ applied: 0, changed: 0, quarantined: 1 })
     expect(await getAllEvents()).toHaveLength(0)
     expect(await getQuarantined()).toHaveLength(1)
   })
@@ -302,7 +302,7 @@ describe('applyRemoteEvents partitioning', () => {
 
     const result = await applyRemoteEvents([first, unknownType('evt-sale', '2026-09-18T07:01:00.000Z'), third])
 
-    expect(result).toEqual({ applied: 2, quarantined: 1 })
+    expect(result).toEqual({ applied: 2, changed: 2, quarantined: 1 })
     const stored = await getAllEvents()
     expect(stored.map(e => e.id)).toEqual([first.id, third.id])
   })

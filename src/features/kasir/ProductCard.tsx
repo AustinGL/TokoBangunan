@@ -28,23 +28,26 @@ type Props = {
 export function ProductCard({ barang, onAdd }: Props) {
   const visibleUkuran = barang.ukuran.filter(u => !u.diarsipkan)
 
+  // Compact on purpose: a phone showed only three of the old cards per screen.
+  // Name and kategori share a line, and each ukuran is one row whose prices
+  // line up in a column before the add button, so a cashier scans down them.
   return (
-    <div className="card-in flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card transition-shadow duration-quick hover:shadow-float">
-      <div className="pb-1">
-        <p className="text-base font-semibold text-ink">{barang.nama}</p>
-        {barang.kategori && <p className="text-xs text-ink-faint">{barang.kategori}</p>}
+    <div className="card-in flex flex-col rounded-card bg-surface px-4 pt-3 pb-1.5 shadow-card transition-shadow duration-quick hover:shadow-float">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="min-w-0 truncate text-base font-semibold text-ink">{barang.nama}</p>
+        {barang.kategori && <p className="shrink-0 text-xs text-ink-faint">{barang.kategori}</p>}
       </div>
 
       <ul className="flex flex-col divide-y divide-separator">
         {visibleUkuran.map(u => (
-          <li key={u.id} className="flex items-center justify-between gap-2 py-2.5">
-            <div>
-              <p className="text-sm font-medium text-ink">{u.ukuran}</p>
+          <li key={u.id} className="flex items-center gap-3 py-1.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-ink">{u.ukuran}</p>
               <p className={`text-xs font-medium ${STATUS_TEXT_CLASS[u.status]}`}>
                 {STATUS_LABEL[u.status]} - sisa {u.quantity}
               </p>
-              <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{formatRupiah(rupiah(u.hargaEceran))}</p>
             </div>
+            <p className="shrink-0 text-sm font-semibold tabular-nums text-ink">{formatRupiah(rupiah(u.hargaEceran))}</p>
             <IconButton
               icon={Plus}
               variant="primary"

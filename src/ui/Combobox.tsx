@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { Icon } from './Icon'
 import { ListboxPanel } from './ListboxPanel'
 import { optionId, type ListboxRow } from './listbox'
-import { DEFAULT_PLACEMENT, measurePlacement, type PanelPlacement } from './panelPlacement'
+import { DEFAULT_PLACEMENT, measurePlacement, useRemeasureWhileOpen, type PanelPlacement } from './panelPlacement'
 import { usePresence } from './usePresence'
 
 export type ComboboxOption = { value: string; label: string; hint?: string }
@@ -49,6 +49,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
   // silently select the first option.
   const [activeIndex, setActiveIndex] = useState(-1)
   const [placement, setPlacement] = useState<PanelPlacement>(DEFAULT_PLACEMENT)
+  useRemeasureWhileOpen(open, wrapperRef, setPlacement)
 
   const selectedLabel = options.find(o => o.value === value)?.label ?? ''
   const text = query ?? selectedLabel
@@ -67,6 +68,9 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
   const rows: ListboxRow[] = showCreateRow
     ? [...filtered, { value: CREATE_VALUE, label: `Tambah "${text.trim()}"`, kind: 'create' }]
     : filtered
+  // Nothing to choose from yet (a new shop with no suppliers) is not a failed
+  // search: say how to add one rather than "no results" for a search never made.
+  const emptyText = options.length > 0 ? 'Tidak ada hasil.' : onCreate ? 'Belum ada pilihan. Ketik nama untuk menambah.' : 'Belum ada pilihan.'
 
   // Measured when the list goes from closed to open, from an event handler
   // (never during render), so a field at the bottom of a Sheet opens upward.
@@ -163,6 +167,10 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
             openList()
             setActiveIndex(-1)
           }}
+          // Focus opens the list, but a field that kept focus after the list
+          // closed (a pick, Escape) gets no new focus event: without this a tap
+          // on it did nothing, and on a phone the chevron was the only way back.
+          onClick={() => { if (!open && !disabled) openList() }}
           onChange={e => { setQuery(e.target.value); openList(); setActiveIndex(0) }}
           onKeyDown={handleKeyDown}
           onBlur={() => {
@@ -197,7 +205,7 @@ export function Combobox({ id, label, options, value, onChange, onCreate, placeh
             rows={rows}
             activeIndex={activeIndex}
             selectedValue={value}
-            emptyText="Tidak ada hasil."
+            emptyText={emptyText}
             placement={placement}
             highlight={query ?? ''}
             onPick={commit}

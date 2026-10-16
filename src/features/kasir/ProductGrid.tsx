@@ -59,7 +59,7 @@ export function ProductGrid({ searchQuery, onAdd }: Props) {
           Tidak ada barang yang cocok dengan pencarian.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 min-[480px]:gap-3 lg:grid-cols-3 2xl:grid-cols-4">
           {visibleRows.map(row => (
             <ProductCard key={row.barangId} barang={row} onAdd={ukuran => onAdd(ukuran, row.nama)} />
           ))}

@@ -29,3 +29,26 @@ export function simpanTunda(tunda: TundaMap): void {
     // Not saved: the row simply comes back on the next visit.
   }
 }
+
+/**
+ * The phone's "Cadangan cloud belum aktif" banner, closed for the rest of a
+ * local day (yyyy-mm-dd). A day, not forever: until someone signs in nothing
+ * is backed up, so the reminder must come back. Same device-only rules as above.
+ */
+const KEY_PENGINGAT_MASUK = 'toko-pengingat-masuk-ditutup'
+
+export function bacaPengingatMasukDitutup(): string | null {
+  try {
+    return localStorage.getItem(KEY_PENGINGAT_MASUK)
+  } catch {
+    return null
+  }
+}
+
+export function simpanPengingatMasukDitutup(hari: string): void {
+  try {
+    localStorage.setItem(KEY_PENGINGAT_MASUK, hari)
+  } catch {
+    // Not saved: the banner stays closed only until the next reload.
+  }
+}

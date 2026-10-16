@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState, type FormEvent } from 'react'
 import { describe, it, expect, vi } from 'vitest'
@@ -87,6 +87,49 @@ describe('Sheet', () => {
     ).toBe(false)
   })
 
+  describe('closing from the scrim', () => {
+    const tekanScrim = (dialog: HTMLElement) => {
+      fireEvent.pointerDown(dialog)
+      fireEvent.click(dialog)
+    }
+
+    it('closes when the dimmed area around the sheet is tapped', () => {
+      const onClose = vi.fn()
+      render(<Sheet open title="Lainnya" onClose={onClose}>Isi</Sheet>)
+
+      tekanScrim(screen.getByRole('dialog'))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not close for a press that started inside the sheet and ended on the scrim', () => {
+      const onClose = vi.fn()
+      render(<Sheet open title="Lainnya" onClose={onClose}>Isi</Sheet>)
+
+      fireEvent.pointerDown(screen.getByText('Isi'))
+      fireEvent.click(screen.getByRole('dialog'))
+
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('asks before throwing away typed input, and stays open when the answer is no', () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      const onClose = vi.fn()
+      render(<Sheet open title="Barang baru" onClose={onClose}><label htmlFor="n">Nama</label><input id="n" /></Sheet>)
+
+      fireEvent.input(screen.getByLabelText('Nama'), { target: { value: 'Semen' } })
+      tekanScrim(screen.getByRole('dialog'))
+
+      expect(confirm).toHaveBeenCalledTimes(1)
+      expect(onClose).not.toHaveBeenCalled()
+
+      confirm.mockReturnValue(true)
+      tekanScrim(screen.getByRole('dialog'))
+      expect(onClose).toHaveBeenCalledTimes(1)
+      confirm.mockRestore()
+    })
+  })
+
   describe('focus (WCAG 2.4.3)', () => {
     it('puts focus on the first field when a form opens, not on the Tutup button', () => {
       render(
@@ -95,6 +138,24 @@ describe('Sheet', () => {
         </Sheet>,
       )
       expect(screen.getByLabelText('Nama')).toHaveFocus()
+    })
+
+    it('leaves the first field alone on a touch screen, so the keyboard does not cover the sheet as it opens', () => {
+      const asli = window.matchMedia
+      window.matchMedia = ((query: string) => ({
+        matches: query.includes('pointer: coarse'), media: query,
+        addEventListener: () => {}, removeEventListener: () => {},
+      })) as unknown as typeof window.matchMedia
+      try {
+        render(
+          <Sheet open title="Barang baru" onClose={vi.fn()}>
+            <form><label htmlFor="n">Nama</label><input id="n" /></form>
+          </Sheet>,
+        )
+        expect(screen.getByLabelText('Nama')).not.toHaveFocus()
+      } finally {
+        window.matchMedia = asli
+      }
     })
 
     it('moves focus to the invalid field after a submit that failed with a single error', async () => {

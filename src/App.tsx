@@ -1,20 +1,29 @@
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from './app/shell/Sidebar'
 import { BottomNav } from './app/shell/BottomNav'
 import { LoginReminder } from './app/shell/LoginReminder'
 import { AppRoutes } from './app/routes'
-import { runSync, supabaseTransport, BelumMasukError, type SyncStatus } from './data/sync'
+import type { SyncStatus } from './data/sync'
 import { db } from './data/db'
 import { requestPersistentStorage } from './data/persistentStorage'
-import { isSupabaseConfigured, supabase } from './data/supabase'
+import { isSupabaseConfigured } from './data/supabaseConfig'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSupplierPerluDilengkapiCount } from './features/shared/useSupplierPerluDilengkapiCount'
 import { usePiutangLewatTempoCount } from './features/piutang/usePiutangLewatTempoCount'
 import { ToastProvider } from './ui/Toast'
+import { useToast } from './ui/useToast'
+import { useHariIni } from './features/shared/useHariIni'
+import { bacaPengingatMasukDitutup, simpanPengingatMasukDitutup } from './data/tundaStore'
 import { RouteAnnouncer } from './app/RouteAnnouncer'
 
 type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
+
+// The shell re-renders on every saved event (the backup count moves), every
+// sync status change and every badge count change. None of that is the open
+// page's business: it reads its own data, and the router's context still
+// reaches it on navigation, so the page is not re-rendered along with the shell.
+const Pages = memo(AppRoutes)
 
 // App renders BrowserRouter, so App itself is outside router context and
 // cannot call useNavigate(). AppShell is mounted inside BrowserRouter
@@ -23,13 +32,22 @@ type ShellProps = { syncStatus: SyncStatus; pendingCount: number }
 // address bar but never triggers a re-render of <Routes>.
 function AppShell({ syncStatus, pendingCount }: ShellProps) {
   const navigate = useNavigate()
-  const [loginReminderDismissed, setLoginReminderDismissed] = useState(false)
+  // Closing the reminder holds for the rest of the day on this device (it used
+  // to come back on every reload); useHariIni brings it back after midnight.
+  const hariIni = useHariIni()
+  const [reminderClosedOn, setReminderClosedOn] = useState(bacaPengingatMasukDitutup)
+  const { showToast } = useToast()
   const supplierAlertCount = useSupplierPerluDilengkapiCount()
   const piutangAlertCount = usePiutangLewatTempoCount()
   const { pathname } = useLocation()
   // Not on Kasir (the counter screen stays clear, and never waits on this) nor
   // on the sign-in screen itself, where it would only repeat the page.
-  const showLoginReminder = !loginReminderDismissed && syncStatus === 'belum-masuk' && pathname !== '/kasir' && pathname !== '/masuk'
+  const showLoginReminder = reminderClosedOn !== hariIni && syncStatus === 'belum-masuk' && pathname !== '/kasir' && pathname !== '/masuk'
+  const closeLoginReminder = () => {
+    simpanPengingatMasukDitutup(hariIni)
+    setReminderClosedOn(hariIni)
+    showToast('Pengingat muncul lagi besok. Status cadangan tetap ada di menu Lainnya.')
+  }
   // react-router guarantees navigate's identity is stable across renders,
   // so wrapping it in useCallback keyed on it keeps openKasir stable too -
   // the F2 listener effect below depends on it and must not re-register on
@@ -71,8 +89,8 @@ function AppShell({ syncStatus, pendingCount }: ShellProps) {
         piutangAlertCount={piutangAlertCount}
       />
       <div id="konten" tabIndex={-1} className="pb-24 outline-none md:pb-0 md:pl-[calc(var(--sidebar-w)+24px)]">
-        {showLoginReminder && <LoginReminder pendingCount={pendingCount} onDismiss={() => setLoginReminderDismissed(true)} />}
-        <AppRoutes />
+        {showLoginReminder && <LoginReminder pendingCount={pendingCount} onDismiss={closeLoginReminder} />}
+        <Pages />
       </div>
       <RouteAnnouncer />
       <BottomNav onNewTransaction={openKasir} supplierAlertCount={supplierAlertCount} piutangAlertCount={piutangAlertCount} syncStatus={syncStatus} pendingCount={pendingCount} />
@@ -109,15 +127,53 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured) return
     let cancelled = false
+    let unsubscribe: (() => void) | undefined
     // Sign-in and sign-out start and end syncs while an earlier one may still be
     // running. Only the newest run may report: an older one finishing late must
     // not overwrite "Belum masuk" after a sign-out, or a newer success after a sign-in.
     let latestRun = 0
 
+    // Signing in (or out) on /masuk changes what the server will accept, so
+    // sync must react at once instead of waiting for the next reload or
+    // reconnect. Only these two events: INITIAL_SESSION and TOKEN_REFRESHED
+    // are session housekeeping, not a change of who is signed in. Supabase also
+    // re-emits SIGNED_IN when a tab regains focus with a valid session: the
+    // sync is idempotent, so that is just a free catch-up, and an already
+    // 'tersinkron' status is left alone rather than flickering to 'menyimpan'.
+    const onAuthEvent = (event: string) => {
+      if (event === 'SIGNED_IN') {
+        setSyncStatus(current => (current === 'tersinkron' ? current : 'menyimpan'))
+        void sync()
+      } else if (event === 'SIGNED_OUT') {
+        latestRun++ // whatever is still running was started as the signed-in owner
+        setSyncStatus('belum-masuk')
+      }
+    }
+
+    // The sync code and the Supabase client (a third of the app's JavaScript)
+    // load after the first screen has painted, never in front of it. The auth
+    // listener is registered before the first sync starts.
+    const cloud = Promise.all([import('./data/sync'), import('./data/supabase')]).then(([syncModule, { supabase }]) => {
+      if (!cancelled) {
+        const { data } = supabase.auth.onAuthStateChange(onAuthEvent)
+        unsubscribe = () => data.subscription.unsubscribe()
+      }
+      return syncModule
+    })
+
     const sync = async () => {
       const run = ++latestRun
+      let syncModule: Awaited<typeof cloud>
       try {
-        await runSync(supabaseTransport)
+        syncModule = await cloud
+      } catch {
+        // The chunk could not load (offline before it was ever cached): the same
+        // as any failed sync, retried on the next 'online'.
+        if (!cancelled && run === latestRun) setSyncStatus('belum-tersinkron')
+        return
+      }
+      try {
+        await syncModule.runSync(syncModule.supabaseTransport)
         if (cancelled || run !== latestRun) return
         setSyncStatus('tersinkron')
       } catch (error) {
@@ -125,7 +181,7 @@ export default function App() {
         // Not being signed in is different: it never resolves by itself, and
         // until it does nothing is backed up, so it gets its own message.
         if (cancelled || run !== latestRun) return
-        setSyncStatus(error instanceof BelumMasukError ? 'belum-masuk' : 'belum-tersinkron')
+        setSyncStatus(error instanceof syncModule.BelumMasukError ? 'belum-masuk' : 'belum-tersinkron')
       }
     }
 
@@ -137,27 +193,10 @@ export default function App() {
     }
     window.addEventListener('online', onOnline)
 
-    // Signing in (or out) on /masuk changes what the server will accept, so
-    // sync must react at once instead of waiting for the next reload or
-    // reconnect. Only these two events: INITIAL_SESSION and TOKEN_REFRESHED
-    // are session housekeeping, not a change of who is signed in. Supabase also
-    // re-emits SIGNED_IN when a tab regains focus with a valid session: the
-    // sync is idempotent, so that is just a free catch-up, and an already
-    // 'tersinkron' status is left alone rather than flickering to 'menyimpan'.
-    const { data: authListener } = supabase.auth.onAuthStateChange(event => {
-      if (event === 'SIGNED_IN') {
-        setSyncStatus(current => (current === 'tersinkron' ? current : 'menyimpan'))
-        void sync()
-      } else if (event === 'SIGNED_OUT') {
-        latestRun++ // whatever is still running was started as the signed-in owner
-        setSyncStatus('belum-masuk')
-      }
-    })
-
     return () => {
       cancelled = true
       window.removeEventListener('online', onOnline)
-      authListener.subscription.unsubscribe()
+      unsubscribe?.()
     }
   }, [])
 

@@ -26,6 +26,11 @@ export default defineConfig({
         // Inter Variable, silently. ico/png/svg cover the
         // manifest icon and favicon the same way.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Fontsource ships Inter in seven unicode-range subsets. An Indonesian
+        // shop's text is Latin, so the browser never asks for the Cyrillic,
+        // Greek or Vietnamese files; precaching them only cost every install
+        // ~85 KB of download and storage.
+        globIgnores: ['**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2'],
       },
       manifest: {
         name: 'Toko Bahan Bangunan',

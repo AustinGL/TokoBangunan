@@ -11,12 +11,15 @@ import { useHariIni } from '../shared/useHariIni'
 export function usePiutang(): RingkasanPiutang | undefined {
   // A dependency, so the statuses are recomputed when the day turns, not only when data changes.
   const hariIni = useHariIni()
-  return useLiveQuery(async () => {
-    const [sales, payments, customers] = await Promise.all([
-      db.salesProj.filter(s => s.metodeBayar === 'bon').toArray(),
-      db.paymentsProj.toArray(),
-      db.customersProj.toArray(),
-    ])
-    return hitungPiutang(sales, payments, customers, hariIni)
-  }, [hariIni])
+  return useLiveQuery(() => bacaPiutang(hariIni), [hariIni])
+}
+
+/** The live-query body, shared with usePiutangLewatTempoCount. */
+export async function bacaPiutang(hariIni: string): Promise<RingkasanPiutang> {
+  const [sales, payments, customers] = await Promise.all([
+    db.salesProj.filter(s => s.metodeBayar === 'bon').toArray(),
+    db.paymentsProj.toArray(),
+    db.customersProj.toArray(),
+  ])
+  return hitungPiutang(sales, payments, customers, hariIni)
 }

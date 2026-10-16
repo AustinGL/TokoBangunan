@@ -145,6 +145,34 @@ describe('Combobox: keyboard navigation', () => {
     expect(onChange).toHaveBeenCalledWith('b2') // still the last option, not undefined
   })
 
+  it('reopens when the field that kept focus is tapped again', async () => {
+    // After Escape (or a pick) the input still has focus, so no focus event
+    // follows the next tap: it used to do nothing, leaving only the chevron.
+    const user = userEvent.setup()
+    render(<Combobox id="test" label="Nama barang" options={options} value={null} onChange={vi.fn()} />)
+    const input = screen.getByRole('combobox')
+
+    await user.click(input)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(input).toHaveFocus()
+
+    await user.click(input)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('says how to add the first entry when there is nothing to choose from yet', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<Combobox id="test" label="Supplier" options={[]} value={null} onChange={vi.fn()} onCreate={vi.fn()} />)
+
+    await user.click(screen.getByRole('combobox'))
+    expect(screen.getByText('Belum ada pilihan. Ketik nama untuk menambah.')).toBeInTheDocument()
+
+    rerender(<Combobox id="test" label="Supplier" options={options} value={null} onChange={vi.fn()} />)
+    await user.type(screen.getByRole('combobox'), 'zzz')
+    expect(screen.getByText('Tidak ada hasil.')).toBeInTheDocument()
+  })
+
   it('closes the listbox on Escape without changing the selection', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()

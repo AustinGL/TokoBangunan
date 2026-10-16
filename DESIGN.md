@@ -34,7 +34,8 @@ follows.
 | `--separator` | `rgba(60,60,67,.16)` | hairlines |
 | `--r-field` / `--r-card` / `--r-sheet` | 12 / 20 / 26px | radii (squircle where supported) |
 | `--control-h` | 44px | every button and field (Apple's minimum target) |
-| `--glass-bg` + blur | `rgba(255,255,255,.72)`, 24px | nav material |
+| `--glass-bg` + blur | `rgba(255,255,255,.72)`, 24px | nav material (desktop sidebar) |
+| `--glass-bg-nav` | `rgba(255,255,255,.94)` | phone tab capsule (`.glass-nav`): lists bled through at .72 |
 | `--dur-quick` / `--dur-panel` / `--dur-exit` | 200 / 420 / 160ms | speed |
 | `--ease-spring` | damped spring, ~1% overshoot | menus, indicators, presses |
 | `--ease-spring-bouncy` | ~5% overshoot | toast, tab pop, cart bar |
@@ -86,6 +87,13 @@ gracefully (instant open/close, cubic-bezier curves, no crossfade).
 - **Cards**: `bg-surface shadow-card`, no border. One shadow token, a 0.5px
   ring.
 - **Sheets**: solid white, grabber on phone, title + gray close button.
+  Closing: the X, Escape, a tap on the scrim, or (phone) a swipe down on the
+  grabber/header; the scrim and the swipe ask first when something was typed.
+  On touch screens the first field is not auto-focused (the keyboard would
+  cover the sheet as it opens). The page behind does not scroll on phones.
+- **Dropdowns**: a tap on a searchable field opens its list even when it
+  already has focus; an open list re-measures when the phone keyboard rises;
+  an empty list says how to add the first entry.
 - **Status**: `StatusPill` (word + icon), never color alone.
 
 ## Navigation

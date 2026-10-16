@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { bacaTunda, simpanTunda } from './tundaStore'
+import { bacaTunda, simpanTunda, bacaPengingatMasukDitutup, simpanPengingatMasukDitutup } from './tundaStore'
 import { tundaSampaiBesok } from '../domain/tunda'
 
 const NOW = new Date(2026, 9, 5, 15, 30)
@@ -57,5 +57,20 @@ describe('tundaStore', () => {
     storage.setItem.mockImplementation(() => { throw new Error('blocked') })
     expect(bacaTunda(NOW)).toEqual({})
     expect(() => simpanTunda({ a: tundaSampaiBesok(NOW) })).not.toThrow()
+  })
+})
+
+describe('pengingat masuk ditutup', () => {
+  it('round-trips the day the reminder was closed, and reads null when never closed', () => {
+    expect(bacaPengingatMasukDitutup()).toBeNull()
+    simpanPengingatMasukDitutup('2026-10-16')
+    expect(bacaPengingatMasukDitutup()).toBe('2026-10-16')
+  })
+
+  it('does not throw when storage is unavailable', () => {
+    storage.getItem.mockImplementation(() => { throw new Error('blocked') })
+    storage.setItem.mockImplementation(() => { throw new Error('blocked') })
+    expect(bacaPengingatMasukDitutup()).toBeNull()
+    expect(() => simpanPengingatMasukDitutup('2026-10-16')).not.toThrow()
   })
 })

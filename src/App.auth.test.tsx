@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { render, screen, act, within, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { db } from './data/db'
 
 const h = vi.hoisted(() => ({
@@ -20,9 +21,14 @@ vi.mock('./data/supabase', async importActual => {
     h.listener = cb
     return { data: { subscription: { unsubscribe: h.unsubscribe } } }
   }) as never)
-  // The shop is connected to a cloud project in every test below.
-  return { ...actual, isSupabaseConfigured: true }
+  return actual
 })
+
+// The shop is connected to a cloud project in every test below.
+vi.mock('./data/supabaseConfig', async importActual => ({
+  ...(await importActual<typeof import('./data/supabaseConfig')>()),
+  isSupabaseConfigured: true,
+}))
 
 import { BelumMasukError } from './data/sync'
 import App from './App'
@@ -87,6 +93,8 @@ describe('App: sync follows the owner signing in and out', () => {
     let finish: () => void = () => {}
     h.runSync.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve }))
     render(<App />)
+    // The sync code loads lazily; the listener is registered before the first sync starts.
+    await waitFor(() => expect(h.runSync).toHaveBeenCalledTimes(1))
     await act(async () => { h.listener!('SIGNED_OUT') })
     expect(await screen.findByText(/^Belum masuk/)).toBeInTheDocument()
 
@@ -101,6 +109,7 @@ describe('App: sync follows the owner signing in and out', () => {
     h.runSync.mockReturnValueOnce(new Promise<void>((_, reject) => { failOld = reject }))
     h.runSync.mockResolvedValue(undefined)
     render(<App />)
+    await waitFor(() => expect(h.runSync).toHaveBeenCalledTimes(1))
 
     await act(async () => { h.listener!('SIGNED_IN') })
     expect(await screen.findByText('Tersinkron')).toBeInTheDocument()
@@ -113,6 +122,42 @@ describe('App: sync follows the owner signing in and out', () => {
 })
 
 describe('App: the reminder to sign in', () => {
+  // A plain in-memory Storage, as in tundaStore.test.ts: independent of how the
+  // host jsdom/Node pair wires up the real localStorage.
+  beforeEach(() => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => { store.set(key, value) },
+      removeItem: (key: string) => { store.delete(key) },
+    })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('stays closed for the rest of the day once closed, across a reload', async () => {
+    const user = userEvent.setup()
+    h.runSync.mockRejectedValue(new BelumMasukError())
+    const { unmount } = render(<App />)
+
+    const reminder = await screen.findByRole('region', { name: 'Belum masuk' })
+    await user.click(within(reminder).getByRole('button', { name: /Tutup pengingat masuk/ }))
+    expect(screen.queryByRole('region', { name: 'Belum masuk' })).toBeNull()
+    expect(await screen.findByText(/Pengingat muncul lagi besok/)).toBeInTheDocument()
+
+    unmount()
+    render(<App />)
+    await screen.findByText(/^Belum masuk/) // still not signed in
+    expect(screen.queryByRole('region', { name: 'Belum masuk' })).toBeNull()
+  })
+
+  it('comes back on a later day', async () => {
+    localStorage.setItem('toko-pengingat-masuk-ditutup', '2000-01-01')
+    h.runSync.mockRejectedValue(new BelumMasukError())
+    render(<App />)
+
+    expect(await screen.findByRole('region', { name: 'Belum masuk' })).toBeInTheDocument()
+  })
+
   it('asks the owner to sign in while not signed in, and stops asking once signed in', async () => {
     h.runSync.mockRejectedValueOnce(new BelumMasukError())
     render(<App />)

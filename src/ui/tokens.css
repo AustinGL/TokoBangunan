@@ -97,6 +97,9 @@
 
   --glass-bg: rgba(255, 255, 255, .72);
   --glass-bg-strong: rgba(255, 255, 255, .86);
+  /* The phone tab capsule floats over busy lists (prices, red stock pills),
+     which bled through at .72 and made the labels hard to read. */
+  --glass-bg-nav: rgba(255, 255, 255, .94);
   --glass-border: rgba(255, 255, 255, .6);
   --glass-highlight: inset 0 .5px 0 rgba(255, 255, 255, .9);
 
@@ -276,8 +279,11 @@ button:not(:disabled), summary { cursor: pointer; }
   -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
+/* Phone bar: the same material, nearly opaque. */
+.glass-panel.glass-nav { background: var(--glass-bg-nav); }
+
 @supports not (backdrop-filter: blur(1px)) {
-  .glass-panel { background: rgba(255, 255, 255, .95); }
+  .glass-panel, .glass-panel.glass-nav { background: rgba(255, 255, 255, .95); }
 }
 
 /* Inset-grouped list rows: the hairline starts after the leading icon. */
@@ -354,6 +360,12 @@ dialog[data-sheet][open] {
     display var(--dur-panel) allow-discrete;
 }
 dialog[data-sheet][data-variant='center'] { --sheet-from: scale(.96); }
+/* A modal dialog does not stop the page behind it from scrolling, and on a
+   phone a drag on the scrim moved the list underneath. Phones only: there
+   scrollbars overlay, so hiding the page's does not shift the layout. */
+@media (max-width: 767px) {
+  html:has(dialog[data-sheet][open]) { overflow: hidden; }
+}
 @media (min-width: 768px) {
   dialog[data-sheet][data-variant='side'] { --sheet-from: translateX(32px); }
 }

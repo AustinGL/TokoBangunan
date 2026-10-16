@@ -17,8 +17,8 @@ vi.mock('../data/sync', async () => ({
 // These tests simulate a configured shop whose network is down. Without this
 // the test environment has no .env, which the app (correctly) treats as
 // local-only and never attempts a sync at all.
-vi.mock('../data/supabase', async () => ({
-  ...(await vi.importActual<object>('../data/supabase')),
+vi.mock('../data/supabaseConfig', async () => ({
+  ...(await vi.importActual<object>('../data/supabaseConfig')),
   isSupabaseConfigured: true,
 }))
 
